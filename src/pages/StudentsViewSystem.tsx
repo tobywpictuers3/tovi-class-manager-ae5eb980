@@ -10,6 +10,7 @@ import BackButton from '@/components/ui/back-button';
 import { Badge } from '@/components/ui/badge';
 import { calculateEnhancedLessonNumber } from '@/lib/lessonNumbering';
 import { PrintPDFButton } from '@/components/ui/print-pdf-button';
+import { SaveButton } from '@/components/ui/save-button';
 
 const StudentsViewSystem = () => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -189,7 +190,10 @@ const StudentsViewSystem = () => {
                 <h1 className="text-3xl font-bold text-primary crown-glow">
                   מערכת שיעורי נגינה - טובי וינברג
                 </h1>
-                <PrintPDFButton contentId="lessons-journal" tabName="יומן שיעורים" />
+                <div className="flex gap-2">
+                  <SaveButton />
+                  <PrintPDFButton contentId="lessons-journal" tabName="יומן שיעורים" />
+                </div>
               </div>
             </CardHeader>
           </Card>

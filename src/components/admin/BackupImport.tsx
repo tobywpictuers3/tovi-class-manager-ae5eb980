@@ -388,12 +388,34 @@ const BackupImport = () => {
             <div>
               <Label>הורדת גיבוי</Label>
               <p className="text-sm text-muted-foreground mb-2">
-                הורדה ידנית או אוטומטית בסגירת האפליקציה
+                יורד קובץ JSON עם כל הנתונים מהמערכת
               </p>
               <Button onClick={downloadLocalBackup} disabled={isLoading}>
                 <Download className="h-4 w-4 ml-2" />
-                הורד גיבוי כעת
+                הורד גיבוי מקומי
               </Button>
+            </div>
+
+            <div className="p-4 bg-muted/50 rounded-lg space-y-2 mt-4">
+              <p className="text-sm font-medium">
+                🔄 גיבויים אוטומטיים
+              </p>
+              <p className="text-sm text-muted-foreground mb-2">
+                <strong>שמירה אוטומטית לדרופבוקס:</strong>
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1 mr-4 mb-3">
+                <li>• כל 30 דקות אוטומטית</li>
+                <li>• אחרי כל שינוי בנתונים</li>
+                <li>• בכל פעם שמתקבלת בקשת החלפה</li>
+              </ul>
+              <p className="text-sm text-muted-foreground mb-2">
+                <strong>הורדה מקומית למחשב:</strong>
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1 mr-4">
+                <li>• בלחיצה על כפתור "שמור שינויים" (בראש הדף)</li>
+                <li>• בסגירת האפליקציה</li>
+                <li>• בלחיצה ידנית על "הורד גיבוי מקומי"</li>
+              </ul>
             </div>
           </div>
         </CardContent>

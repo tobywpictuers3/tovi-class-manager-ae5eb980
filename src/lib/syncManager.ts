@@ -1,5 +1,4 @@
-// Cloudflare Worker endpoint
-const WORKER_ENDPOINT = "https://lovable-dropbox-api.w0504124161.workers.dev/";
+import { workerApi } from './workerApi';
 
 interface SyncManager {
   loadDataOnInit: () => Promise<void>;
@@ -46,35 +45,26 @@ class SyncManagerImpl implements SyncManager {
     this.startCalendarSync();
   }
 
-  // Load data from Cloudflare Worker
+  // Load data from Cloudflare Worker using workerApi
   private async loadFromWorker(): Promise<any | null> {
     try {
       console.info('Loading data from Cloudflare Worker...');
       
-      const response = await fetch(`${WORKER_ENDPOINT}?action=load`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        }
-      });
+      const result = await workerApi.loadData();
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          console.info('No data found in Worker - this is normal for first use');
-          return null;
-        }
-        const errorText = await response.text();
-        throw new Error(`Worker request failed: ${response.status} - ${errorText}`);
+      if (!result.success) {
+        console.info('No data found in Worker - this is normal for first use');
+        return null;
       }
 
-      const data = await response.json();
+      const data = result.data;
       
       if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
         console.info('No data available from Worker');
         return null;
       }
       
-      console.log('Data successfully loaded from Cloudflare Worker');
+      console.log('✅ Data successfully loaded from Cloudflare Worker');
       return data;
     } catch (error) {
       console.error('Failed to load from Worker:', error);
@@ -82,23 +72,16 @@ class SyncManagerImpl implements SyncManager {
     }
   }
 
-  // Save data to Cloudflare Worker
+  // Save data to Cloudflare Worker using workerApi
   private async saveToWorker(myData: any): Promise<boolean> {
     try {
-      const response = await fetch(`${WORKER_ENDPOINT}?action=update`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(myData)
-      });
+      const result = await workerApi.saveData(myData);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Worker upload failed: ${response.status} - ${errorText}`);
+      if (!result.success) {
+        throw new Error('Worker upload failed');
       }
 
-      console.log('Data successfully saved to Cloudflare Worker');
+      console.log('✅ Data successfully saved to Cloudflare Worker');
       return true;
     } catch (error) {
       console.error('Failed to save to Worker:', error);
@@ -107,50 +90,14 @@ class SyncManagerImpl implements SyncManager {
   }
 
   private setupAppCloseBackup(): void {
-    // Handle beforeunload (browser close/refresh)
+    // Handle beforeunload (browser close/refresh) - only local download
     window.addEventListener('beforeunload', () => {
-      this.downloadSonataBackup();
-    });
-
-    // Handle visibility change (when app goes to background)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') {
-        this.downloadSonataBackup();
-      }
-    });
-
-    // Handle page hide (when navigating away)
-    window.addEventListener('pagehide', () => {
-      this.downloadSonataBackup();
+      this.downloadLocalBackup();
     });
   }
 
-  startPeriodicBackup(): void {
-    // Clear existing interval if any
-    if (this.backupInterval) {
-      clearInterval(this.backupInterval);
-    }
-
-    // Set up 30-minute interval (30 * 60 * 1000 milliseconds)
-    this.backupInterval = setInterval(() => {
-      console.log('Performing scheduled 30-minute backup...');
-      this.downloadSonataBackup();
-    }, 30 * 60 * 1000);
-  }
-
-  stopPeriodicBackup(): void {
-    if (this.backupInterval) {
-      clearInterval(this.backupInterval);
-      this.backupInterval = null;
-    }
-  }
-
-  onSwapRequestReceived(): void {
-    console.log('Swap request received - triggering automatic backup...');
-    this.downloadSonataBackup();
-  }
-
-  downloadSonataBackup(): void {
+  // Download local backup file only (no Dropbox save)
+  private downloadLocalBackup(): void {
     try {
       const students = JSON.parse(localStorage.getItem('musicSystem_students') || '[]');
       const lessons = JSON.parse(localStorage.getItem('musicSystem_lessons') || '[]');
@@ -171,9 +118,8 @@ class SyncManagerImpl implements SyncManager {
         timestamp: new Date().toISOString()
       };
 
-      // Create filename with "סונטה" + timestamp
       const now = new Date();
-      const year = now.getFullYear().toString().slice(-2); // Last 2 digits of year
+      const year = now.getFullYear().toString().slice(-2);
       const month = (now.getMonth() + 1).toString().padStart(2, '0');
       const day = now.getDate().toString().padStart(2, '0');
       const hour = now.getHours().toString().padStart(2, '0');
@@ -192,13 +138,40 @@ class SyncManagerImpl implements SyncManager {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      console.log(`Automatic backup created: ${filename}`);
-      
-      // גם שומר ל-Worker
-      this.autoSaveToWorker();
+      console.log(`Local backup created: ${filename}`);
     } catch (error) {
-      console.error('Failed to create automatic backup:', error);
+      console.error('Failed to create local backup:', error);
     }
+  }
+
+  startPeriodicBackup(): void {
+    // Clear existing interval if any
+    if (this.backupInterval) {
+      clearInterval(this.backupInterval);
+    }
+
+    // Set up 30-minute interval - save to Dropbox only (no local download)
+    this.backupInterval = setInterval(() => {
+      console.log('Performing scheduled 30-minute Dropbox backup...');
+      this.autoSaveToWorker();
+    }, 30 * 60 * 1000);
+  }
+
+  stopPeriodicBackup(): void {
+    if (this.backupInterval) {
+      clearInterval(this.backupInterval);
+      this.backupInterval = null;
+    }
+  }
+
+  onSwapRequestReceived(): void {
+    console.log('Swap request received - triggering automatic Dropbox backup...');
+    this.autoSaveToWorker();
+  }
+
+  // Manual download for use in BackupImport component
+  downloadSonataBackup(): void {
+    this.downloadLocalBackup();
   }
 
   // טעינת נתונים מ-Cloudflare Worker בעת טעינת האפליקציה
@@ -324,66 +297,14 @@ class SyncManagerImpl implements SyncManager {
     }
   }
 
-  // Google Calendar Integration
+  // Google Calendar Integration (currently disabled - can be implemented later)
   async sendCalendarEvent(eventData: CalendarEventData): Promise<void> {
-    try {
-      console.log('Sending calendar event to Worker:', eventData);
-      
-      const response = await fetch(`${WORKER_ENDPOINT}?action=calendar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(eventData)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Calendar event failed: ${response.status} - ${errorText}`);
-      }
-
-      console.log('Calendar event sent successfully');
-    } catch (error) {
-      console.error('Failed to send calendar event:', error);
-    }
+    console.log('Calendar events not implemented yet:', eventData);
   }
 
   private async syncFromCalendar(): Promise<void> {
     try {
-      console.log('Syncing from Google Calendar...');
-      
-      const response = await fetch(`${WORKER_ENDPOINT}?action=calendar-sync`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Calendar sync failed: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-      
-      if (data && data.updates) {
-        // Apply updates from Google Calendar
-        if (data.updates.lessons) {
-          const currentLessons = JSON.parse(localStorage.getItem('musicSystem_lessons') || '[]');
-          // Merge lessons from calendar
-          const updatedLessons = this.mergeLessonsFromCalendar(currentLessons, data.updates.lessons);
-          localStorage.setItem('musicSystem_lessons', JSON.stringify(updatedLessons));
-        }
-        
-        if (data.updates.performances) {
-          const currentPerformances = JSON.parse(localStorage.getItem('musicSystem_performances') || '[]');
-          // Merge performances from calendar
-          const updatedPerformances = this.mergePerformancesFromCalendar(currentPerformances, data.updates.performances);
-          localStorage.setItem('musicSystem_performances', JSON.stringify(updatedPerformances));
-        }
-        
-        console.log('Calendar sync completed successfully');
-      }
+      console.log('Calendar sync not implemented yet - feature disabled');
     } catch (error) {
       console.error('Failed to sync from calendar:', error);
     }

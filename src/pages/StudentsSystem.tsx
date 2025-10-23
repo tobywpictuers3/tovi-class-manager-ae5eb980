@@ -10,6 +10,7 @@ import { toast } from '@/hooks/use-toast';
 import StudentWeeklySchedule from '@/components/student/StudentWeeklySchedule';
 import SwapRequestForm from '@/components/student/SwapRequestForm';
 import BackButton from '@/components/ui/back-button';
+import { SaveButton } from '@/components/ui/save-button';
 
 const StudentsSystem = () => {
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
@@ -36,7 +37,10 @@ const StudentsSystem = () => {
           <Card className="card-gradient card-shadow">
             <CardHeader>
               <div className="flex justify-between items-center">
-                <BackButton to="/" label="חזור לדף הבית" />
+                <div className="flex gap-2">
+                  <BackButton to="/" label="חזור לדף הבית" />
+                  <SaveButton />
+                </div>
                 <h1 className="text-3xl font-bold text-primary crown-glow">
                   איזור התלמידות - מערכת שיעורי נגינה
                 </h1>

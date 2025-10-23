@@ -8,6 +8,7 @@ import { setCurrentUser, getCurrentUser } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
 import { syncManager } from '@/lib/syncManager';
 import { PrintPDFButton } from '@/components/ui/print-pdf-button';
+import { SaveButton } from '@/components/ui/save-button';
 
 // Import components
 import StudentsManagement from '@/components/admin/StudentsManagement';
@@ -63,6 +64,7 @@ const AdminDashboard = () => {
                 דשבורד ניהול - מערכת שיעורי נגינה
               </h1>
               <div className="flex gap-2">
+                <SaveButton />
                 <PrintPDFButton contentId="main-content" tabName={getTabName(activeTab)} />
                 <Button
                   onClick={handleLogout}

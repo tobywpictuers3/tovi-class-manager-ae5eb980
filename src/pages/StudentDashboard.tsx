@@ -18,6 +18,7 @@ import PaymentAlert from '@/components/student/PaymentAlert';
 import PaymentSummary from '@/components/student/PaymentSummary';
 import LessonHistory from '@/components/student/LessonHistory';
 import BackButton from '@/components/ui/back-button';
+import { SaveButton } from '@/components/ui/save-button';
 
 const StudentDashboard = () => {
   const { studentId } = useParams<{ studentId: string }>();
@@ -73,7 +74,10 @@ const StudentDashboard = () => {
         <Card className="card-gradient card-shadow">
           <CardHeader>
             <div className="flex justify-between items-center">
-              <BackButton to="/" label="חזור לדף הבית" />
+              <div className="flex gap-2">
+                <BackButton to="/" label="חזור לדף הבית" />
+                <SaveButton />
+              </div>
               <CardTitle className="text-3xl flex items-center gap-3 text-primary crown-glow">
                 <User className="h-8 w-8" />
                 אזור אישי - {student.firstName} {student.lastName}
