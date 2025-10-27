@@ -1,4 +1,4 @@
-import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleTemplate, IntegrationSettings, Performance, OneTimePayment, Holiday } from './types';
+import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleTemplate, IntegrationSettings, Performance, OneTimePayment, Holiday, PracticeSession } from './types';
 import { syncManager } from './syncManager';
 
 // Utility function to simulate server-side ID generation
@@ -559,4 +559,52 @@ export const deleteHoliday = (date: string): boolean => {
 export const isHoliday = (date: string): boolean => {
   const holidays = getHolidays();
   return holidays.some(h => h.date === date);
+};
+
+// Practice Sessions
+export const getPracticeSessions = (): PracticeSession[] => {
+  const stored = localStorage.getItem('musicSystem_practiceSessions');
+  return stored ? JSON.parse(stored) : [];
+};
+
+export const getStudentPracticeSessions = (studentId: string): PracticeSession[] => {
+  const sessions = getPracticeSessions();
+  return sessions.filter(s => s.studentId === studentId).sort((a, b) => 
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+};
+
+export const addPracticeSession = (session: Omit<PracticeSession, 'id' | 'createdAt'>): PracticeSession => {
+  const sessions = getPracticeSessions();
+  const newSession: PracticeSession = {
+    ...session,
+    id: generateId(),
+    createdAt: new Date().toISOString(),
+  };
+  sessions.push(newSession);
+  localStorage.setItem('musicSystem_practiceSessions', JSON.stringify(sessions));
+  syncManager.onUserAction('update');
+  return newSession;
+};
+
+export const updatePracticeSession = (id: string, updatedFields: Partial<PracticeSession>): PracticeSession | undefined => {
+  const sessions = getPracticeSessions();
+  const index = sessions.findIndex(s => s.id === id);
+  if (index === -1) return undefined;
+  
+  sessions[index] = { ...sessions[index], ...updatedFields };
+  localStorage.setItem('musicSystem_practiceSessions', JSON.stringify(sessions));
+  syncManager.onUserAction('update');
+  return sessions[index];
+};
+
+export const deletePracticeSession = (id: string): boolean => {
+  const sessions = getPracticeSessions();
+  const updatedSessions = sessions.filter(s => s.id !== id);
+  if (updatedSessions.length === sessions.length) {
+    return false;
+  }
+  localStorage.setItem('musicSystem_practiceSessions', JSON.stringify(updatedSessions));
+  syncManager.onUserAction('update');
+  return true;
 };

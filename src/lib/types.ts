@@ -136,3 +136,13 @@ export interface Holiday {
   description?: string;
   createdAt: string;
 }
+
+export interface PracticeSession {
+  id: string;
+  studentId: string;
+  date: string; // YYYY-MM-DD format
+  startTime?: string; // HH:MM - optional for manual entry
+  endTime?: string; // HH:MM - optional for manual entry
+  durationMinutes: number; // total minutes
+  createdAt: string;
+}

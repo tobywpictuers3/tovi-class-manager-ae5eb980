@@ -11,6 +11,7 @@ import { getStudents, addStudent, updateStudent, deleteStudent } from '@/lib/sto
 import { Student } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import StudentLessonHistory from './StudentLessonHistory';
+import PracticeStats from './PracticeStats';
 
 const StudentsManagement = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -238,6 +239,7 @@ const StudentsManagement = () => {
                         <p>📅 תחילה: {new Date(student.startDate).toLocaleDateString('he-IL')}</p>
                         <p>💰 ₪{student.monthlyAmount}/חודש</p>
                       </div>
+                      <PracticeStats studentId={student.id} />
                       <div className="flex gap-2 pt-2">
                         <Button
                           size="sm"
