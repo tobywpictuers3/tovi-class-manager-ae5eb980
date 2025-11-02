@@ -146,3 +146,22 @@ export interface PracticeSession {
   durationMinutes: number; // total minutes
   createdAt: string;
 }
+
+export interface MonthlyAchievement {
+  id: string;
+  studentId: string;
+  month: string; // YYYY-MM
+  maxDailyAverage: number;
+  maxDailyMinutes: number;
+  maxStreak: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LeaderboardEntry {
+  studentId: string;
+  studentName: string;
+  dailyAverage: number;
+  maxDailyMinutes: number;
+  maxStreak: number;
+}

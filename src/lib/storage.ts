@@ -1,4 +1,4 @@
-import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleTemplate, IntegrationSettings, Performance, OneTimePayment, Holiday, PracticeSession } from './types';
+import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleTemplate, IntegrationSettings, Performance, OneTimePayment, Holiday, PracticeSession, MonthlyAchievement, LeaderboardEntry } from './types';
 import { syncManager } from './syncManager';
 
 // Utility function to simulate server-side ID generation
@@ -607,4 +607,83 @@ export const deletePracticeSession = (id: string): boolean => {
   localStorage.setItem('musicSystem_practiceSessions', JSON.stringify(updatedSessions));
   syncManager.onUserAction('update');
   return true;
+};
+
+// Monthly Achievements
+export const getMonthlyAchievements = (): MonthlyAchievement[] => {
+  try {
+    const data = localStorage.getItem('musicSystem_monthlyAchievements');
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('Error loading monthly achievements:', error);
+    return [];
+  }
+};
+
+export const getStudentMonthlyAchievements = (studentId: string): MonthlyAchievement[] => {
+  const achievements = getMonthlyAchievements();
+  return achievements.filter(a => a.studentId === studentId);
+};
+
+export const getCurrentMonthAchievement = (studentId: string): MonthlyAchievement | null => {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const achievements = getMonthlyAchievements();
+  return achievements.find(a => a.studentId === studentId && a.month === currentMonth) || null;
+};
+
+export const updateMonthlyAchievement = (
+  studentId: string,
+  updates: { maxDailyAverage?: number; maxDailyMinutes?: number; maxStreak?: number }
+): void => {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const achievements = getMonthlyAchievements();
+  const index = achievements.findIndex(a => a.studentId === studentId && a.month === currentMonth);
+  
+  if (index !== -1) {
+    const current = achievements[index];
+    achievements[index] = {
+      ...current,
+      maxDailyAverage: Math.max(current.maxDailyAverage, updates.maxDailyAverage || 0),
+      maxDailyMinutes: Math.max(current.maxDailyMinutes, updates.maxDailyMinutes || 0),
+      maxStreak: Math.max(current.maxStreak, updates.maxStreak || 0),
+      updatedAt: new Date().toISOString(),
+    };
+  } else {
+    const newAchievement: MonthlyAchievement = {
+      id: generateId(),
+      studentId,
+      month: currentMonth,
+      maxDailyAverage: updates.maxDailyAverage || 0,
+      maxDailyMinutes: updates.maxDailyMinutes || 0,
+      maxStreak: updates.maxStreak || 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    achievements.push(newAchievement);
+  }
+  
+  localStorage.setItem('musicSystem_monthlyAchievements', JSON.stringify(achievements));
+  syncManager.onUserAction('update');
+};
+
+export const getCurrentMonthLeaderboard = (): LeaderboardEntry[] => {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const achievements = getMonthlyAchievements().filter(a => a.month === currentMonth);
+  const students = getStudents();
+  
+  return achievements
+    .map(a => {
+      const student = students.find(s => s.id === a.studentId);
+      if (!student) return null;
+      
+      return {
+        studentId: a.studentId,
+        studentName: `${student.firstName} ${student.lastName}`,
+        dailyAverage: a.maxDailyAverage,
+        maxDailyMinutes: a.maxDailyMinutes,
+        maxStreak: a.maxStreak,
+      };
+    })
+    .filter((entry): entry is LeaderboardEntry => entry !== null)
+    .sort((a, b) => b.dailyAverage - a.dailyAverage);
 };

@@ -5,12 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Clock, Trophy, Sparkles } from 'lucide-react';
-import { getPracticeSessions, addPracticeSession, getStudentPracticeSessions } from '@/lib/storage';
+import { Play, Square, Clock, Trophy, Sparkles, TrendingUp } from 'lucide-react';
+import { getPracticeSessions, addPracticeSession, getStudentPracticeSessions, updateMonthlyAchievement, getStudents, getLessons } from '@/lib/storage';
 import { PracticeSession } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import confetti from 'canvas-confetti';
 import { CelebrationToast } from './CelebrationToast';
+import PracticeLeaderboard from './PracticeLeaderboard';
+import MonthlyAchievements from './MonthlyAchievements';
 
 interface PracticeTrackingProps {
   studentId: string;
@@ -98,6 +100,9 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
     }
 
     showStreakCongrats(streak);
+    
+    // Update monthly achievement with max streak
+    updateMonthlyAchievement(studentId, { maxStreak: streak });
   };
 
   const showStreakCongrats = (streak: number) => {
@@ -161,6 +166,9 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
     if (message) {
       showCelebration(message, medal);
     }
+    
+    // Update monthly achievement with max daily minutes
+    updateMonthlyAchievement(studentId, { maxDailyMinutes: totalMinutes });
   };
 
   const showCelebration = (message: string, medal: string) => {
@@ -283,6 +291,64 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
       .reduce((sum, s) => sum + s.durationMinutes, 0);
   };
 
+  const calculateDailyAverage = () => {
+    // Get student's lessons to find the period between lessons
+    const lessons = getLessons().filter(l => l.studentId === studentId && l.status === 'completed');
+    if (lessons.length < 2) return 0;
+
+    // Sort lessons by date
+    const sortedLessons = lessons.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    // Get the last two lessons to define the "week"
+    const lastLesson = sortedLessons[sortedLessons.length - 1];
+    const previousLesson = sortedLessons[sortedLessons.length - 2];
+    
+    // Calculate the period: from day after previous lesson to last lesson (inclusive)
+    const startDate = new Date(previousLesson.date);
+    startDate.setDate(startDate.getDate() + 1);
+    const endDate = new Date(lastLesson.date);
+    
+    // Get practice sessions in this period
+    const periodSessions = sessions.filter(s => {
+      const sessionDate = new Date(s.date);
+      return sessionDate >= startDate && sessionDate <= endDate;
+    });
+    
+    if (periodSessions.length === 0) return 0;
+    
+    // Calculate total minutes
+    const totalMinutes = periodSessions.reduce((sum, s) => sum + s.durationMinutes, 0);
+    
+    // Calculate "practice days" according to the rule:
+    // Sunday-Thursday: each day counts as 1 day
+    // Friday + Saturday: together count as 1 day
+    const practiceDaysSet = new Set<string>();
+    periodSessions.forEach(s => {
+      const date = new Date(s.date);
+      const dayOfWeek = date.getDay();
+      
+      if (dayOfWeek === 5 || dayOfWeek === 6) {
+        // Friday or Saturday - group them together
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - dayOfWeek);
+        practiceDaysSet.add(`weekend-${weekStart.toISOString().split('T')[0]}`);
+      } else {
+        // Sunday-Thursday - each day separate
+        practiceDaysSet.add(s.date);
+      }
+    });
+    
+    const practiceDays = practiceDaysSet.size;
+    if (practiceDays === 0) return 0;
+    
+    const average = totalMinutes / practiceDays;
+    
+    // Update monthly achievement
+    updateMonthlyAchievement(studentId, { maxDailyAverage: average });
+    
+    return average;
+  };
+
   return (
     <>
       {activeCelebration && (
@@ -371,20 +437,42 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
         </CardContent>
       </Card>
 
-      {/* Weekly Summary */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-yellow-500" />
-              <span className="text-lg font-semibold">סה"כ שבועי:</span>
+      {/* Weekly Summary & Daily Average */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-yellow-500" />
+                <span className="text-lg font-semibold">סה"כ שבועי:</span>
+              </div>
+              <Badge variant="secondary" className="text-lg px-4 py-2">
+                {getWeeklyTotal()} דקות
+              </Badge>
             </div>
-            <Badge variant="secondary" className="text-lg px-4 py-2">
-              {getWeeklyTotal()} דקות
-            </Badge>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-blue-500" />
+                <span className="text-lg font-semibold">ממוצע יומי:</span>
+              </div>
+              <Badge variant="secondary" className="text-lg px-4 py-2">
+                {calculateDailyAverage().toFixed(1)} דקות
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Leaderboard */}
+      <PracticeLeaderboard />
+
+      {/* Monthly Achievements */}
+      <MonthlyAchievements studentId={studentId} />
 
       {/* Daily History */}
       <Card>
