@@ -11,7 +11,11 @@ interface StudentWeeklyScheduleProps {
 
 const StudentWeeklySchedule = ({ studentId }: StudentWeeklyScheduleProps) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
-  const lessons = getLessons().filter(lesson => lesson.studentId === studentId);
+  const allLessons = getLessons();
+  const lessons = allLessons.filter(lesson => 
+    lesson.studentId === studentId && 
+    lesson.status !== 'no_show' // Hide no-show lessons from student view
+  );
   const students = getStudents();
   const student = students.find(s => s.id === studentId);
 
@@ -35,7 +39,16 @@ const StudentWeeklySchedule = ({ studentId }: StudentWeeklyScheduleProps) => {
 
   const getLessonsForDay = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
-    return lessons.filter(lesson => lesson.date === dateStr);
+    const today = new Date().toISOString().split('T')[0];
+    
+    return lessons
+      .filter(lesson => lesson.date === dateStr)
+      .sort((a, b) => {
+        // Show future lessons first, then completed
+        if (a.date >= today && b.date < today) return -1;
+        if (a.date < today && b.date >= today) return 1;
+        return a.startTime.localeCompare(b.startTime);
+      });
   };
 
   const handlePrevWeek = () => {
@@ -98,53 +111,64 @@ const StudentWeeklySchedule = ({ studentId }: StudentWeeklyScheduleProps) => {
         <div className="space-y-4">
           {weekDates.map((date, index) => {
             const dayLessons = getLessonsForDay(date);
+            const today = new Date().toISOString().split('T')[0];
+            const dateStr = date.toISOString().split('T')[0];
+            const isFutureDay = dateStr >= today;
 
             if (dayLessons.length === 0) return null;
 
             return (
-              <div key={date.toISOString()} className="p-4 bg-secondary/30 rounded-lg">
+              <div key={date.toISOString()} className={`p-4 rounded-lg ${
+                isFutureDay ? 'bg-primary/5 border-2 border-primary/20' : 'bg-secondary/30'
+              }`}>
                 <div className="flex justify-between items-center mb-3">
-                  <div className="font-semibold text-lg">
+                  <div className="font-semibold text-lg flex items-center gap-2">
                     {dayNames[index]} - {date.toLocaleDateString('he-IL')}
+                    {isFutureDay && (
+                      <Badge variant="outline" className="text-xs">
+                        קרוב
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 
                 <div className="space-y-2">
-                  {dayLessons
-                    .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                    .map((lesson) => {
+                  {dayLessons.map((lesson) => {
                       const currentDate = new Date().toISOString().split('T')[0];
-                      const isFuture = lesson.date > currentDate;
+                      const isFuture = lesson.date >= currentDate;
                       const isCompleted = lesson.status === 'completed';
+                      const isCancelled = lesson.status === 'cancelled';
                       
                       return (
                         <div
                           key={lesson.id}
-                          className={`flex justify-between items-center p-3 border rounded-lg ${
+                          className={`flex justify-between items-center p-3 border rounded-lg transition-all ${
                             isFuture 
-                              ? 'bg-muted/50 text-muted-foreground border-muted/30' 
+                              ? 'bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30 shadow-sm' 
                               : isCompleted 
-                                ? 'bg-blue-50 border-blue-200' 
-                                : 'bg-primary/10 border-primary/20'
+                                ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800' 
+                                : isCancelled
+                                  ? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
+                                  : 'bg-muted/50 border-muted'
                           }`}
                         >
                           <div className="space-y-1">
-                            <div className={`text-sm ${isFuture ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
+                            <div className={`font-medium ${isFuture ? 'text-primary' : ''}`}>
                               {lesson.startTime} - {lesson.endTime}
                             </div>
                             {lesson.notes && (
-                              <div className={`text-sm ${isFuture ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
+                              <div className="text-sm text-muted-foreground">
                                 {lesson.notes}
                               </div>
                             )}
                           </div>
-                          <div className="text-left">
-                            {getStatusBadge(lesson.status)}
+                          <div className="flex gap-2">
                             {lesson.isOneOff && (
-                              <Badge variant="outline" className="mr-2">
+                              <Badge variant="outline" className="text-xs">
                                 חד פעמי
                               </Badge>
                             )}
+                            {getStatusBadge(lesson.status)}
                           </div>
                         </div>
                       );
