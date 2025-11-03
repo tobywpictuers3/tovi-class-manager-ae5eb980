@@ -19,12 +19,9 @@ export const SaveButton = () => {
         throw new Error('שגיאה בסנכרון ל-Worker');
       }
 
-      // Also download local backup
-      hybridSync.downloadBackup();
-
       toast({
         title: '✅ השמירה הושלמה בהצלחה',
-        description: 'הנתונים סונכרנו ל-Worker והורדו גיבוי מקומי',
+        description: 'הנתונים סונכרנו ל-Worker',
       });
 
     } catch (error) {
