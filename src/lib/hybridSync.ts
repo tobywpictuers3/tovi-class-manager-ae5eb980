@@ -27,6 +27,7 @@ class HybridSyncManager {
   constructor() {
     this.setupNetworkListeners();
     this.startPeriodicSync();
+    this.setupUnloadListener();
   }
 
   /**
@@ -46,6 +47,24 @@ class HybridSyncManager {
   }
 
   /**
+   * Setup beforeunload listener to sync on close
+   */
+  private setupUnloadListener() {
+    window.addEventListener('beforeunload', () => {
+      if (this.syncState.isOnline && this.syncState.pendingChanges > 0) {
+        logger.info('💾 Saving to Worker on close...');
+        // Use sendBeacon for reliable sync on unload
+        const data = this.gatherAllData();
+        const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+        navigator.sendBeacon(
+          'https://lovable-dropbox-api.w0504124161.workers.dev/?action=upload_versioned',
+          blob
+        );
+      }
+    });
+  }
+
+  /**
    * Start periodic sync every 30 minutes
    */
   private startPeriodicSync() {
@@ -58,31 +77,39 @@ class HybridSyncManager {
 
   /**
    * Load data on app initialization
-   * Priority: Worker → localStorage cache
+   * Only loads from Worker on first tab open, not on refresh
    */
   async loadDataOnInit(): Promise<void> {
     try {
-      logger.info('🔄 Loading data (Worker as source of truth)...');
+      const SESSION_KEY = 'hybridSync_session';
+      const isFirstLoad = !sessionStorage.getItem(SESSION_KEY);
 
-      if (!this.syncState.isOnline) {
-        logger.warn('📦 Offline - loading from cache');
-        this.loadFromCache();
-        return;
-      }
+      if (isFirstLoad) {
+        logger.info('🔄 First load - checking Worker...');
+        sessionStorage.setItem(SESSION_KEY, 'active');
 
-      // Try to load from Worker first
-      const result = await workerApi.downloadLatest();
+        if (!this.syncState.isOnline) {
+          logger.warn('📦 Offline - loading from cache');
+          this.loadFromCache();
+          return;
+        }
 
-      if (result.success && result.data) {
-        logger.info('✅ Data loaded from Worker');
-        this.updateLocalStorage(result.data);
-        this.syncState.lastSyncTime = new Date().toISOString();
-      } else if (result.error === 'NO_VERSION_FOUND') {
-        logger.info('ℹ️ No version found on Worker - first time use');
-        // Try to load from cache if exists
-        this.loadFromCache();
+        // Load from Worker on first tab open
+        const result = await workerApi.downloadLatest();
+
+        if (result.success && result.data) {
+          logger.info('✅ Data loaded from Worker');
+          this.updateLocalStorage(result.data);
+          this.syncState.lastSyncTime = new Date().toISOString();
+        } else if (result.error === 'NO_VERSION_FOUND') {
+          logger.info('ℹ️ No version found on Worker');
+          this.loadFromCache();
+        } else {
+          logger.warn('⚠️ Worker load failed - using cache');
+          this.loadFromCache();
+        }
       } else {
-        logger.warn('⚠️ Worker load failed - using cache');
+        logger.info('🔄 Refresh detected - loading from cache');
         this.loadFromCache();
       }
     } catch (error) {
