@@ -7,6 +7,7 @@ import { Upload, Download, RefreshCw, Server, HardDrive, Cloud } from 'lucide-re
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { workerApi } from '@/lib/workerApi';
+import { logger } from '@/lib/logger';
 
 const BackupImport = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -15,55 +16,13 @@ const BackupImport = () => {
   const [lastBackupTime, setLastBackupTime] = useState<string>('');
 
   useEffect(() => {
-    // טעינה אוטומטית משרת 1 בעת פתיחת האפליקציה
+    // Load from server on init
     loadFromServer1();
     
-    // הגדרת גיבוי אוטומטי יומי ב-12:00 לשרת 1
-    const now = new Date();
-    const scheduled12 = new Date();
-    scheduled12.setHours(12, 0, 0, 0);
-    if (now > scheduled12) {
-      scheduled12.setDate(scheduled12.getDate() + 1);
-    }
-    const timeUntil12 = scheduled12.getTime() - now.getTime();
-    
-    const timer12 = setTimeout(() => {
-      backupToServer1();
-      // אחרי הגיבוי הראשון, הגדר גיבוי יומי
-      setInterval(backupToServer1, 24 * 60 * 60 * 1000);
-    }, timeUntil12);
-
-    // הגדרת גיבוי אוטומטי יומי ב-00:00 לשרת 2 (אם מוגדר)
-    if (server2Url) {
-      const scheduled00 = new Date();
-      scheduled00.setHours(0, 0, 0, 0);
-      if (now > scheduled00) {
-        scheduled00.setDate(scheduled00.getDate() + 1);
-      }
-      const timeUntil00 = scheduled00.getTime() - now.getTime();
-      
-      const timer00 = setTimeout(() => {
-        backupToServer2();
-        setInterval(backupToServer2, 24 * 60 * 60 * 1000);
-      }, timeUntil00);
-
-      return () => {
-        clearTimeout(timer12);
-        clearTimeout(timer00);
-      };
-    }
-
-    // גיבוי מקומי אוטומטי בסגירת אפליקציה
-    const handleBeforeUnload = () => {
-      downloadLocalBackup();
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      clearTimeout(timer12);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [server2Url]);
+    // REMOVED: Automatic daily backups - privacy requirement
+    // REMOVED: beforeunload automatic download - privacy requirement
+    // All saves are now manual only
+  }, []);
 
   const gatherAllData = () => {
     const data: Record<string, any> = {};
@@ -88,12 +47,12 @@ const BackupImport = () => {
       
       if (result.success) {
         setLastBackupTime(new Date().toLocaleString('he-IL'));
-        console.info('✅ Backup to Dropbox completed successfully');
+        logger.info('✅ Backup to Dropbox completed successfully');
       } else {
         throw new Error(result.error || 'Backup failed');
       }
     } catch (error) {
-      console.error('❌ Error backing up to Dropbox:', error);
+      logger.error('❌ Error backing up to Dropbox:', error);
       toast({
         title: 'שגיאה',
         description: 'שגיאה בשמירת גיבוי',
@@ -112,7 +71,7 @@ const BackupImport = () => {
           localStorage.setItem(key, typeof result.data[key] === 'string' ? result.data[key] : JSON.stringify(result.data[key]));
         });
         
-        console.info('✅ Data loaded from Dropbox successfully');
+        logger.info('✅ Data loaded from Dropbox successfully');
         toast({
           title: 'הצלחה',
           description: 'הנתונים נטענו בהצלחה'
@@ -121,7 +80,7 @@ const BackupImport = () => {
         throw new Error(result.error || 'Load failed');
       }
     } catch (error) {
-      console.error('❌ Error loading from Dropbox:', error);
+      logger.error('❌ Error loading from Dropbox:', error);
       toast({
         title: 'שגיאה',
         description: 'שגיאה בטעינת נתונים',
@@ -145,9 +104,9 @@ const BackupImport = () => {
 
       if (!response.ok) throw new Error('Backup to server 2 failed');
       
-      console.info('Backup to Server 2 completed successfully');
+      logger.info('Backup to Server 2 completed successfully');
     } catch (error) {
-      console.error('Error backing up to Server 2:', error);
+      logger.error('Error backing up to Server 2:', error);
     }
   };
 
@@ -253,7 +212,7 @@ const BackupImport = () => {
         try {
           localStorage.setItem(key, typeof data[key] === 'string' ? data[key] : JSON.stringify(data[key]));
         } catch (error) {
-          console.warn(`Could not import key: ${key}`, error);
+          logger.warn(`Could not import key: ${key}`, error);
         }
       });
 
@@ -282,10 +241,10 @@ const BackupImport = () => {
       {/* גיבוי 1 - Dropbox דרך Proxy מאובטח */}
       <Card className="card-gradient card-shadow">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
             <Cloud className="h-5 w-5" />
             גיבוי Dropbox מאובטח
-            <Badge variant="secondary">אוטומטי 12:00</Badge>
+            <Badge variant="secondary">ידני בלבד</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -317,7 +276,7 @@ const BackupImport = () => {
           <CardTitle className="flex items-center gap-2">
             <Server className="h-5 w-5" />
             גיבוי #2 - שרת 2
-            <Badge variant="secondary">אוטומטי 00:00</Badge>
+            <Badge variant="secondary">ידני בלבד</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -355,7 +314,7 @@ const BackupImport = () => {
           <CardTitle className="flex items-center gap-2">
             <HardDrive className="h-5 w-5" />
             גיבוי מקומי
-            <Badge variant="secondary">אוטומטי בסגירה</Badge>
+            <Badge variant="secondary">ידני בלבד</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -398,23 +357,23 @@ const BackupImport = () => {
 
             <div className="p-4 bg-muted/50 rounded-lg space-y-2 mt-4">
               <p className="text-sm font-medium">
-                🔄 גיבויים אוטומטיים
+                🔒 מדיניות פרטיות - כל הגיבויים ידניים בלבד
               </p>
               <p className="text-sm text-muted-foreground mb-2">
-                <strong>שמירה אוטומטית לדרופבוקס:</strong>
+                <strong>שמירה ל-Dropbox:</strong>
               </p>
               <ul className="text-sm text-muted-foreground space-y-1 mr-4 mb-3">
-                <li>• כל 30 דקות אוטומטית</li>
-                <li>• אחרי כל שינוי בנתונים</li>
-                <li>• בכל פעם שמתקבלת בקשת החלפה</li>
+                <li>• לחיצה ידנית על "שלח גיבוי" בלבד</li>
+                <li>• לחיצה על "שמור שינויים" בראש הדף</li>
+                <li>• אין שמירות אוטומטיות</li>
               </ul>
               <p className="text-sm text-muted-foreground mb-2">
                 <strong>הורדה מקומית למחשב:</strong>
               </p>
               <ul className="text-sm text-muted-foreground space-y-1 mr-4">
-                <li>• בלחיצה על כפתור "שמור שינויים" (בראש הדף)</li>
-                <li>• בסגירת האפליקציה</li>
-                <li>• בלחיצה ידנית על "הורד גיבוי מקומי"</li>
+                <li>• לחיצה על "הורד גיבוי מקומי" בלבד</li>
+                <li>• לחיצה על "שמור שינויים" (בראש הדף)</li>
+                <li>• אין הורדות אוטומטיות</li>
               </ul>
             </div>
           </div>

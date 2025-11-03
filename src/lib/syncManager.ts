@@ -1,4 +1,5 @@
 import { workerApi } from './workerApi';
+import { logger } from './logger';
 
 interface SyncManager {
   loadDataOnInit: () => Promise<void>;
@@ -20,35 +21,34 @@ class SyncManagerImpl implements SyncManager {
   private backupInterval: NodeJS.Timeout | null = null;
 
   constructor() {
-    // Setup automatic backup on app close (including unexpected close)
-    this.setupAppCloseBackup();
-    // Start periodic backup (every 30 minutes)
-    this.startPeriodicBackup();
+    // REMOVED: All automatic backups for privacy
+    // No beforeunload listener
+    // No periodic backup
   }
 
   // Load data from Cloudflare Worker using workerApi
   private async loadFromWorker(): Promise<any | null> {
     try {
-      console.info('Loading data from Cloudflare Worker...');
+      logger.info('Loading data from Cloudflare Worker...');
       
       const result = await workerApi.loadData();
 
       if (!result.success) {
-        console.info('No data found in Worker - this is normal for first use');
+        logger.info('No data found in Worker - this is normal for first use');
         return null;
       }
 
       const data = result.data;
       
       if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
-        console.info('No data available from Worker');
+        logger.info('No data available from Worker');
         return null;
       }
       
-      console.info('Data loaded from Worker');
+      logger.info('Data loaded from Worker');
       return data;
     } catch (error) {
-      console.error('Failed to load from Worker:', error);
+      logger.error('Failed to load from Worker:', error);
       return null;
     }
   }
@@ -62,23 +62,21 @@ class SyncManagerImpl implements SyncManager {
         throw new Error('Worker upload failed');
       }
 
-      console.info('Data saved to Worker');
+      logger.info('Data saved to Worker');
       return true;
     } catch (error) {
-      console.error('Failed to save to Worker:', error);
+      logger.error('Failed to save to Worker:', error);
       return false;
     }
   }
 
-  private setupAppCloseBackup(): void {
-    // Handle beforeunload (browser close/refresh) - only local download
-    window.addEventListener('beforeunload', () => {
-      this.downloadLocalBackup();
-    });
-  }
+  /**
+   * REMOVED: Automatic backup on browser close
+   * Only manual backups are allowed for privacy
+   */
 
-  // Download local backup file only (no Dropbox save)
-  private downloadLocalBackup(): void {
+  // Download local backup file - ONLY called manually from UI
+  downloadLocalBackup(): void {
     try {
       const students = JSON.parse(localStorage.getItem('musicSystem_students') || '[]');
       const lessons = JSON.parse(localStorage.getItem('musicSystem_lessons') || '[]');
@@ -119,33 +117,33 @@ class SyncManagerImpl implements SyncManager {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      
+      logger.info('Local backup downloaded');
     } catch (error) {
-      console.error('Failed to create local backup:', error);
+      logger.error('Failed to create local backup:', error);
     }
   }
 
+  /**
+   * REMOVED: Periodic automatic backup
+   * Only manual saves are allowed for privacy
+   */
   startPeriodicBackup(): void {
-    // Clear existing interval if any
-    if (this.backupInterval) {
-      clearInterval(this.backupInterval);
-    }
-
-    // Set up 30-minute interval - save to Dropbox only (no local download)
-    this.backupInterval = setInterval(() => {
-      this.autoSaveToWorker();
-    }, 30 * 60 * 1000);
+    // No automatic backups
   }
 
+  /**
+   * REMOVED: Stop periodic backup (not needed)
+   */
   stopPeriodicBackup(): void {
-    if (this.backupInterval) {
-      clearInterval(this.backupInterval);
-      this.backupInterval = null;
-    }
+    // No automatic backups
   }
 
+  /**
+   * REMOVED: Auto-save on swap request
+   * Only manual saves are allowed
+   */
   onSwapRequestReceived(): void {
-    this.autoSaveToWorker();
+    // No automatic saves
   }
 
   // Manual download for use in BackupImport component
@@ -156,7 +154,7 @@ class SyncManagerImpl implements SyncManager {
   // טעינת נתונים מ-Cloudflare Worker בעת טעינת האפליקציה
   async loadDataOnInit(): Promise<void> {
     try {
-      console.info('Loading data from Cloudflare Worker on init...');
+      logger.info('Loading data from Cloudflare Worker on init...');
       const data = await this.loadFromWorker();
       
       if (data && typeof data === 'object' && Object.keys(data).length > 0) {
@@ -169,54 +167,30 @@ class SyncManagerImpl implements SyncManager {
         if (data.scheduleTemplates) localStorage.setItem('musicSystem_scheduleTemplates', JSON.stringify(data.scheduleTemplates));
         if (data.integrationSettings) localStorage.setItem('musicSystem_integrationSettings', JSON.stringify(data.integrationSettings));
         
-        console.info('✅ Data loaded from Cloudflare Worker successfully');
+        logger.info('✅ Data loaded from Cloudflare Worker successfully');
       } else {
-        console.info('ℹ️ No data found in Worker, starting fresh');
+        logger.info('ℹ️ No data found in Worker, starting fresh');
       }
     } catch (error) {
-      console.warn('⚠️ Could not load from Worker:', error);
+      logger.warn('⚠️ Could not load from Worker:', error);
     }
   }
 
+  /**
+   * REMOVED: Auto-save on user action
+   * Only manual saves are allowed for privacy
+   */
   async onUserAction(action: string): Promise<void> {
-    switch (action) {
-      case 'update':
-      case 'create':
-      case 'delete':
-        // Auto-save to Worker on any data change
-        await this.autoSaveToWorker();
-        break;
-      default:
-        break;
-    }
+    logger.info(`User action: ${action}`);
+    // No automatic saves
   }
 
-  // Automatic save to Cloudflare Worker when data changes
+  /**
+   * REMOVED: Auto-save functionality
+   * Saves are now manual only via UI buttons
+   */
   private async autoSaveToWorker(): Promise<void> {
-    try {
-      const students = JSON.parse(localStorage.getItem('musicSystem_students') || '[]');
-      const lessons = JSON.parse(localStorage.getItem('musicSystem_lessons') || '[]');
-      const payments = JSON.parse(localStorage.getItem('musicSystem_payments') || '[]');
-      const swapRequests = JSON.parse(localStorage.getItem('musicSystem_swapRequests') || '[]');
-      const files = JSON.parse(localStorage.getItem('musicSystem_files') || '[]');
-      const scheduleTemplates = JSON.parse(localStorage.getItem('musicSystem_scheduleTemplates') || '[]');
-      const integrationSettings = JSON.parse(localStorage.getItem('musicSystem_integrationSettings') || '{}');
-
-      const allData = {
-        students,
-        lessons,
-        payments,
-        swapRequests,
-        files,
-        scheduleTemplates,
-        integrationSettings,
-        timestamp: new Date().toISOString()
-      };
-
-      await this.saveToWorker(allData);
-    } catch (error) {
-      console.error('Failed to auto-save to Worker:', error);
-    }
+    // No automatic saves
   }
 
   async importBackup(file: File): Promise<boolean> {
@@ -233,10 +207,10 @@ class SyncManagerImpl implements SyncManager {
       if (data.scheduleTemplates) localStorage.setItem('musicSystem_scheduleTemplates', JSON.stringify(data.scheduleTemplates));
       if (data.integrationSettings) localStorage.setItem('musicSystem_integrationSettings', JSON.stringify(data.integrationSettings));
       
-      
+      logger.info('Backup imported successfully');
       return true;
     } catch (error) {
-      console.error('Failed to import backup:', error);
+      logger.error('Failed to import backup:', error);
       return false;
     }
   }
@@ -272,7 +246,7 @@ class SyncManagerImpl implements SyncManager {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Failed to download backup:', error);
+      logger.error('Failed to download backup:', error);
     }
   }
 

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Save, Cloud, Loader2 } from 'lucide-react';
 import { workerApi } from '@/lib/workerApi';
 import { toast } from '@/hooks/use-toast';
+import { logger } from '@/lib/logger';
 
 export const SaveButton = () => {
   const [isSaving, setIsSaving] = useState(false);
@@ -53,7 +54,7 @@ export const SaveButton = () => {
       });
 
     } catch (error) {
-      console.error('Save error:', error);
+      logger.error('Save error:', error);
       toast({
         title: '❌ שגיאה בשמירה',
         description: error instanceof Error ? error.message : 'אנא נסה שוב',

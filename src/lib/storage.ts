@@ -1,5 +1,6 @@
 import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleTemplate, IntegrationSettings, Performance, OneTimePayment, Holiday, PracticeSession, MonthlyAchievement, LeaderboardEntry, MedalRecord } from './types';
 import { syncManager } from './syncManager';
+import { logger } from './logger';
 
 // Utility function to simulate server-side ID generation
 const generateId = (): string => {
@@ -615,7 +616,7 @@ export const getMonthlyAchievements = (): MonthlyAchievement[] => {
     const data = localStorage.getItem('musicSystem_monthlyAchievements');
     return data ? JSON.parse(data) : [];
   } catch (error) {
-    console.error('Error loading monthly achievements:', error);
+    logger.error('Error loading monthly achievements:', error);
     return [];
   }
 };
@@ -694,7 +695,7 @@ export const getMedalRecords = (): MedalRecord[] => {
     const data = localStorage.getItem('musicSystem_medalRecords');
     return data ? JSON.parse(data) : [];
   } catch (error) {
-    console.error('Error loading medal records:', error);
+    logger.error('Error loading medal records:', error);
     return [];
   }
 };

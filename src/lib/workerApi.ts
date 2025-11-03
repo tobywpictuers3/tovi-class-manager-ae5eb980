@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 export const workerApi = {
   saveData: async (data: any) => {
     try {
@@ -18,15 +20,15 @@ export const workerApi = {
 
       if (!response.ok) {
         const text = await response.text();
-        console.info("Dropbox save failed");
+        logger.info("Dropbox save failed");
         return { success: false, error: text };
       }
 
       const result = await response.json();
-      console.info("Data saved to Dropbox");
+      logger.info("Data saved to Dropbox");
       return { success: true, data: result };
     } catch (error) {
-      console.info("Failed to reach Dropbox");
+      logger.info("Failed to reach Dropbox");
       return { success: false, error: (error as Error).message };
     }
   },
@@ -48,15 +50,15 @@ export const workerApi = {
 
       if (!response.ok) {
         const text = await response.text();
-        console.info("Dropbox load failed");
+        logger.info("Dropbox load failed");
         return { success: false, error: text };
       }
 
       const result = await response.json();
-      console.info("Data loaded from Dropbox");
+      logger.info("Data loaded from Dropbox");
       return { success: true, data: result };
     } catch (error) {
-      console.info("Failed to load from Dropbox");
+      logger.info("Failed to load from Dropbox");
       return { success: false, error: (error as Error).message };
     }
   },
