@@ -157,20 +157,17 @@ class HybridSyncManager {
   }
 
   /**
-   * Update localStorage with Worker data
+   * Update in-memory storage with Worker data
    */
   private updateLocalStorage(data: any) {
     try {
-      Object.keys(data).forEach(key => {
-        const value = data[key];
-        localStorage.setItem(
-          key,
-          typeof value === 'string' ? value : JSON.stringify(value)
-        );
+      // Import the storage functions dynamically to avoid circular dependency
+      import('./storage').then(({ initializeStorage }) => {
+        initializeStorage(data);
+        logger.info('💾 Memory updated from Worker');
       });
-      logger.info('💾 Cache updated from Worker');
     } catch (error) {
-      logger.error('❌ Cache update error:', error);
+      logger.error('❌ Memory update error:', error);
     }
   }
 
@@ -221,24 +218,12 @@ class HybridSyncManager {
   }
 
   /**
-   * Gather all data from localStorage
+   * Gather all data from in-memory storage
    */
   private gatherAllData(): any {
-    const data: Record<string, any> = {};
-
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key) {
-        try {
-          data[key] = JSON.parse(localStorage.getItem(key) || '');
-        } catch {
-          data[key] = localStorage.getItem(key);
-        }
-      }
-    }
-
-    data.timestamp = new Date().toISOString();
-    return data;
+    // Import the storage functions dynamically to avoid circular dependency
+    const { exportAllData } = require('./storage');
+    return exportAllData();
   }
 
   /**

@@ -16,6 +16,20 @@ root.innerHTML = `
   </div>
 `;
 
+// Clean up localStorage - keep only session data
+const cleanupLocalStorage = () => {
+  const keysToKeep = ['hybridSync_session'];
+  const allKeys = Object.keys(localStorage);
+  
+  allKeys.forEach(key => {
+    if (!keysToKeep.includes(key)) {
+      localStorage.removeItem(key);
+    }
+  });
+  
+  logger.info('🧹 localStorage cleaned - only session data kept');
+};
+
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -29,6 +43,11 @@ if ('serviceWorker' in navigator) {
     );
   });
 }
+
+// Clean localStorage on app close
+window.addEventListener('beforeunload', () => {
+  cleanupLocalStorage();
+});
 
 // Load data from Dropbox before starting the app
 async function initializeApp() {

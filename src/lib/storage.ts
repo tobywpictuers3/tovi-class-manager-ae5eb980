@@ -2,6 +2,37 @@ import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleTemplate, Int
 import { hybridSync } from './hybridSync';
 import { logger } from './logger';
 
+// In-Memory Storage - No localStorage for sensitive data
+const inMemoryStorage: Record<string, any> = {};
+
+// Initialize data from Worker
+export const initializeStorage = (data: any) => {
+  Object.keys(data).forEach(key => {
+    if (key.startsWith('musicSystem_') || key === 'oneTimePayments') {
+      inMemoryStorage[key.replace('musicSystem_', '')] = data[key];
+    }
+  });
+  
+  // Keep only session token in localStorage
+  const currentUser = localStorage.getItem('musicSystem_currentUser');
+  if (currentUser) {
+    sessionStorage.setItem('musicSystem_currentUser', currentUser);
+  }
+};
+
+// Export all data for Worker sync
+export const exportAllData = (): Record<string, any> => {
+  const data: Record<string, any> = {};
+  
+  Object.keys(inMemoryStorage).forEach(key => {
+    const fullKey = key === 'oneTimePayments' ? key : `musicSystem_${key}`;
+    data[fullKey] = inMemoryStorage[key];
+  });
+  
+  data.timestamp = new Date().toISOString();
+  return data;
+};
+
 // Utility function to simulate server-side ID generation
 const generateId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2);
@@ -9,8 +40,7 @@ const generateId = (): string => {
 
 // Students
 export const getStudents = (): Student[] => {
-  const storedStudents = localStorage.getItem('musicSystem_students');
-  return storedStudents ? JSON.parse(storedStudents) : [];
+  return inMemoryStorage['students'] || [];
 };
 
 export const addStudent = (student: Omit<Student, 'id'>): Student => {
@@ -20,7 +50,7 @@ export const addStudent = (student: Omit<Student, 'id'>): Student => {
     id: generateId(),
   };
   students.push(newStudent);
-  localStorage.setItem('musicSystem_students', JSON.stringify(students));
+  inMemoryStorage['students'] = students;
   hybridSync.onDataChange();
   return newStudent;
 };
@@ -35,7 +65,7 @@ export const updateStudent = (id: string, updatedFields: Partial<Student>): Stud
 
   // Update the student with the provided fields
   students[studentIndex] = { ...students[studentIndex], ...updatedFields };
-  localStorage.setItem('musicSystem_students', JSON.stringify(students));
+  inMemoryStorage['students'] = students;
   hybridSync.onDataChange();
   return students[studentIndex];
 };
@@ -46,7 +76,7 @@ export const deleteStudent = (id: string): boolean => {
   if (updatedStudents.length === students.length) {
     return false; // No student was deleted
   }
-  localStorage.setItem('musicSystem_students', JSON.stringify(updatedStudents));
+  inMemoryStorage['students'] = updatedStudents;
   hybridSync.onDataChange();
   return true;
 };
@@ -59,8 +89,7 @@ export const updateStudentBankTime = (studentId: string, changeInMinutes: number
 
 // Lessons
 export const getLessons = (): Lesson[] => {
-  const storedLessons = localStorage.getItem('musicSystem_lessons');
-  return storedLessons ? JSON.parse(storedLessons) : [];
+  return inMemoryStorage['lessons'] || [];
 };
 
 export const addLesson = (lesson: Omit<Lesson, 'id'>): Lesson => {
@@ -70,7 +99,7 @@ export const addLesson = (lesson: Omit<Lesson, 'id'>): Lesson => {
     id: generateId(),
   };
   lessons.push(newLesson);
-  localStorage.setItem('musicSystem_lessons', JSON.stringify(lessons));
+  inMemoryStorage['lessons'] = lessons;
   hybridSync.onDataChange();
   return newLesson;
 };
@@ -84,7 +113,7 @@ export const updateLesson = (id: string, updatedFields: Partial<Lesson>): Lesson
   }
 
   lessons[lessonIndex] = { ...lessons[lessonIndex], ...updatedFields };
-  localStorage.setItem('musicSystem_lessons', JSON.stringify(lessons));
+  inMemoryStorage['lessons'] = lessons;
   hybridSync.onDataChange();
   return lessons[lessonIndex];
 };
@@ -95,19 +124,18 @@ export const deleteLesson = (id: string): boolean => {
   if (updatedLessons.length === lessons.length) {
     return false; // No lesson was deleted
   }
-  localStorage.setItem('musicSystem_lessons', JSON.stringify(updatedLessons));
+  inMemoryStorage['lessons'] = updatedLessons;
   hybridSync.onDataChange();
   return true;
 };
 
 // Payments
 export const getPayments = (): Payment[] => {
-  const storedPayments = localStorage.getItem('musicSystem_payments');
-  return storedPayments ? JSON.parse(storedPayments) : [];
+  return inMemoryStorage['payments'] || [];
 };
 
 export const savePayments = (payments: Payment[]): void => {
-  localStorage.setItem('musicSystem_payments', JSON.stringify(payments));
+  inMemoryStorage['payments'] = payments;
   hybridSync.onDataChange();
 };
 
@@ -118,7 +146,7 @@ export const addPayment = (payment: Omit<Payment, 'id'>): Payment => {
     id: generateId(),
   };
   payments.push(newPayment);
-  localStorage.setItem('musicSystem_payments', JSON.stringify(payments));
+  inMemoryStorage['payments'] = payments;
   hybridSync.onDataChange();
   return newPayment;
 };
@@ -139,13 +167,13 @@ export const updatePayment = (studentId: string, month: string, updatedFields: P
       ...updatedFields,
     };
     payments.push(newPayment);
-    localStorage.setItem('musicSystem_payments', JSON.stringify(payments));
+    inMemoryStorage['payments'] = payments;
     hybridSync.onDataChange();
     return newPayment;
   }
 
   payments[paymentIndex] = { ...payments[paymentIndex], ...updatedFields };
-  localStorage.setItem('musicSystem_payments', JSON.stringify(payments));
+  inMemoryStorage['payments'] = payments;
   hybridSync.onDataChange();
   return payments[paymentIndex];
 };
@@ -156,15 +184,14 @@ export const deletePayment = (id: string): boolean => {
   if (updatedPayments.length === payments.length) {
     return false; // No payment was deleted
   }
-  localStorage.setItem('musicSystem_payments', JSON.stringify(updatedPayments));
+  inMemoryStorage['payments'] = updatedPayments;
   hybridSync.onDataChange();
   return true;
 };
 
 // Swap Requests
 export const getSwapRequests = (): SwapRequest[] => {
-  const storedSwapRequests = localStorage.getItem('musicSystem_swapRequests');
-  return storedSwapRequests ? JSON.parse(storedSwapRequests) : [];
+  return inMemoryStorage['swapRequests'] || [];
 };
 
 export const addSwapRequest = (swapRequest: Omit<SwapRequest, 'id'>) => {
@@ -174,7 +201,7 @@ export const addSwapRequest = (swapRequest: Omit<SwapRequest, 'id'>) => {
     id: Date.now().toString(),
   };
   requests.push(newRequest);
-  localStorage.setItem('musicSystem_swapRequests', JSON.stringify(requests));
+  inMemoryStorage['swapRequests'] = requests;
   hybridSync.onDataChange();
   return newRequest;
 };
@@ -193,7 +220,7 @@ export const updateSwapRequest = (requestId: string, updates: Partial<SwapReques
     performLessonSwap(requests[requestIndex]);
   }
   
-  localStorage.setItem('musicSystem_swapRequests', JSON.stringify(requests));
+  inMemoryStorage['swapRequests'] = requests;
   hybridSync.onDataChange();
 };
 
@@ -267,7 +294,7 @@ const performLessonSwap = (swapRequest: SwapRequest) => {
     lessons[originalLessonIndex].notes = swapNote;
     lessons[targetLessonIndex].notes = swapNote;
     
-    localStorage.setItem('musicSystem_lessons', JSON.stringify(lessons));
+    inMemoryStorage['lessons'] = lessons;
     // שמירה לדרופבוקס אחרי swap
     hybridSync.onDataChange();
   }
@@ -284,8 +311,7 @@ const calculateEndTime = (startTime: string, duration: number): string => {
 
 // Files
 export const getFiles = (): FileEntry[] => {
-  const storedFiles = localStorage.getItem('musicSystem_files');
-  return storedFiles ? JSON.parse(storedFiles) : [];
+  return inMemoryStorage['files'] || [];
 };
 
 export const addFile = (file: Omit<FileEntry, 'id'>): FileEntry => {
@@ -295,7 +321,7 @@ export const addFile = (file: Omit<FileEntry, 'id'>): FileEntry => {
     id: generateId(),
   };
   files.push(newFile);
-  localStorage.setItem('musicSystem_files', JSON.stringify(files));
+  inMemoryStorage['files'] = files;
   hybridSync.onDataChange();
   return newFile;
 };
@@ -309,7 +335,7 @@ export const updateFile = (id: string, updatedFields: Partial<FileEntry>): FileE
   }
 
   files[fileIndex] = { ...files[fileIndex], ...updatedFields };
-  localStorage.setItem('musicSystem_files', JSON.stringify(files));
+  inMemoryStorage['files'] = files;
   hybridSync.onDataChange();
   return files[fileIndex];
 };
@@ -320,15 +346,14 @@ export const deleteFile = (id: string): boolean => {
   if (updatedFiles.length === files.length) {
     return false; // No file was deleted
   }
-  localStorage.setItem('musicSystem_files', JSON.stringify(updatedFiles));
+  inMemoryStorage['files'] = updatedFiles;
   hybridSync.onDataChange();
   return true;
 };
 
 // Schedule Templates
 export const getScheduleTemplates = (): ScheduleTemplate[] => {
-  const storedScheduleTemplates = localStorage.getItem('musicSystem_scheduleTemplates');
-  return storedScheduleTemplates ? JSON.parse(storedScheduleTemplates) : [];
+  return inMemoryStorage['scheduleTemplates'] || [];
 };
 
 export const getActiveScheduleTemplate = (): ScheduleTemplate | null => {
@@ -344,7 +369,7 @@ export const addScheduleTemplate = (template: Omit<ScheduleTemplate, 'id' | 'cre
     createdAt: new Date().toISOString(),
   };
   templates.push(newTemplate);
-  localStorage.setItem('musicSystem_scheduleTemplates', JSON.stringify(templates));
+  inMemoryStorage['scheduleTemplates'] = templates;
   hybridSync.onDataChange();
   return newTemplate;
 };
@@ -372,7 +397,7 @@ export const activateScheduleTemplate = (id: string): ScheduleTemplate | undefin
     activatedAt: new Date().toISOString()
   };
   
-  localStorage.setItem('musicSystem_scheduleTemplates', JSON.stringify(templates));
+  inMemoryStorage['scheduleTemplates'] = templates;
   hybridSync.onDataChange();
   return templates[templateIndex];
 };
@@ -386,7 +411,7 @@ export const updateScheduleTemplate = (id: string, updatedFields: Partial<Schedu
   }
 
   templates[templateIndex] = { ...templates[templateIndex], ...updatedFields };
-  localStorage.setItem('musicSystem_scheduleTemplates', JSON.stringify(templates));
+  inMemoryStorage['scheduleTemplates'] = templates;
   hybridSync.onDataChange();
   return templates[templateIndex];
 };
@@ -397,7 +422,7 @@ export const deleteScheduleTemplate = (id: string): boolean => {
   if (updatedTemplates.length === templates.length) {
     return false; // No template was deleted
   }
-  localStorage.setItem('musicSystem_scheduleTemplates', JSON.stringify(updatedTemplates));
+  inMemoryStorage['scheduleTemplates'] = updatedTemplates;
   hybridSync.onDataChange();
   return true;
 };
@@ -429,22 +454,21 @@ export const syncStudentWithTemplate = (studentId: string, dayOfWeek: number, ti
 
 // Integration Settings
 export const getIntegrationSettings = (): IntegrationSettings | null => {
-  const storedSettings = localStorage.getItem('musicSystem_integrationSettings');
-  return storedSettings ? JSON.parse(storedSettings) : null;
+  return inMemoryStorage['integrationSettings'] || null;
 };
 
 export const saveIntegrationSettings = (settings: IntegrationSettings): void => {
-  localStorage.setItem('musicSystem_integrationSettings', JSON.stringify(settings));
+  inMemoryStorage['integrationSettings'] = settings;
   hybridSync.onDataChange();
 };
 
-// User Authentication
+// User Authentication - Only stored in sessionStorage
 export const setCurrentUser = (user: { type: string; studentId?: string; adminId?: string } | null): void => {
-  localStorage.setItem('musicSystem_currentUser', JSON.stringify(user));
+  sessionStorage.setItem('musicSystem_currentUser', JSON.stringify(user));
 };
 
 export const getCurrentUser = (): { type: string; studentId?: string; adminId?: string } | null => {
-  const storedUser = localStorage.getItem('musicSystem_currentUser');
+  const storedUser = sessionStorage.getItem('musicSystem_currentUser');
   return storedUser ? JSON.parse(storedUser) : null;
 };
 
@@ -473,8 +497,7 @@ export const calculateLessonNumber = (studentId: string, lessonDate: string, les
 
 // Performances
 export const getPerformances = (): Performance[] => {
-  const storedPerformances = localStorage.getItem('musicSystem_performances');
-  return storedPerformances ? JSON.parse(storedPerformances) : [];
+  return inMemoryStorage['performances'] || [];
 };
 
 export const addPerformance = (performance: Omit<Performance, 'id' | 'createdAt'>): Performance => {
@@ -485,7 +508,7 @@ export const addPerformance = (performance: Omit<Performance, 'id' | 'createdAt'
     createdAt: new Date().toISOString(),
   };
   performances.push(newPerformance);
-  localStorage.setItem('musicSystem_performances', JSON.stringify(performances));
+  inMemoryStorage['performances'] = performances;
   hybridSync.onDataChange();
   return newPerformance;
 };
@@ -499,7 +522,7 @@ export const updatePerformance = (id: string, updatedFields: Partial<Performance
   }
 
   performances[performanceIndex] = { ...performances[performanceIndex], ...updatedFields };
-  localStorage.setItem('musicSystem_performances', JSON.stringify(performances));
+  inMemoryStorage['performances'] = performances;
   hybridSync.onDataChange();
   return performances[performanceIndex];
 };
@@ -510,26 +533,24 @@ export const deletePerformance = (id: string): boolean => {
   if (updatedPerformances.length === performances.length) {
     return false;
   }
-  localStorage.setItem('musicSystem_performances', JSON.stringify(updatedPerformances));
+  inMemoryStorage['performances'] = updatedPerformances;
   hybridSync.onDataChange();
   return true;
 };
 
 // One Time Payments
 export const getOneTimePayments = (): OneTimePayment[] => {
-  const stored = localStorage.getItem('oneTimePayments');
-  return stored ? JSON.parse(stored) : [];
+  return inMemoryStorage['oneTimePayments'] || [];
 };
 
 export const saveOneTimePayments = (payments: OneTimePayment[]): void => {
-  localStorage.setItem('oneTimePayments', JSON.stringify(payments));
+  inMemoryStorage['oneTimePayments'] = payments;
   hybridSync.onDataChange();
 };
 
 // Holidays
 export const getHolidays = (): Holiday[] => {
-  const stored = localStorage.getItem('musicSystem_holidays');
-  return stored ? JSON.parse(stored) : [];
+  return inMemoryStorage['holidays'] || [];
 };
 
 export const addHoliday = (date: string, description?: string): Holiday => {
@@ -541,7 +562,7 @@ export const addHoliday = (date: string, description?: string): Holiday => {
     createdAt: new Date().toISOString(),
   };
   holidays.push(newHoliday);
-  localStorage.setItem('musicSystem_holidays', JSON.stringify(holidays));
+  inMemoryStorage['holidays'] = holidays;
   hybridSync.onDataChange();
   return newHoliday;
 };
@@ -552,7 +573,7 @@ export const deleteHoliday = (date: string): boolean => {
   if (updatedHolidays.length === holidays.length) {
     return false;
   }
-  localStorage.setItem('musicSystem_holidays', JSON.stringify(updatedHolidays));
+  inMemoryStorage['holidays'] = updatedHolidays;
   hybridSync.onDataChange();
   return true;
 };
@@ -564,8 +585,7 @@ export const isHoliday = (date: string): boolean => {
 
 // Practice Sessions
 export const getPracticeSessions = (): PracticeSession[] => {
-  const stored = localStorage.getItem('musicSystem_practiceSessions');
-  return stored ? JSON.parse(stored) : [];
+  return inMemoryStorage['practiceSessions'] || [];
 };
 
 export const getStudentPracticeSessions = (studentId: string): PracticeSession[] => {
@@ -583,7 +603,7 @@ export const addPracticeSession = (session: Omit<PracticeSession, 'id' | 'create
     createdAt: new Date().toISOString(),
   };
   sessions.push(newSession);
-  localStorage.setItem('musicSystem_practiceSessions', JSON.stringify(sessions));
+  inMemoryStorage['practiceSessions'] = sessions;
   hybridSync.onDataChange();
   return newSession;
 };
@@ -594,7 +614,7 @@ export const updatePracticeSession = (id: string, updatedFields: Partial<Practic
   if (index === -1) return undefined;
   
   sessions[index] = { ...sessions[index], ...updatedFields };
-  localStorage.setItem('musicSystem_practiceSessions', JSON.stringify(sessions));
+  inMemoryStorage['practiceSessions'] = sessions;
   hybridSync.onDataChange();
   return sessions[index];
 };
@@ -605,20 +625,14 @@ export const deletePracticeSession = (id: string): boolean => {
   if (updatedSessions.length === sessions.length) {
     return false;
   }
-  localStorage.setItem('musicSystem_practiceSessions', JSON.stringify(updatedSessions));
+  inMemoryStorage['practiceSessions'] = updatedSessions;
   hybridSync.onDataChange();
   return true;
 };
 
 // Monthly Achievements
 export const getMonthlyAchievements = (): MonthlyAchievement[] => {
-  try {
-    const data = localStorage.getItem('musicSystem_monthlyAchievements');
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    logger.error('Error loading monthly achievements:', error);
-    return [];
-  }
+  return inMemoryStorage['monthlyAchievements'] || [];
 };
 
 export const getStudentMonthlyAchievements = (studentId: string): MonthlyAchievement[] => {
@@ -663,7 +677,7 @@ export const updateMonthlyAchievement = (
     achievements.push(newAchievement);
   }
   
-  localStorage.setItem('musicSystem_monthlyAchievements', JSON.stringify(achievements));
+  inMemoryStorage['monthlyAchievements'] = achievements;
   hybridSync.onDataChange();
 };
 
@@ -691,13 +705,7 @@ export const getCurrentMonthLeaderboard = (): LeaderboardEntry[] => {
 
 // Medal Records
 export const getMedalRecords = (): MedalRecord[] => {
-  try {
-    const data = localStorage.getItem('musicSystem_medalRecords');
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    logger.error('Error loading medal records:', error);
-    return [];
-  }
+  return inMemoryStorage['medalRecords'] || [];
 };
 
 export const getStudentMedalRecords = (studentId: string): MedalRecord[] => {
@@ -715,7 +723,7 @@ export const addMedalRecord = (record: Omit<MedalRecord, 'id' | 'createdAt'>): M
     createdAt: new Date().toISOString(),
   };
   records.push(newRecord);
-  localStorage.setItem('musicSystem_medalRecords', JSON.stringify(records));
+  inMemoryStorage['medalRecords'] = records;
   hybridSync.onDataChange();
   return newRecord;
 };
@@ -733,7 +741,7 @@ export const updateMedalAsUsed = (medalId: string, usedForItem: string): boolean
     usedForItem
   };
   
-  localStorage.setItem('musicSystem_medalRecords', JSON.stringify(records));
+  inMemoryStorage['medalRecords'] = records;
   hybridSync.onDataChange();
   return true;
 };
