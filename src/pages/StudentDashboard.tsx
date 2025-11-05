@@ -182,30 +182,7 @@ const StudentDashboard = () => {
                 </CardContent>
               </Card>
             ) : (
-              <Tabs defaultValue="my-schedule" className="space-y-6">
-                <Card className="card-gradient card-shadow">
-                  <CardContent className="pt-6">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="my-schedule" className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        המערכת הכללית
-                      </TabsTrigger>
-                      <TabsTrigger value="swap" className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        בקשת החלפה
-                      </TabsTrigger>
-                    </TabsList>
-                  </CardContent>
-                </Card>
-
-                <TabsContent value="my-schedule">
-                  <GeneralWeeklySchedule />
-                </TabsContent>
-
-                <TabsContent value="swap">
-                  <SwapRequestForm studentId={studentId!} />
-                </TabsContent>
-              </Tabs>
+              <GeneralWeeklySchedule />
             )}
           </TabsContent>
 

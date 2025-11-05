@@ -42,6 +42,7 @@ const LessonJournal = () => {
   const [newLessonStudent, setNewLessonStudent] = useState('');
   const [newLessonDate, setNewLessonDate] = useState('');
   const [newLessonTime, setNewLessonTime] = useState('');
+  const [customStudentName, setCustomStudentName] = useState('');
 
   useEffect(() => {
     loadData();
@@ -452,7 +453,8 @@ const LessonJournal = () => {
   };
 
   const handleAddLesson = () => {
-    if (!newLessonStudent || !newLessonDate || !newLessonTime) {
+    // Check if either student or custom name is provided
+    if ((!newLessonStudent && !customStudentName) || !newLessonDate || !newLessonTime) {
       toast({
         title: 'שגיאה',
         description: 'יש למלא את כל השדות',
@@ -462,19 +464,28 @@ const LessonJournal = () => {
     }
 
     const endTime = calculateEndTime(newLessonTime, 30);
-    addLesson({
-      studentId: newLessonStudent,
+    
+    // If using custom name, add it to notes
+    const lessonData: any = {
+      studentId: newLessonStudent || 'one-time-student',
       date: newLessonDate,
       startTime: newLessonTime,
       endTime,
       status: 'scheduled',
       isOneOff: true
-    });
+    };
+    
+    if (customStudentName) {
+      lessonData.notes = `תלמידה חד פעמית: ${customStudentName}`;
+    }
+    
+    addLesson(lessonData);
 
     setShowAddDialog(false);
     setNewLessonStudent('');
     setNewLessonDate('');
     setNewLessonTime('');
+    setCustomStudentName('');
     loadData();
     toast({ description: 'השיעור נוסף' });
   };
@@ -802,10 +813,16 @@ const LessonJournal = () => {
           
           <div className="space-y-4">
             <div>
-              <Label>תלמידה *</Label>
-              <Select value={newLessonStudent} onValueChange={setNewLessonStudent}>
+              <Label>תלמידה רשומה</Label>
+              <Select 
+                value={newLessonStudent} 
+                onValueChange={(value) => {
+                  setNewLessonStudent(value);
+                  setCustomStudentName(''); // Clear custom name when selecting from list
+                }}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="בחרי תלמידה" />
+                  <SelectValue placeholder="בחרי תלמידה מהרשימה" />
                 </SelectTrigger>
                 <SelectContent>
                   {students.map(student => (
@@ -815,6 +832,21 @@ const LessonJournal = () => {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="text-center text-sm text-muted-foreground">או</div>
+
+            <div>
+              <Label>תלמידה חד פעמית (הזנה ידנית)</Label>
+              <Input
+                type="text"
+                value={customStudentName}
+                onChange={(e) => {
+                  setCustomStudentName(e.target.value);
+                  setNewLessonStudent(''); // Clear selected student when typing custom name
+                }}
+                placeholder="שם התלמידה"
+              />
             </div>
 
             <div>
