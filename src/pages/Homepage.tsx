@@ -246,7 +246,7 @@ const Homepage = () => {
               <div className="text-center p-6 rounded-lg bg-accent/10 border border-accent/30 hover:bg-accent/20 transition-colors backdrop-blur-sm">
                 <p className="text-foreground">
                   <strong className="text-accent text-base drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">אזור אישי:</strong><br />
-                  קוד אישי → נתונים מלאים | STUDENTS2026 → תצוגה כללית
+                  כניסה עם קוד אישי לנתונים מלאים ואישיים
                 </p>
               </div>
             </div>
