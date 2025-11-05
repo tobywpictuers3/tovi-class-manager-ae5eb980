@@ -9,7 +9,7 @@ import { getCurrentUser, setCurrentUser, getStudents } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
 import { Student } from '@/lib/types';
 import { useAccessMode } from '@/contexts/AccessModeContext';
-import StudentWeeklySchedule from '@/components/student/StudentWeeklySchedule';
+import GeneralWeeklySchedule from '@/components/student/GeneralWeeklySchedule';
 import SwapRequestForm from '@/components/student/SwapRequestForm';
 import SwapRequestsStatus from '@/components/student/SwapRequestsStatus';
 import EditableStudentDetails from '@/components/student/EditableStudentDetails';
@@ -188,7 +188,7 @@ const StudentDashboard = () => {
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="my-schedule" className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
-                        המערכת שלי
+                        המערכת הכללית
                       </TabsTrigger>
                       <TabsTrigger value="swap" className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
@@ -199,7 +199,7 @@ const StudentDashboard = () => {
                 </Card>
 
                 <TabsContent value="my-schedule">
-                  <StudentWeeklySchedule studentId={studentId!} />
+                  <GeneralWeeklySchedule />
                 </TabsContent>
 
                 <TabsContent value="swap">
