@@ -29,6 +29,7 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
   const [sessions, setSessions] = useState<PracticeSession[]>([]);
   const [isTracking, setIsTracking] = useState(false);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
   const [manualStartTime, setManualStartTime] = useState('');
   const [manualEndTime, setManualEndTime] = useState('');
@@ -43,6 +44,20 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
   useEffect(() => {
     calculateDailyStats();
   }, [sessions]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout | undefined;
+    if (isTracking && startTime) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const elapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
+        setElapsedSeconds(elapsed);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isTracking, startTime]);
 
   const loadSessions = () => {
     const studentSessions = getStudentPracticeSessions(studentId);
@@ -270,6 +285,7 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
   const handleStartTracking = () => {
     setIsTracking(true);
     setStartTime(new Date());
+    setElapsedSeconds(0);
     toast({
       title: 'התחלת אימון',
       description: 'בהצלחה! זמן האימון החל להימדד',
@@ -303,6 +319,7 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
 
     setIsTracking(false);
     setStartTime(null);
+    setElapsedSeconds(0);
     loadSessions();
 
     // Check for duration milestones - for THIS session only, not total
@@ -495,9 +512,17 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
               </Button>
             ) : (
               <div className="text-center space-y-4">
-                <div className="flex items-center justify-center gap-2 text-lg font-semibold">
-                  <Clock className="h-5 w-5 animate-pulse" />
-                  אימון פעיל
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <div className="flex items-center gap-2 text-lg font-semibold">
+                    <Clock className="h-5 w-5 animate-pulse text-primary" />
+                    אימון פעיל
+                  </div>
+                  <div className="text-4xl font-bold text-primary" dir="ltr">
+                    {Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, '0')}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    דקות:שניות
+                  </div>
                 </div>
                 <Button
                   size="lg"

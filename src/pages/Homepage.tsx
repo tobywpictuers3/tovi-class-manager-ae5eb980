@@ -214,7 +214,7 @@ const Homepage = () => {
                   type="text"
                   value={studentCode}
                   onChange={(e) => setStudentCode(e.target.value)}
-                  placeholder="הקישי קוד אישי או STUDENTS2026"
+                  placeholder="הקישי קוד אישי"
                   className="mt-1 bg-black/50 border-accent/30 text-foreground placeholder:text-muted-foreground"
                   onKeyPress={(e) => e.key === 'Enter' && handleStudentLogin()}
                 />
@@ -226,11 +226,6 @@ const Homepage = () => {
                 כניסה לאזור אישי
                 <ArrowRight className="h-4 w-4 mr-2" />
               </Button>
-              <div className="text-center p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs text-muted-foreground">
-                  💡 הקישי STUDENTS2026 למצב תצוגה כללית
-                </p>
-              </div>
             </CardContent>
           </Card>
         </div>
