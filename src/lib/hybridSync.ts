@@ -1,5 +1,6 @@
 import { workerApi } from './workerApi';
 import { logger } from './logger';
+import { exportAllData, initializeStorage } from './storage';
 
 /**
  * Hybrid Sync Manager - Worker as source of truth, localStorage as cache
@@ -106,11 +107,8 @@ class HybridSyncManager {
    */
   private updateInMemoryStorage(data: any) {
     try {
-      // Import the storage functions dynamically to avoid circular dependency
-      import('./storage').then(({ initializeStorage }) => {
-        initializeStorage(data);
-        logger.info('💾 Memory updated from Worker');
-      });
+      initializeStorage(data);
+      logger.info('💾 Memory updated from Worker');
     } catch (error) {
       logger.error('❌ Memory update error:', error);
     }
@@ -182,8 +180,6 @@ class HybridSyncManager {
    * Gather all data from in-memory storage
    */
   private gatherAllData(): any {
-    // Import the storage functions dynamically to avoid circular dependency
-    const { exportAllData } = require('./storage');
     return exportAllData();
   }
 
