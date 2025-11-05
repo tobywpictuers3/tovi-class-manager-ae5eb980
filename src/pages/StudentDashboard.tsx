@@ -4,10 +4,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { LogOut, Calendar, User, Phone, Mail, MessageSquare, FileText } from 'lucide-react';
+import { LogOut, Calendar, User, Phone, FileText } from 'lucide-react';
 import { getCurrentUser, setCurrentUser, getStudents } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
 import { Student } from '@/lib/types';
+import { useAccessMode } from '@/contexts/AccessModeContext';
 import StudentWeeklySchedule from '@/components/student/StudentWeeklySchedule';
 import SwapRequestForm from '@/components/student/SwapRequestForm';
 import SwapRequestsStatus from '@/components/student/SwapRequestsStatus';
@@ -28,9 +29,41 @@ const StudentDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('schedule');
   const [student, setStudent] = useState<Student | null>(null);
+  const { isPublicMode, setAccessMode } = useAccessMode();
 
   useEffect(() => {
     const user = getCurrentUser();
+    
+    // Public mode - show empty view
+    if (studentId === 'public') {
+      if (!user || user.type !== 'public_view') {
+        navigate('/');
+        toast({
+          title: 'שגיאת גישה',
+          description: 'נדרשת כניסה תקינה',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setAccessMode('public');
+      // Set empty student for public view
+      setStudent({
+        id: 'public',
+        firstName: '',
+        lastName: '',
+        phone: '',
+        email: '',
+        personalCode: '',
+        startDate: '',
+        startingLessonNumber: 1,
+        annualAmount: 0,
+        paymentMonths: 12,
+        monthlyAmount: 0,
+      });
+      return;
+    }
+    
+    // Private mode - regular student
     if (!user || user.type !== 'student' || user.studentId !== studentId) {
       navigate('/');
       toast({
@@ -44,6 +77,7 @@ const StudentDashboard = () => {
     const students = getStudents();
     const currentStudent = students.find(s => s.id === studentId);
     if (currentStudent) {
+      setAccessMode('private');
       setStudent(currentStudent);
     } else {
       navigate('/');
@@ -53,7 +87,7 @@ const StudentDashboard = () => {
         variant: 'destructive',
       });
     }
-  }, [studentId, navigate]);
+  }, [studentId, navigate, setAccessMode]);
 
   const handleLogout = () => {
     setCurrentUser(null);
@@ -79,11 +113,11 @@ const StudentDashboard = () => {
             <div className="flex justify-between items-center">
               <div className="flex gap-2">
                 <BackButton to="/" label="חזור לדף הבית" />
-                <SaveButton />
+                {!isPublicMode && <SaveButton />}
               </div>
               <CardTitle className="text-3xl flex items-center gap-3 text-primary crown-glow">
                 <User className="h-8 w-8" />
-                אזור אישי - {student.firstName} {student.lastName}
+                {isPublicMode ? 'מצב תצוגה כללית' : `אזור אישי - ${student.firstName} ${student.lastName}`}
               </CardTitle>
               <Button 
                 onClick={handleLogout}
@@ -97,8 +131,8 @@ const StudentDashboard = () => {
           </CardHeader>
         </Card>
 
-        {/* Payment Alerts */}
-        <PaymentAlert studentId={studentId!} />
+        {/* Payment Alerts - Hide in public mode */}
+        {!isPublicMode && <PaymentAlert studentId={studentId!} />}
 
         {/* Main Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -119,39 +153,43 @@ const StudentDashboard = () => {
               <Calendar className="h-4 w-4" />
               🛒 חנות
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary">
+            <TabsTrigger value="history" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary" disabled={isPublicMode}>
               <Calendar className="h-4 w-4" />
               היסטוריית שיעורים
             </TabsTrigger>
-            <TabsTrigger value="details" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary">
+            <TabsTrigger value="details" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary" disabled={isPublicMode}>
               <User className="h-4 w-4" />
               הפרטים שלי
             </TabsTrigger>
-            <TabsTrigger value="contacts" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary">
+            <TabsTrigger value="contacts" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary" disabled={isPublicMode}>
               <Phone className="h-4 w-4" />
               פרטי קשר
             </TabsTrigger>
-            <TabsTrigger value="files" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary">
+            <TabsTrigger value="files" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary" disabled={isPublicMode}>
               <FileText className="h-4 w-4" />
               קבצים אישיים
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="schedule" className="space-y-6">
-            <Card className="card-gradient card-shadow">
-              <CardContent className="pt-6">
-                <div className="text-center space-y-4">
-                  <p className="text-lg">לבקשת החלפת שיעור, יש לעבור למערכת התלמידות</p>
-                  <Button 
-                    onClick={() => navigate('/students-view')}
-                    className="mx-auto flex items-center gap-2"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    מעבר למערכת התלמידות לבקשת החלפה
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            {isPublicMode ? (
+              <Card className="card-gradient card-shadow">
+                <CardContent className="pt-6">
+                  <div className="text-center space-y-4">
+                    <p className="text-lg">מצב תצוגה כללית - רק נתונים ציבוריים מוצגים</p>
+                    <p className="text-muted-foreground">להתחברות עם קוד אישי, חזרי לדף הבית</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="card-gradient card-shadow">
+                <CardContent className="pt-6">
+                  <div className="text-center space-y-4">
+                    <p className="text-lg">לבקשת החלפת שיעור, יש לעבור למערכת התלמידות</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="practice" className="space-y-6">

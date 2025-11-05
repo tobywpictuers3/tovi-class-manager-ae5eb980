@@ -4,11 +4,23 @@ import { Save, Cloud, Loader2 } from 'lucide-react';
 import { hybridSync } from '@/lib/hybridSync';
 import { toast } from '@/hooks/use-toast';
 import { logger } from '@/lib/logger';
+import { useAccessMode } from '@/contexts/AccessModeContext';
 
 export const SaveButton = () => {
   const [isSaving, setIsSaving] = useState(false);
+  const { checkWriteAccess } = useAccessMode();
 
   const handleSave = async () => {
+    // Check if write access is allowed
+    if (!checkWriteAccess()) {
+      toast({
+        title: '⚠️ מצב צפייה בלבד',
+        description: 'זהו מצב צפייה בלבד. כדי לשמור נתונים, התחברי עם הקוד האישי שלך',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {

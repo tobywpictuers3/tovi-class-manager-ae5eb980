@@ -5,16 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Shield, GraduationCap, Users, ArrowRight, Mail, Phone, MessageCircle } from 'lucide-react';
+import { Shield, GraduationCap, ArrowRight, Mail, Phone, MessageCircle } from 'lucide-react';
 import { getStudents, setCurrentUser } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
-import { syncManager } from '@/lib/syncManager';
+import { useAccessMode } from '@/contexts/AccessModeContext';
 
 const Homepage = () => {
   const [adminCode, setAdminCode] = useState('');
   const [studentCode, setStudentCode] = useState('');
-  const [studentsViewCode, setStudentsViewCode] = useState('');
   const navigate = useNavigate();
+  const { setAccessMode } = useAccessMode();
 
   const handleAdminLogin = async () => {
     if (adminCode === 'toby2026') {
@@ -43,6 +43,18 @@ const Homepage = () => {
       return;
     }
 
+    // Check for public mode code
+    if (studentCode.trim().toUpperCase() === 'STUDENTS2026') {
+      setAccessMode('public');
+      setCurrentUser({ type: 'public_view' });
+      navigate('/student/public');
+      toast({
+        title: 'מצב תצוגה כללית',
+        description: 'נכנסת למצב צפייה בלבד',
+      });
+      return;
+    }
+
     const students = getStudents();
     
     // Try to find by personalCode first
@@ -54,6 +66,7 @@ const Homepage = () => {
     }
     
     if (student) {
+      setAccessMode('private');
       setCurrentUser({ type: 'student', studentId: student.id });
       navigate(`/student/${student.id}`);
       toast({
@@ -64,23 +77,6 @@ const Homepage = () => {
       toast({
         title: 'שגיאה',
         description: 'קוד אישי שגוי. אנא פני למנהלת לקבלת הקוד הנכון',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleStudentsViewLogin = () => {
-    if (studentsViewCode === 'students2026') {
-      setCurrentUser({ type: 'students_view' });
-      navigate('/students-view');
-      toast({
-        title: 'ברוכות הבאות!',
-        description: 'התחברת למערכת תצוגת התלמידות',
-      });
-    } else {
-      toast({
-        title: 'שגיאה',
-        description: 'קוד תלמידות שגוי',
         variant: 'destructive',
       });
     }
@@ -164,7 +160,7 @@ const Homepage = () => {
         </div>
 
         {/* Login Cards */}
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
           {/* Admin Login */}
           <Card className="relative overflow-hidden bg-black/70 backdrop-blur-md border-2 border-accent/40 hover:border-accent/60 transition-all duration-300 shadow-gold hover:shadow-hover">
             <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'url(/logo-background.png)', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}></div>
@@ -199,40 +195,6 @@ const Homepage = () => {
             </CardContent>
           </Card>
 
-          {/* Students View Login */}
-          <Card className="relative overflow-hidden bg-black/70 backdrop-blur-md border-2 border-secondary/40 hover:border-secondary/60 transition-all duration-300 shadow-gold hover:shadow-hover">
-            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'url(/logo-background.png)', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}></div>
-            <CardHeader className="text-center relative z-10">
-              <div className="mx-auto mb-4 p-4 bg-secondary/20 rounded-full w-fit gold-shadow border border-secondary/30">
-                <Users className="h-10 w-10 text-secondary drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]" />
-              </div>
-              <CardTitle className="text-xl text-foreground font-bold">מערכת תלמידות</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 relative z-10">
-              <div>
-                <Label htmlFor="students-view-code" className="text-sm font-medium text-foreground">
-                  קוד תלמידות
-                </Label>
-                <Input
-                  id="students-view-code"
-                  type="text"
-                  value={studentsViewCode}
-                  onChange={(e) => setStudentsViewCode(e.target.value)}
-                  placeholder="הקישי קוד תלמידות"
-                  className="mt-1 bg-black/50 border-secondary/30 text-foreground placeholder:text-muted-foreground"
-                  onKeyPress={(e) => e.key === 'Enter' && handleStudentsViewLogin()}
-                />
-              </div>
-              <Button 
-                onClick={handleStudentsViewLogin}
-                className="w-full gold-gradient hover:scale-105 transition-musical text-secondary-foreground font-semibold py-3 shadow-gold border border-secondary/20"
-              >
-                כניסה למערכת
-                <ArrowRight className="h-4 w-4 mr-2" />
-              </Button>
-            </CardContent>
-          </Card>
-
           {/* Student Personal Login */}
           <Card className="relative overflow-hidden bg-black/70 backdrop-blur-md border-2 border-accent/40 hover:border-accent/60 transition-all duration-300 shadow-gold hover:shadow-hover">
             <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'url(/logo-background.png)', backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}></div>
@@ -252,7 +214,7 @@ const Homepage = () => {
                   type="text"
                   value={studentCode}
                   onChange={(e) => setStudentCode(e.target.value)}
-                  placeholder="הקישי קוד אישי"
+                  placeholder="הקישי קוד אישי או STUDENTS2026"
                   className="mt-1 bg-black/50 border-accent/30 text-foreground placeholder:text-muted-foreground"
                   onKeyPress={(e) => e.key === 'Enter' && handleStudentLogin()}
                 />
@@ -264,6 +226,11 @@ const Homepage = () => {
                 כניסה לאזור אישי
                 <ArrowRight className="h-4 w-4 mr-2" />
               </Button>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground">
+                  💡 הקישי STUDENTS2026 למצב תצוגה כללית
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -274,23 +241,17 @@ const Homepage = () => {
             <CardTitle className="text-center text-2xl text-accent drop-shadow-[0_0_20px_rgba(234,179,8,0.5)]">הוראות שימוש</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-3 gap-6 text-sm">
+            <div className="grid md:grid-cols-2 gap-6 text-sm">
               <div className="text-center p-6 rounded-lg bg-primary/10 border border-accent/30 hover:bg-primary/20 transition-colors backdrop-blur-sm">
                 <p className="text-foreground">
                   <strong className="text-accent text-base drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">מנהלת:</strong><br />
                   גישה מלאה לניהול תלמידות, שיעורים ותשלומים
                 </p>
               </div>
-              <div className="text-center p-6 rounded-lg bg-secondary/10 border border-secondary/30 hover:bg-secondary/20 transition-colors backdrop-blur-sm">
-                <p className="text-foreground">
-                  <strong className="text-secondary text-base drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">מערכת תלמידות:</strong><br />
-                  תצוגת מערכת השיעורים ובקשות החלפה
-                </p>
-              </div>
               <div className="text-center p-6 rounded-lg bg-accent/10 border border-accent/30 hover:bg-accent/20 transition-colors backdrop-blur-sm">
                 <p className="text-foreground">
                   <strong className="text-accent text-base drop-shadow-[0_0_8px_rgba(234,179,8,0.4)]">אזור אישי:</strong><br />
-                  צפייה בפרטים האישיים והיסטוריית שיעורים
+                  קוד אישי → נתונים מלאים | STUDENTS2026 → תצוגה כללית
                 </p>
               </div>
             </div>
