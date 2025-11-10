@@ -41,9 +41,12 @@ export const SaveButton = () => {
 
     } catch (error) {
       logger.error('Save error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'אירעה תקלה';
       toast({
-        title: '❌ שגיאה בשמירה',
-        description: 'אירעה תקלה. נסי שוב.',
+        title: '❌ שגיאה קריטית בשמירה',
+        description: errorMessage.includes('empty data') 
+          ? 'לא ניתן לשמור נתונים ריקים. אם הבעיה ממשיכה, אנא צרי קשר לתמיכה.'
+          : 'אירעה תקלה. נסי שוב.',
         variant: 'destructive',
       });
     } finally {

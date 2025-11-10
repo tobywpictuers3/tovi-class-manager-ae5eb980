@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { LogOut, Users, Calendar, CreditCard, MessageSquare, FileText, Settings, Music, History } from 'lucide-react';
-import { setCurrentUser, getCurrentUser } from '@/lib/storage';
+import { setCurrentUser, getCurrentUser, clearPracticeAndMedalData } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
 import { hybridSync } from '@/lib/hybridSync';
 import { PrintPDFButton } from '@/components/ui/print-pdf-button';
@@ -53,6 +53,34 @@ const AdminDashboard = () => {
       title: 'התנתקות מוצלחת',
       description: 'נתראה בפעם הבאה!',
     });
+  };
+
+  const handleClearPracticeData = () => {
+    const confirmClear = window.confirm(
+      '⚠️ האם את בטוחה שברצונך למחוק את כל נתוני האימונים והמדליות?\n\n' +
+      'הפעולה תמחק:\n' +
+      '✗ כל שיעורי האימון הרשומים\n' +
+      '✗ כל ההישגים החודשיים\n' +
+      '✗ כל המדליות שנצברו\n\n' +
+      'פעולה זו לא ניתנת לביטול!'
+    );
+
+    if (confirmClear) {
+      try {
+        clearPracticeAndMedalData();
+        toast({
+          title: '✅ הנתונים נמחקו בהצלחה',
+          description: 'כל נתוני האימונים והמדליות נמחקו. הדף יתרענן.',
+        });
+        setTimeout(() => window.location.reload(), 1500);
+      } catch (error) {
+        toast({
+          title: '❌ שגיאה במחיקת הנתונים',
+          description: 'אירעה תקלה. נסי שוב.',
+          variant: 'destructive',
+        });
+      }
+    }
   };
 
   return (
@@ -142,7 +170,23 @@ const AdminDashboard = () => {
             </TabsContent>
 
             <TabsContent value="backup">
-              <BackupImport />
+              <div className="space-y-6">
+                <div className="royal-card royal-shadow p-6">
+                  <h2 className="text-xl font-bold text-royal-gold mb-4">ניקוי נתוני אימונים ומדליות</h2>
+                  <p className="text-sm text-royal-text mb-4">
+                    לחצי על הכפתור למטה כדי למחוק את כל נתוני האימונים, ההישגים החודשיים והמדליות.
+                    פעולה זו תאפשר להתחיל מחדש מנקודת שוויון.
+                  </p>
+                  <Button 
+                    onClick={handleClearPracticeData}
+                    variant="destructive"
+                    className="w-full sm:w-auto"
+                  >
+                    🧹 מחק כל נתוני אימונים ומדליות
+                  </Button>
+                </div>
+                <BackupImport />
+              </div>
             </TabsContent>
 
             <TabsContent value="history">

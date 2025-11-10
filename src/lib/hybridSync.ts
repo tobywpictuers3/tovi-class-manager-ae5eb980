@@ -82,22 +82,34 @@ class HybridSyncManager {
 
       if (!this.syncState.isOnline) {
         logger.warn('📡 Offline - cannot load from Worker');
-        return;
+        throw new Error('Offline - cannot load data');
       }
 
       const result = await workerApi.downloadLatest();
 
       if (result.success && result.data) {
+        // 🛡️ VALIDATION: Check that data is not empty
+        const dataKeys = Object.keys(result.data);
+        const hasData = dataKeys.length > 1; // More than just timestamp
+        
+        if (!hasData) {
+          logger.error('❌ Loaded empty data from Worker - refusing to initialize');
+          throw new Error('Empty data received from Worker');
+        }
+        
         logger.info('✅ Data loaded from Worker');
         this.updateInMemoryStorage(result.data);
         this.syncState.lastSyncTime = new Date().toISOString();
       } else if (result.error === 'NO_VERSION_FOUND') {
         logger.info('ℹ️ No version found on Worker - starting fresh');
+        // In this case, it's OK to start with empty system (first use)
       } else {
-        logger.warn('⚠️ Worker load failed');
+        logger.error('❌ Worker load failed:', result.error);
+        throw new Error('Failed to load from Worker');
       }
     } catch (error) {
       logger.error('❌ Load error:', error);
+      throw error; // Throw error so main.tsx can handle it
     }
   }
 
@@ -156,7 +168,15 @@ class HybridSyncManager {
       this.syncState.isSyncing = true;
       logger.info('🔄 Syncing to Worker...');
 
-      const data = this.gatherAllData();
+      const data = this.gatherAllData(); // This now throws error if data is empty
+      
+      // 🛡️ GUARD: Additional check before sending
+      const dataSize = JSON.stringify(data).length;
+      if (dataSize < 100) {
+        logger.error('❌ PREVENTED SYNC - Data too small, likely corrupted');
+        return false;
+      }
+      
       const result = await workerApi.uploadVersioned(data);
 
       if (result.success) {

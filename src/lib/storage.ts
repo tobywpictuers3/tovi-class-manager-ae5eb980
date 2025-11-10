@@ -7,11 +7,25 @@ const inMemoryStorage: Record<string, any> = {};
 
 // Initialize data from Worker
 export const initializeStorage = (data: any) => {
+  if (!data || typeof data !== 'object') {
+    logger.error('❌ Invalid data provided to initializeStorage');
+    return;
+  }
+  
+  let initialized = false;
+  
   Object.keys(data).forEach(key => {
     if (key.startsWith('musicSystem_') || key === 'oneTimePayments') {
       inMemoryStorage[key.replace('musicSystem_', '')] = data[key];
+      initialized = true;
     }
   });
+  
+  if (initialized) {
+    logger.info('✅ Memory storage initialized with data');
+  } else {
+    logger.warn('⚠️ No valid data keys found during initialization');
+  }
   
   // Keep only session token in localStorage
   const currentUser = localStorage.getItem('musicSystem_currentUser');
@@ -30,6 +44,17 @@ export const exportAllData = (): Record<string, any> => {
   });
   
   data.timestamp = new Date().toISOString();
+  
+  // 🛡️ GUARD: Check that we have at least student data
+  const hasStudents = data.musicSystem_students && 
+                     Array.isArray(data.musicSystem_students) && 
+                     data.musicSystem_students.length > 0;
+  
+  if (!hasStudents) {
+    logger.error('❌ PREVENTED EMPTY DATA SYNC - No students found!');
+    throw new Error('Cannot export empty data - system integrity check failed');
+  }
+  
   return data;
 };
 
@@ -762,4 +787,16 @@ export const getStudentBestAchievements = (studentId: string): {
     bestDailyMinutes: Math.max(...achievements.map(a => a.maxDailyMinutes)),
     bestStreak: Math.max(...achievements.map(a => a.maxStreak)),
   };
+};
+
+// Clear practice and medal data - for fresh start
+export const clearPracticeAndMedalData = (): void => {
+  logger.info('🧹 Clearing all practice sessions, monthly achievements, and medal records...');
+  
+  inMemoryStorage['practiceSessions'] = [];
+  inMemoryStorage['monthlyAchievements'] = [];
+  inMemoryStorage['medalRecords'] = [];
+  
+  hybridSync.onDataChange();
+  logger.info('✅ Practice and medal data cleared successfully');
 };

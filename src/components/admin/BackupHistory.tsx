@@ -64,17 +64,19 @@ const BackupHistory = () => {
         setVersions(sorted);
         logger.info(`Loaded ${sorted.length} versions`);
       } else {
+        logger.error('Failed to load versions:', result.error);
         toast({
           title: '❌ שגיאה בטעינת היסטוריה',
-          description: result.error || 'לא ניתן לטעון את רשימת הגרסאות',
+          description: `שגיאה: ${result.error || 'לא ניתן לטעון את רשימת הגרסאות'}`,
           variant: 'destructive',
         });
       }
     } catch (error) {
       logger.error('Error loading versions:', error);
+      const errorMessage = error instanceof Error ? error.message : 'שגיאה לא ידועה';
       toast({
         title: '❌ שגיאה',
-        description: 'אירעה תקלה. נסי שוב.',
+        description: `אירעה תקלה: ${errorMessage}`,
         variant: 'destructive',
       });
     } finally {
