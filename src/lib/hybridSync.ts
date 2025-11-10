@@ -54,13 +54,27 @@ class HybridSyncManager {
     window.addEventListener('beforeunload', () => {
       if (this.syncState.isOnline && this.syncState.pendingChanges > 0) {
         logger.info('💾 Saving to Worker on close...');
-        // Use sendBeacon for reliable sync on unload
-        const data = this.gatherAllData();
-        const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-        navigator.sendBeacon(
-          'https://lovable-dropbox-api.w0504124161.workers.dev/?action=upload_versioned',
-          blob
-        );
+        
+        try {
+          const data = this.gatherAllData();
+          
+          // 🛡️ GUARD: Only sync if we have meaningful data
+          const dataSize = JSON.stringify(data).length;
+          if (dataSize < 100) {
+            logger.warn('⚠️ Skipping beforeunload sync - data too small');
+            return;
+          }
+          
+          // Use sendBeacon for reliable sync on unload
+          const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+          navigator.sendBeacon(
+            'https://lovable-dropbox-api.w0504124161.workers.dev/?action=upload_versioned',
+            blob
+          );
+        } catch (error) {
+          logger.error('❌ beforeunload sync prevented:', error);
+          // Don't sync if there's an error
+        }
       }
     });
   }
@@ -101,8 +115,22 @@ class HybridSyncManager {
         this.updateInMemoryStorage(result.data);
         this.syncState.lastSyncTime = new Date().toISOString();
       } else if (result.error === 'NO_VERSION_FOUND') {
-        logger.info('ℹ️ No version found on Worker - starting fresh');
-        // In this case, it's OK to start with empty system (first use)
+        logger.info('ℹ️ No version found on Worker - starting fresh (first use)');
+        // Initialize empty storage for first use
+        this.updateInMemoryStorage({
+          musicSystem_students: [],
+          musicSystem_lessons: [],
+          musicSystem_payments: [],
+          musicSystem_swapRequests: [],
+          musicSystem_files: [],
+          musicSystem_scheduleTemplates: [],
+          musicSystem_performances: [],
+          musicSystem_holidays: [],
+          musicSystem_practiceSessions: [],
+          musicSystem_monthlyAchievements: [],
+          musicSystem_medalRecords: [],
+          oneTimePayments: [],
+        });
       } else {
         logger.error('❌ Worker load failed:', result.error);
         throw new Error('Failed to load from Worker');

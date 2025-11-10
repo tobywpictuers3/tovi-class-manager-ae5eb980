@@ -13,21 +13,24 @@ export const initializeStorage = (data: any) => {
   }
   
   let initialized = false;
+  let keysFound = 0;
   
   Object.keys(data).forEach(key => {
     if (key.startsWith('musicSystem_') || key === 'oneTimePayments') {
-      inMemoryStorage[key.replace('musicSystem_', '')] = data[key];
+      const storageKey = key.replace('musicSystem_', '');
+      inMemoryStorage[storageKey] = data[key];
       initialized = true;
+      keysFound++;
     }
   });
   
   if (initialized) {
-    logger.info('✅ Memory storage initialized with data');
+    logger.info(`✅ Memory storage initialized with ${keysFound} data keys`);
   } else {
     logger.warn('⚠️ No valid data keys found during initialization');
   }
   
-  // Keep only session token in localStorage
+  // Keep only session token in sessionStorage (not localStorage)
   const currentUser = localStorage.getItem('musicSystem_currentUser');
   if (currentUser) {
     sessionStorage.setItem('musicSystem_currentUser', currentUser);
@@ -35,7 +38,7 @@ export const initializeStorage = (data: any) => {
 };
 
 // Export all data for Worker sync
-export const exportAllData = (): Record<string, any> => {
+export const exportAllData = (allowEmpty: boolean = false): Record<string, any> => {
   const data: Record<string, any> = {};
   
   Object.keys(inMemoryStorage).forEach(key => {
@@ -45,14 +48,16 @@ export const exportAllData = (): Record<string, any> => {
   
   data.timestamp = new Date().toISOString();
   
-  // 🛡️ GUARD: Check that we have at least student data
-  const hasStudents = data.musicSystem_students && 
-                     Array.isArray(data.musicSystem_students) && 
-                     data.musicSystem_students.length > 0;
-  
-  if (!hasStudents) {
-    logger.error('❌ PREVENTED EMPTY DATA SYNC - No students found!');
-    throw new Error('Cannot export empty data - system integrity check failed');
+  // 🛡️ GUARD: Check that we have at least student data (unless explicitly allowed to be empty)
+  if (!allowEmpty) {
+    const hasStudents = data.musicSystem_students && 
+                       Array.isArray(data.musicSystem_students) && 
+                       data.musicSystem_students.length > 0;
+    
+    if (!hasStudents) {
+      logger.error('❌ PREVENTED EMPTY DATA SYNC - No students found!');
+      throw new Error('Cannot export empty data - system integrity check failed');
+    }
   }
   
   return data;
@@ -790,13 +795,19 @@ export const getStudentBestAchievements = (studentId: string): {
 };
 
 // Clear practice and medal data - for fresh start
-export const clearPracticeAndMedalData = (): void => {
+export const clearPracticeAndMedalData = async (): Promise<void> => {
   logger.info('🧹 Clearing all practice sessions, monthly achievements, and medal records...');
   
   inMemoryStorage['practiceSessions'] = [];
   inMemoryStorage['monthlyAchievements'] = [];
   inMemoryStorage['medalRecords'] = [];
   
-  hybridSync.onDataChange();
-  logger.info('✅ Practice and medal data cleared successfully');
+  // Only sync if we have students (otherwise it's an empty system)
+  const students = getStudents();
+  if (students && students.length > 0) {
+    await hybridSync.onDataChange();
+    logger.info('✅ Practice data cleared and synced');
+  } else {
+    logger.info('ℹ️ Practice data cleared (no sync - empty system)');
+  }
 };
