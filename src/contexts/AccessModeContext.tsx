@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, FC } from 'react';
 
 type AccessMode = 'private' | 'public';
 
@@ -11,7 +11,7 @@ interface AccessModeContextType {
 
 const AccessModeContext = createContext<AccessModeContextType | undefined>(undefined);
 
-export const AccessModeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const AccessModeProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [accessMode, setAccessMode] = useState<AccessMode>('private');
 
   const isPublicMode = accessMode === 'public';
