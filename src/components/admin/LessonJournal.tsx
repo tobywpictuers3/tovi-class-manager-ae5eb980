@@ -413,12 +413,12 @@ const LessonJournal = () => {
     // אם סימנו "תלמידה נעדרה"
     if (markAsNoShow) {
       setUndoStack([...undoStack, { action: 'update', data: lesson }]);
+      const currentNotes = editingLesson.notes || '';
       updateLesson(editingLesson.id, {
-        status: 'no_show',
-        notes: (editingLesson.notes || '') + '\nתלמידה נעדרה'
+        notes: currentNotes ? `${currentNotes}\n⚠️ תלמידה נעדרה` : '⚠️ תלמידה נעדרה'
       });
       
-      toast({ description: 'השיעור סומן כ"תלמידה נעדרה"' });
+      toast({ description: 'השיעור נשאר כהתקיים + סומנה נעדרות' });
     }
     // אם מפחיתים בדיוק 30 דקות - מוחקים את השיעור לגמרי
     else if (bankTimeChange === -30) {
@@ -711,8 +711,6 @@ const LessonJournal = () => {
                               className={`p-2 rounded text-xs ${
                                 lesson.status === 'completed'
                                   ? 'bg-[#8B2942]/10 border border-[#8B2942]/30 cursor-pointer'
-                                  : lesson.status === 'no_show'
-                                  ? 'bg-orange-100 border border-orange-500 cursor-pointer'
                                   : lesson.isFromTemplate
                                   ? 'bg-blue-50 border border-blue-200 cursor-move text-black'
                                   : 'bg-secondary/30 border border-border cursor-pointer text-black'
