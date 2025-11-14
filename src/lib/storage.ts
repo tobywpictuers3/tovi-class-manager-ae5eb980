@@ -36,6 +36,8 @@ export const setDevMode = (isActive: boolean) => {
 
 export const isDevMode = (): boolean => devModeActive;
 
+export const getDevStore = () => devData;
+
 // Initialize data from Worker
 export const initializeStorage = (data: any) => {
   if (!data || typeof data !== 'object') {
