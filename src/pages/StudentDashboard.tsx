@@ -33,6 +33,7 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     const user = getCurrentUser();
+    const devMode = sessionStorage.getItem('musicSystem_devMode') === 'true';
     
     // Public mode - show empty view
     if (studentId === 'public') {
@@ -61,6 +62,17 @@ const StudentDashboard = () => {
         monthlyAmount: 0,
       });
       return;
+    }
+    
+    // Developer mode - allow access to mock students
+    if (devMode && user && user.type === 'student') {
+      const students = getStudents();
+      const currentStudent = students.find(s => s.id === studentId);
+      if (currentStudent) {
+        setAccessMode('private');
+        setStudent(currentStudent);
+        return;
+      }
     }
     
     // Private mode - regular student
