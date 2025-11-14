@@ -1,5 +1,6 @@
 import { workerApi } from './workerApi';
 import { logger } from './logger';
+import { isDevMode } from './storage';
 
 interface SyncManager {
   loadDataOnInit: () => Promise<void>;
@@ -23,8 +24,13 @@ class SyncManagerImpl implements SyncManager {
   constructor() {
     logger.info('🔄 SyncManager initialized');
     
-    // Start periodic backup to Worker every 30 minutes (secure - your Worker only)
-    this.startPeriodicBackup();
+    // 🔒 CRITICAL: Don't start periodic backup in dev mode
+    if (!isDevMode()) {
+      // Start periodic backup to Worker every 30 minutes (secure - your Worker only)
+      this.startPeriodicBackup();
+    } else {
+      logger.info('🔧 Dev mode: Periodic backup disabled');
+    }
   }
 
   // Load data from Cloudflare Worker using workerApi
@@ -129,6 +135,12 @@ class SyncManagerImpl implements SyncManager {
    * This is SAFE - goes to your Worker, not Lovable
    */
   startPeriodicBackup(): void {
+    // 🔒 CRITICAL: Block in dev mode
+    if (isDevMode()) {
+      logger.info('🔧 Dev mode: startPeriodicBackup blocked');
+      return;
+    }
+    
     if (this.backupInterval) {
       clearInterval(this.backupInterval);
     }
@@ -146,6 +158,12 @@ class SyncManagerImpl implements SyncManager {
   }
 
   onSwapRequestReceived(): void {
+    // 🔒 CRITICAL: Block in dev mode
+    if (isDevMode()) {
+      logger.info('🔧 Dev mode: onSwapRequestReceived blocked');
+      return;
+    }
+    
     this.autoSaveToWorker();
   }
 
@@ -156,6 +174,12 @@ class SyncManagerImpl implements SyncManager {
 
   // טעינת נתונים מ-Cloudflare Worker בעת טעינת האפליקציה
   async loadDataOnInit(): Promise<void> {
+    // 🔒 CRITICAL: Block in dev mode
+    if (isDevMode()) {
+      logger.info('🔧 Dev mode: loadDataOnInit blocked');
+      return;
+    }
+    
     try {
       logger.info('Loading data from Cloudflare Worker on init...');
       const data = await this.loadFromWorker();
@@ -183,6 +207,12 @@ class SyncManagerImpl implements SyncManager {
    * Auto-save to YOUR Worker on data changes (secure - your Worker only)
    */
   async onUserAction(action: string): Promise<void> {
+    // 🔒 CRITICAL: Block in dev mode
+    if (isDevMode()) {
+      logger.info(`🔧 Dev mode: onUserAction (${action}) blocked`);
+      return;
+    }
+    
     logger.info(`User action: ${action}`);
     await this.autoSaveToWorker();
   }
@@ -191,6 +221,12 @@ class SyncManagerImpl implements SyncManager {
    * Auto-save to YOUR external Worker (secure - not Lovable)
    */
   private async autoSaveToWorker(): Promise<void> {
+    // 🔒 CRITICAL: Block in dev mode
+    if (isDevMode()) {
+      logger.info('🔧 Dev mode: autoSaveToWorker blocked');
+      return;
+    }
+    
     try {
       const students = JSON.parse(localStorage.getItem('musicSystem_students') || '[]');
       const lessons = JSON.parse(localStorage.getItem('musicSystem_lessons') || '[]');
@@ -218,6 +254,12 @@ class SyncManagerImpl implements SyncManager {
   }
 
   async importBackup(file: File): Promise<boolean> {
+    // 🔒 CRITICAL: Block in dev mode
+    if (isDevMode()) {
+      logger.info('🔧 Dev mode: importBackup blocked');
+      return false;
+    }
+    
     try {
       const text = await file.text();
       const data = JSON.parse(text);

@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { isDevMode } from './storage';
 
 const WORKER_BASE_URL = 'https://lovable-dropbox-api.w0504124161.workers.dev/';
 
@@ -48,6 +49,12 @@ export const workerApi = {
    * GET ?action=download_latest
    */
   downloadLatest: async (): Promise<WorkerResponse> => {
+    // 🔒 CRITICAL: Block all Worker access in dev mode
+    if (isDevMode()) {
+      logger.info('🔧 Dev mode: downloadLatest blocked');
+      return { success: false, error: 'DEV_MODE_BLOCKED' };
+    }
+    
     try {
       const response = await fetch(`${WORKER_BASE_URL}?action=download_latest`, {
         method: 'GET',
@@ -81,6 +88,12 @@ export const workerApi = {
    * POST ?action=upload_versioned
    */
   uploadVersioned: async (data: any): Promise<WorkerResponse> => {
+    // 🔒 CRITICAL: Block all Worker access in dev mode
+    if (isDevMode()) {
+      logger.info('🔧 Dev mode: uploadVersioned blocked');
+      return { success: false, error: 'DEV_MODE_BLOCKED' };
+    }
+    
     try {
       const response = await fetch(`${WORKER_BASE_URL}?action=upload_versioned`, {
         method: 'POST',
@@ -110,6 +123,12 @@ export const workerApi = {
    * GET ?action=list_versions
    */
   listVersions: async (): Promise<WorkerResponse<VersionInfo[]>> => {
+    // 🔒 CRITICAL: Block all Worker access in dev mode
+    if (isDevMode()) {
+      logger.info('🔧 Dev mode: listVersions blocked');
+      return { success: false, error: 'DEV_MODE_BLOCKED' };
+    }
+    
     try {
       const response = await fetch(`${WORKER_BASE_URL}?action=list_versions`, {
         method: 'GET',
@@ -138,6 +157,12 @@ export const workerApi = {
    * POST ?action=download_by_path
    */
   downloadByPath: async (path: string): Promise<WorkerResponse> => {
+    // 🔒 CRITICAL: Block all Worker access in dev mode
+    if (isDevMode()) {
+      logger.info('🔧 Dev mode: downloadByPath blocked');
+      return { success: false, error: 'DEV_MODE_BLOCKED' };
+    }
+    
     try {
       const response = await fetch(`${WORKER_BASE_URL}?action=download_by_path`, {
         method: 'POST',

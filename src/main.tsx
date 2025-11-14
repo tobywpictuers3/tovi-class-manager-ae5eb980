@@ -3,7 +3,7 @@ import App from './App.tsx'
 import './index.css'
 import { hybridSync } from './lib/hybridSync';
 import { logger } from './lib/logger';
-import { clearPracticeAndMedalData } from './lib/storage';
+import { clearPracticeAndMedalData, setDevMode } from './lib/storage';
 // Show loading screen
 const root = document.getElementById("root")!;
 root.innerHTML = `
@@ -51,6 +51,14 @@ if ('serviceWorker' in navigator) {
 async function initializeApp() {
   try {
     logger.info('Starting app initialization...');
+    
+    // 🔒 CRITICAL: Restore dev mode BEFORE loading any data
+    const isDevMode = sessionStorage.getItem('musicSystem_devMode') === 'true';
+    if (isDevMode) {
+      setDevMode(true);
+      logger.info('🔧 Dev mode restored - NO data will be loaded from Worker');
+    }
+    
     await hybridSync.loadDataOnInit();
     logger.info('Data loaded successfully');
     createRoot(root).render(<App />);

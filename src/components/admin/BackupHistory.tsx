@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { workerApi } from '@/lib/workerApi';
 import { logger } from '@/lib/logger';
+import { isDevMode } from '@/lib/storage';
 import { 
   History, 
   Download, 
@@ -41,6 +42,27 @@ interface VersionInfo {
 }
 
 const BackupHistory = () => {
+  // 🔒 CRITICAL: Block entire component in dev mode
+  if (isDevMode()) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            היסטוריית גיבויים
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8 text-muted-foreground">
+            <div className="text-4xl mb-4">🔧</div>
+            <p className="text-lg font-medium mb-2">לא זמין במצב מפתחים</p>
+            <p className="text-sm">היסטוריית גיבויים זמינה רק במצב ניהול רגיל</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   const [versions, setVersions] = useState<VersionInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<VersionInfo | null>(null);
