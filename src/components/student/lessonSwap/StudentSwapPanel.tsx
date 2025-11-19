@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,387 +98,389 @@ const StudentSwapPanel = ({ studentId, onLessonClick }: StudentSwapPanelProps) =
       });
     } else {
       toast({
-        title: 'קוד שגוי',
-        description: 'קוד ההחלפה שהוזן אינו תואם',
         variant: 'destructive',
+        title: 'קוד שגוי',
+        description: 'נסי שוב',
       });
     }
   };
   
-  // Handle submit
-  const handleSubmit = async () => {
+  // Submit swap request
+  const handleSubmit = () => {
     if (!currentStudent) return;
-    
-    // Find or create lesson IDs
-    let finalMyLessonId = myLessonId;
-    let finalTargetLessonId = targetLessonId;
-    
-    if (!finalMyLessonId && myLessonDate && myLessonTime) {
-      const lesson = allLessons.find(l => 
-        l.studentId === studentId && 
-        l.date === myLessonDate && 
-        l.startTime === myLessonTime
-      );
-      if (lesson) finalMyLessonId = lesson.id;
-    }
-    
-    if (!finalTargetLessonId && targetLessonDate && targetLessonTime && targetStudentId) {
-      const lesson = allLessons.find(l => 
-        l.studentId === targetStudentId && 
-        l.date === targetLessonDate && 
-        l.startTime === targetLessonTime
-      );
-      if (lesson) finalTargetLessonId = lesson.id;
-    }
-    
-    if (!finalMyLessonId || !finalTargetLessonId || !targetStudentId) {
+
+    // Find lessons
+    const myLesson = myLessons.find(l => l.id === myLessonId);
+    const targetLesson = allLessons.find(l => l.id === targetLessonId);
+
+    if (!myLesson || !targetLesson) {
       toast({
-        title: 'שגיאה',
-        description: 'יש למלא את כל פרטי השיעורים',
         variant: 'destructive',
+        title: 'שגיאה',
+        description: 'נא לבחור שיעורים תקינים',
       });
       return;
     }
-    
-    const requestData = {
+
+    // Build request
+    const request = {
       requesterStudentId: studentId,
-      requesterLessonId: finalMyLessonId,
-      targetLessonId: finalTargetLessonId,
-      targetStudentId,
+      requesterLessonId: myLessonId,
+      targetLessonId: targetLessonId,
+      targetStudentId: targetStudentId,
       requesterSwapCode: mySwapCode,
       targetSwapCode: targetSwapCode || undefined,
       status: 'pending_manager' as const,
       reason,
     };
-    
+
     // Validate
-    const validation = validateSwap(requestData, allLessons, students);
+    const validation = validateSwap(request, allLessons, students);
     if (!validation.valid) {
       toast({
+        variant: 'destructive',
         title: 'שגיאה',
         description: validation.error,
-        variant: 'destructive',
       });
       return;
     }
-    
-    // Check if target swap code is valid for auto-approval
-    let status: 'auto_approved' | 'pending_manager' = 'pending_manager';
-    
-    if (targetSwapCode && targetSwapCode.trim()) {
-      const targetStudent = students.find(s => s.id === targetStudentId);
-      if (targetStudent) {
-        const expectedTargetCode = targetStudent.swapCode || targetStudent.personalCode;
-        if (targetSwapCode.trim() === expectedTargetCode) {
-          status = 'auto_approved';
-        }
-      }
-    }
-    
-    const finalRequest = { ...requestData, status };
-    
-    // Create request
-    const swapRequest = addSwapRequest(finalRequest);
-    
-    const targetStudent = students.find(s => s.id === targetStudentId);
-    
-    if (status === 'auto_approved') {
-      // Perform swap immediately
-      markLessonsAsSwapped(swapRequest);
-      
-      // Notify admin and students
-      await addMessage({
-        senderId: 'system',
-        senderName: 'מערכת',
-        recipientIds: ['admin'],
-        subject: 'החלפת שיעור אושרה אוטומטית',
-        content: `החלפה בין ${currentStudent.firstName} ${currentStudent.lastName} ל-${targetStudent?.firstName} ${targetStudent?.lastName}\n\nשיעור של ${currentStudent.firstName}: ${new Date(myLessonDate).toLocaleDateString('he-IL')} בשעה ${myLessonTime}\nשיעור של ${targetStudent?.firstName}: ${new Date(targetLessonDate).toLocaleDateString('he-IL')} בשעה ${targetLessonTime}\n\nסיבה: ${reason || 'לא צוין'}`,
-        type: 'system',
-      });
-      
-      await addMessage({
-        senderId: 'admin',
-        senderName: 'המורה',
-        recipientIds: [studentId, targetStudentId],
-        subject: 'החלפת שיעור אושרה',
-        content: `שלום,\n\nהחלפת השיעור בין ${currentStudent.firstName} ל-${targetStudent?.firstName} אושרה.\n\nהשיעורים החדשים:\n- ${currentStudent.firstName}: ${new Date(targetLessonDate).toLocaleDateString('he-IL')} בשעה ${targetLessonTime}\n- ${targetStudent?.firstName}: ${new Date(myLessonDate).toLocaleDateString('he-IL')} בשעה ${myLessonTime}`,
-        type: 'swap_approval',
-      });
+
+    // Determine status
+    const finalStatus = determineSwapStatus(request, students);
+    const finalRequest = { ...request, status: finalStatus };
+
+    // Add request
+    const createdRequest = addSwapRequest(finalRequest);
+
+    // If auto-approved, mark lessons as swapped
+    if (finalStatus === 'auto_approved') {
+      markLessonsAsSwapped(createdRequest);
       
       toast({
-        title: '✅ החלפה אושרה אוטומטית',
-        description: 'השיעורים הוחלפו בהצלחה והמורה קיבלה עדכון',
+        title: 'בקשת החלפה אושרה!',
+        description: 'השיעורים הוחלפו בהצלחה',
+      });
+
+      // Send messages
+      const targetStudent = students.find(s => s.id === targetStudentId);
+      addMessage({
+        senderId: 'admin',
+        senderName: 'מערכת',
+        recipientIds: [studentId],
+        subject: 'בקשת החלפה אושרה',
+        content: `בקשת ההחלפה שלך עם ${targetStudent?.firstName} ${targetStudent?.lastName} אושרה אוטומטית`,
+        type: 'swap_approval',
+      });
+
+      addMessage({
+        senderId: 'admin',
+        senderName: 'מערכת',
+        recipientIds: [targetStudentId],
+        subject: 'שיעור הוחלף',
+        content: `השיעור שלך הוחלף עם ${currentStudent.firstName} ${currentStudent.lastName}`,
+        type: 'swap_approval',
       });
     } else {
-      // pending_manager - do NOT perform swap, only save request
-      await addMessage({
+      toast({
+        title: 'בקשת החלפה נשלחה',
+        description: 'הבקשה ממתינה לאישור המנהל',
+      });
+
+      // Send message to admin
+      const targetStudent = students.find(s => s.id === targetStudentId);
+      addMessage({
         senderId: studentId,
         senderName: `${currentStudent.firstName} ${currentStudent.lastName}`,
         recipientIds: ['admin'],
-        subject: 'בקשה להחלפת שיעור',
-        content: `בקשה חדשה להחלפת שיעור:\n\nמבקשת: ${currentStudent.firstName} ${currentStudent.lastName}\nתלמידה מבוקשת להחלפה: ${targetStudent?.firstName} ${targetStudent?.lastName}\n\nשיעור של ${currentStudent.firstName}: ${new Date(myLessonDate).toLocaleDateString('he-IL')} בשעה ${myLessonTime}\nשיעור מבוקש: ${new Date(targetLessonDate).toLocaleDateString('he-IL')} בשעה ${targetLessonTime}\n\nסיבה: ${reason || 'לא צוין'}`,
+        subject: 'בקשת החלפת שיעור',
+        content: `${currentStudent.firstName} ${currentStudent.lastName} מבקשת להחליף שיעור עם ${targetStudent?.firstName} ${targetStudent?.lastName}. סיבה: ${reason || 'לא צוין'}`,
         type: 'swap_request',
       });
-      
-      toast({
-        title: '⏳ הבקשה נשלחה למנהל',
-        description: 'בקשת ההחלפה ממתינה לאישור המנהל',
-      });
     }
-    
+
     resetForm();
   };
-  
+
   const resetForm = () => {
+    setCurrentStep('my-lesson');
+    setIsVerified(false);
     setMyLessonId('');
     setMyLessonDate('');
     setMyLessonTime('');
+    setMySwapCode('');
     setTargetStudentId('');
     setTargetLessonId('');
     setTargetLessonDate('');
     setTargetLessonTime('');
-    setMySwapCode('');
     setTargetSwapCode('');
     setReason('');
-    setIsVerified(false);
-    setCurrentStep('my-lesson');
     setManualMyLesson(false);
     setManualTargetLesson(false);
   };
-  
-  if (!currentStudent) return null;
-  
+
+  // Register callbacks with parent
+  useEffect(() => {
+    if (!onLessonClick) return;
+    
+    if (currentStep === 'my-lesson' && !isVerified) {
+      onLessonClick(handleMyLessonFromSchedule);
+    } else if (currentStep === 'target-lesson' && isVerified) {
+      onLessonClick(handleTargetLessonFromSchedule);
+    }
+  }, [currentStep, isVerified, onLessonClick]);
+
+  if (!currentStudent) {
+    return null;
+  }
+
+  console.log('StudentSwapPanel rendered for student:', studentId);
+
   return (
-    <Card className="mt-6 border-2 border-primary/20 shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10">
-        <CardTitle className="text-2xl">איזור החלפות</CardTitle>
+    <Card className="card-gradient card-shadow mt-8">
+      <CardHeader>
+        <CardTitle className="text-2xl">החלפת שיעורים</CardTitle>
       </CardHeader>
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Cube 1: My Lesson */}
-          <Card className={`border-2 transition-all ${currentStep === 'my-lesson' ? 'border-primary shadow-md' : 'border-muted'}`}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                {isVerified ? (
-                  <Check className="h-5 w-5 text-green-500" />
+      <CardContent>
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Step 1: My Lesson */}
+          <div className={`p-6 rounded-lg border-2 ${currentStep === 'my-lesson' ? 'border-primary bg-primary/5' : 'border-border bg-muted/30'}`}>
+            <div className="flex items-center gap-2 mb-4">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isVerified ? 'bg-green-500' : 'bg-primary'}`}>
+                {isVerified ? <Check className="h-5 w-5 text-white" /> : <span className="text-white font-bold">1</span>}
+              </div>
+              <h3 className="text-lg font-semibold">השיעור שלי</h3>
+            </div>
+
+            {!isVerified ? (
+              <div className="space-y-4">
+                {!manualMyLesson ? (
+                  <>
+                    <div>
+                      <Label>בחרי שיעור מהמערכת</Label>
+                      <Select value={myLessonId} onValueChange={(val) => {
+                        const lesson = myLessons.find(l => l.id === val);
+                        if (lesson) {
+                          setMyLessonId(val);
+                          setMyLessonDate(lesson.date);
+                          setMyLessonTime(lesson.startTime);
+                        }
+                      }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="בחרי שיעור" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {myLessons.map(lesson => (
+                            <SelectItem key={lesson.id} value={lesson.id}>
+                              {new Date(lesson.date).toLocaleDateString('he-IL')} - {lesson.startTime}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setManualMyLesson(true)}
+                      className="w-full"
+                    >
+                      הזנה ידנית
+                    </Button>
+                  </>
                 ) : (
-                  <Lock className="h-5 w-5 text-muted-foreground" />
+                  <>
+                    <div>
+                      <Label>תאריך</Label>
+                      <Input 
+                        type="date" 
+                        value={myLessonDate} 
+                        onChange={(e) => setMyLessonDate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label>שעה</Label>
+                      <Input 
+                        type="time" 
+                        value={myLessonTime} 
+                        onChange={(e) => setMyLessonTime(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setManualMyLesson(false)}
+                      className="w-full"
+                    >
+                      בחירה מהרשימה
+                    </Button>
+                  </>
                 )}
-                השיעור שלי להחלפה
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!manualMyLesson && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={isVerified}
-                  onClick={() => {
-                    if (onLessonClick) {
-                      onLessonClick(handleMyLessonFromSchedule);
-                      toast({
-                        title: 'בחרי שיעור',
-                        description: 'לחצי על השיעור שלך במערכת השבועית',
-                      });
-                    }
-                  }}
-                >
-                  בחרי את השיעור שלך מהמערכת
-                </Button>
-              )}
-              
-              <div className="space-y-2">
-                <Label>תאריך השיעור</Label>
-                {manualMyLesson ? (
-                  <Input
-                    type="date"
-                    value={myLessonDate}
-                    onChange={(e) => setMyLessonDate(e.target.value)}
-                    disabled={isVerified}
+
+                <div>
+                  <Label>קוד החלפה שלי</Label>
+                  <Input 
+                    type="text"
+                    maxLength={4}
+                    value={mySwapCode}
+                    onChange={(e) => setMySwapCode(e.target.value)}
+                    placeholder="הזיני קוד"
                   />
-                ) : (
-                  <Select value={myLessonDate} onValueChange={(val) => {
-                    setMyLessonDate(val);
-                    const lesson = myLessons.find(l => l.date === val);
-                    if (lesson) {
-                      setMyLessonId(lesson.id);
-                      setMyLessonTime(lesson.startTime);
-                    }
-                  }} disabled={isVerified}>
+                </div>
+
+                <Button 
+                  onClick={handleVerify}
+                  disabled={!myLessonDate || !myLessonTime || !mySwapCode}
+                  className="w-full"
+                >
+                  <Lock className="h-4 w-4 ml-2" />
+                  אימות ומעבר לשלב הבא
+                </Button>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Check className="h-12 w-12 text-green-500 mx-auto mb-2" />
+                <p className="text-muted-foreground">השיעור שלך נבחר ואומת</p>
+                <p className="text-sm font-medium mt-2">{new Date(myLessonDate).toLocaleDateString('he-IL')} - {myLessonTime}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Step 2: Target Lesson */}
+          <div className={`p-6 rounded-lg border-2 ${currentStep === 'target-lesson' && isVerified ? 'border-primary bg-primary/5' : 'border-border bg-muted/30'}`}>
+            <div className="flex items-center gap-2 mb-4">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === 'target-lesson' ? 'bg-primary' : 'bg-muted'}`}>
+                <span className={`font-bold ${currentStep === 'target-lesson' ? 'text-white' : 'text-muted-foreground'}`}>2</span>
+              </div>
+              <h3 className="text-lg font-semibold">השיעור המבוקש</h3>
+            </div>
+
+            {!isVerified ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Lock className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>השלימי את השלב הראשון</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <Label>תלמידה</Label>
+                  <Select value={targetStudentId} onValueChange={setTargetStudentId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="בחרי תאריך" />
+                      <SelectValue placeholder="בחרי תלמידה" />
                     </SelectTrigger>
                     <SelectContent>
-                      {myLessons.map(lesson => (
-                        <SelectItem key={lesson.id} value={lesson.date}>
-                          {new Date(lesson.date).toLocaleDateString('he-IL')} - {lesson.startTime}
+                      {otherStudents.map(student => (
+                        <SelectItem key={student.id} value={student.id}>
+                          {student.firstName} {student.lastName}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                )}
-              </div>
-              
-              {myLessonDate && (
-                <div className="space-y-2">
-                  <Label>שעה</Label>
-                  <Input
-                    type="time"
-                    value={myLessonTime}
-                    onChange={(e) => setMyLessonTime(e.target.value)}
-                    disabled={isVerified}
+                </div>
+
+                {targetStudentId && !manualTargetLesson ? (
+                  <>
+                    <div>
+                      <Label>בחרי שיעור</Label>
+                      <Select value={targetLessonId} onValueChange={(val) => {
+                        const lesson = allLessons.find(l => l.id === val);
+                        if (lesson) {
+                          setTargetLessonId(val);
+                          setTargetLessonDate(lesson.date);
+                          setTargetLessonTime(lesson.startTime);
+                        }
+                      }}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="בחרי שיעור" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allLessons
+                            .filter(l => l.studentId === targetStudentId && l.date >= today && l.status === 'scheduled')
+                            .map(lesson => (
+                              <SelectItem key={lesson.id} value={lesson.id}>
+                                {new Date(lesson.date).toLocaleDateString('he-IL')} - {lesson.startTime}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setManualTargetLesson(true)}
+                      className="w-full"
+                    >
+                      הזנה ידנית
+                    </Button>
+                  </>
+                ) : targetStudentId ? (
+                  <>
+                    <div>
+                      <Label>תאריך</Label>
+                      <Input 
+                        type="date" 
+                        value={targetLessonDate} 
+                        onChange={(e) => setTargetLessonDate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label>שעה</Label>
+                      <Input 
+                        type="time" 
+                        value={targetLessonTime} 
+                        onChange={(e) => setTargetLessonTime(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setManualTargetLesson(false)}
+                      className="w-full"
+                    >
+                      בחירה מהרשימה
+                    </Button>
+                  </>
+                ) : null}
+
+                <div>
+                  <Label>קוד החלפה שלה (אופציונלי)</Label>
+                  <Input 
+                    type="text"
+                    maxLength={4}
+                    value={targetSwapCode}
+                    onChange={(e) => setTargetSwapCode(e.target.value)}
+                    placeholder="לאישור אוטומטי"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">עם קוד נכון - אישור מיידי</p>
+                </div>
+
+                <div>
+                  <Label>סיבה (אופציונלי)</Label>
+                  <Textarea 
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="למה את רוצה להחליף?"
+                    rows={3}
                   />
                 </div>
-              )}
-              
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => setManualMyLesson(!manualMyLesson)}
-                disabled={isVerified}
-                className="text-xs"
-              >
-                {manualMyLesson ? 'בחירה מהרשימה' : 'הזנה ידנית'}
-              </Button>
-              
-              {myLessonDate && myLessonTime && !isVerified && (
-                <>
-                  <div className="space-y-2">
-                    <Label>קוד ההחלפה שלי *</Label>
-                    <Input
-                      type="text"
-                      maxLength={4}
-                      value={mySwapCode}
-                      onChange={(e) => setMySwapCode(e.target.value)}
-                      placeholder="הזיני את קוד ההחלפה שלך"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      זהו הקוד האישי שלך להחלפות (ניתן לשנותו בפרטי התלמידה)
-                    </p>
-                  </div>
-                  
-                  <Button onClick={handleVerify} className="w-full">
-                    אימות והמשך <ArrowRight className="mr-2 h-4 w-4" />
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-          
-          {/* Cube 2: Target Lesson */}
-          <Card className={`border-2 transition-all ${currentStep === 'target-lesson' && isVerified ? 'border-primary shadow-md' : 'border-muted'}`}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                {!isVerified && <Lock className="h-5 w-5 text-muted-foreground" />}
-                השיעור שאני רוצה לקבל
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!isVerified ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  יש לאמת את השיעור שלך תחילה
-                </div>
-              ) : (
-                <>
-                  {!manualTargetLesson && (
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => {
-                        if (onLessonClick) {
-                          onLessonClick(handleTargetLessonFromSchedule);
-                          toast({
-                            title: 'בחרי שיעור',
-                            description: 'לחצי על השיעור המבוקש במערכת השבועית',
-                          });
-                        }
-                      }}
-                    >
-                      בחרי את השיעור המבוקש מהמערכת
-                    </Button>
-                  )}
-                  
-                  <div className="space-y-2">
-                    <Label>תלמידה</Label>
-                    <Select value={targetStudentId} onValueChange={setTargetStudentId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="בחרי תלמידה" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {otherStudents.map(student => (
-                          <SelectItem key={student.id} value={student.id}>
-                            {student.firstName} {student.lastName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>תאריך השיעור המבוקש</Label>
-                    <Input
-                      type="date"
-                      value={targetLessonDate}
-                      onChange={(e) => setTargetLessonDate(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>שעה</Label>
-                    <Input
-                      type="time"
-                      value={targetLessonTime}
-                      onChange={(e) => setTargetLessonTime(e.target.value)}
-                    />
-                  </div>
-                  
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => setManualTargetLesson(!manualTargetLesson)}
-                    className="text-xs"
+
+                <div className="flex gap-2 pt-2">
+                  <Button 
+                    onClick={handleSubmit}
+                    disabled={!targetStudentId || !targetLessonDate || !targetLessonTime}
+                    className="flex-1"
                   >
-                    {manualTargetLesson ? 'בחירה מהמערכת' : 'הזנה ידנית'}
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                    שלחי בקשה
                   </Button>
-                  
-                  <div className="space-y-2">
-                    <Label>קוד החלפה של התלמידה (אופציונלי)</Label>
-                    <Input
-                      type="text"
-                      maxLength={4}
-                      value={targetSwapCode}
-                      onChange={(e) => setTargetSwapCode(e.target.value)}
-                      placeholder="קוד החלפה"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      הזיני קוד החלפה לאישור מיידי. ללא קוד - הבקשה תישלח לאישור מנהל
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>סיבה (אופציונלי)</Label>
-                    <Textarea
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      placeholder="סיבת ההחלפה..."
-                      rows={2}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button onClick={handleSubmit} className="flex-1">
-                      שלחי בקשה
-                    </Button>
-                    <Button onClick={resetForm} variant="outline">
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-          
+                  <Button 
+                    onClick={resetForm}
+                    variant="outline"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
