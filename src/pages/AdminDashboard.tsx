@@ -155,10 +155,6 @@ const AdminDashboard = () => {
                 <Music className="h-4 w-4" />
                 הופעות
               </TabsTrigger>
-              <TabsTrigger value="swaps" className="flex items-center gap-2 royal-tab">
-                <MessageSquare className="h-4 w-4" />
-                בקשות החלפה
-              </TabsTrigger>
               <TabsTrigger value="practice" className="flex items-center gap-2 royal-tab">
                 <Trophy className="h-4 w-4" />
                 נתוני אימונים
