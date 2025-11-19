@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, ArrowRight, ArrowLeft } from 'lucide-react';
 import { getLessons, getStudents } from '@/lib/storage';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import SwapRequestForm from './SwapRequestForm';
+import LessonSwapInterface from './LessonSwapInterface';
 import { Lesson } from '@/lib/types';
 
 interface StudentWeeklyScheduleProps {
@@ -14,8 +14,7 @@ interface StudentWeeklyScheduleProps {
 
 const StudentWeeklySchedule = ({ studentId }: StudentWeeklyScheduleProps) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
-  const [swapFormOpen, setSwapFormOpen] = useState(false);
-  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [lessonSelectCallback, setLessonSelectCallback] = useState<((lesson: Lesson) => void) | null>(null);
   
   const allLessons = getLessons();
   const lessons = allLessons.filter(lesson => 
@@ -69,27 +68,21 @@ const StudentWeeklySchedule = ({ studentId }: StudentWeeklyScheduleProps) => {
     setCurrentWeek(nextWeek);
   };
 
-  const handleLessonDoubleClick = (lesson: Lesson) => {
-    // Only allow swapping of future scheduled lessons
-    if (lesson.status !== 'scheduled' || lesson.date < new Date().toISOString().split('T')[0]) {
-      toast({
-        title: 'לא ניתן להחליף',
-        description: 'ניתן להחליף רק שיעורים עתידיים מתוכננים',
-        variant: 'destructive',
-      });
-      return;
+  const handleLessonClick = (lesson: Lesson) => {
+    if (lessonSelectCallback) {
+      lessonSelectCallback(lesson);
+    }
+  };
+
+  const handleRegisterCallback = useCallback((callback: (lesson: Lesson) => void) => {
+    setLessonSelectCallback(() => callback);
+  }, []);
+
+  const getStatusBadge = (status: string, isSwapped?: boolean) => {
+    if (isSwapped) {
+      return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">החלפה</Badge>;
     }
 
-    setSelectedLesson(lesson);
-    setSwapFormOpen(true);
-  };
-
-  const handleCloseSwapForm = () => {
-    setSwapFormOpen(false);
-    setSelectedLesson(null);
-  };
-
-  const getStatusBadge = (status: string) => {
     const variants = {
       scheduled: 'secondary',
       completed: 'default',
@@ -103,6 +96,12 @@ const StudentWeeklySchedule = ({ studentId }: StudentWeeklyScheduleProps) => {
     };
 
     return <Badge variant={variants[status as keyof typeof variants]}>{labels[status as keyof typeof labels]}</Badge>;
+  };
+
+  const isLessonSwapped = (lesson: Lesson): boolean => {
+    // Check if this lesson was swapped by looking at all lessons
+    // A lesson is considered swapped if there's evidence it was moved from another student
+    return lesson.notes?.includes('הוחלף') || false;
   };
 
   if (!student) {
@@ -158,24 +157,27 @@ const StudentWeeklySchedule = ({ studentId }: StudentWeeklyScheduleProps) => {
 
                   {dayLessons.length > 0 ? (
                     <div className="space-y-2">
-                      {dayLessons.map((lesson) => (
-                        <div
-                          key={lesson.id}
-                          onDoubleClick={() => handleLessonDoubleClick(lesson)}
-                          className="p-3 bg-muted/50 rounded-lg flex justify-between items-center hover:bg-muted cursor-pointer transition-colors"
-                          title="לחיצה כפולה להחלפת שיעור"
-                        >
-                          <div className="flex items-center gap-4">
-                            <span className="font-medium">
-                              {lesson.startTime} - {lesson.endTime}
-                            </span>
-                            {lesson.notes && (
-                              <span className="text-sm text-muted-foreground">{lesson.notes}</span>
-                            )}
+                      {dayLessons.map((lesson) => {
+                        const isSwapped = isLessonSwapped(lesson);
+                        return (
+                          <div
+                            key={lesson.id}
+                            onClick={() => handleLessonClick(lesson)}
+                            className="p-3 bg-muted/50 rounded-lg flex justify-between items-center hover:bg-muted cursor-pointer transition-colors"
+                            title="לחץ לבחירת שיעור להחלפה"
+                          >
+                            <div className="flex items-center gap-4">
+                              <span className="font-medium">
+                                {lesson.startTime} - {lesson.endTime}
+                              </span>
+                              {lesson.notes && (
+                                <span className="text-sm text-muted-foreground">{lesson.notes}</span>
+                              )}
+                            </div>
+                            {getStatusBadge(lesson.status, isSwapped)}
                           </div>
-                          {getStatusBadge(lesson.status)}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-2">אין שיעורים</p>
@@ -196,17 +198,10 @@ const StudentWeeklySchedule = ({ studentId }: StudentWeeklyScheduleProps) => {
         </CardContent>
       </Card>
 
-      {/* Swap Form Below Schedule */}
-      {swapFormOpen && selectedLesson && (
-        <div className="mt-6">
-          <SwapRequestForm
-            studentId={studentId}
-            preSelectedLesson={selectedLesson}
-            onClose={handleCloseSwapForm}
-            requireVerification={true}
-          />
-        </div>
-      )}
+      <LessonSwapInterface 
+        studentId={studentId}
+        onLessonSelect={handleRegisterCallback}
+      />
     </>
   );
 };
