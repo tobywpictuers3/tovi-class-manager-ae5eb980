@@ -109,6 +109,9 @@ const StudentWeeklySchedule = ({ studentId }: StudentWeeklyScheduleProps) => {
   // Check if current user is admin - don't show swap panel for admin view
   const currentUser = getCurrentUser();
   const isAdminView = currentUser?.type === 'admin' || currentUser?.type === 'dev_admin';
+  
+  console.log('StudentWeeklySchedule - currentUser:', currentUser);
+  console.log('StudentWeeklySchedule - isAdminView:', isAdminView);
 
   return (
     <>
