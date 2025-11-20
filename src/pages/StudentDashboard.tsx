@@ -10,7 +10,7 @@ import { toast } from '@/hooks/use-toast';
 import { Student } from '@/lib/types';
 import { useAccessMode } from '@/contexts/AccessModeContext';
 import StudentWeeklySchedule from '@/components/student/StudentWeeklySchedule';
-import StudentSwapPanel from '@/components/student/lessonSwap/StudentSwapPanel';
+import StudentSwapPanel from '@/components/student/StudentSwapPanel';
 import EditableStudentDetails from '@/components/student/EditableStudentDetails';
 import ContactsList from '@/components/student/ContactsList';
 import StudentFiles from '@/components/student/StudentFiles';
@@ -32,7 +32,9 @@ const StudentDashboard = () => {
   const [activeTab, setActiveTab] = useState('schedule');
   const [student, setStudent] = useState<Student | null>(null);
   const { isPublicMode, setAccessMode } = useAccessMode();
-  const [lessonClickCallback, setLessonClickCallback] = useState<((lesson: any) => void) | null>(null);
+  const [mySelectedLesson, setMySelectedLesson] = useState<any>(null);
+  const [targetSelectedLesson, setTargetSelectedLesson] = useState<any>(null);
+  const [selectingFor, setSelectingFor] = useState<'my' | 'target' | null>(null);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -221,11 +223,22 @@ const StudentDashboard = () => {
               <div className="space-y-6">
                 <StudentWeeklySchedule 
                   studentId={studentId!}
-                  onLessonClick={lessonClickCallback}
+                  onLessonClick={(lesson) => {
+                    if (selectingFor === 'my') {
+                      setMySelectedLesson(lesson);
+                      setSelectingFor(null);
+                    } else if (selectingFor === 'target') {
+                      setTargetSelectedLesson(lesson);
+                      setSelectingFor(null);
+                    }
+                  }}
                 />
                 <StudentSwapPanel 
                   studentId={studentId!}
-                  onLessonClick={(callback) => setLessonClickCallback(() => callback)}
+                  myLesson={mySelectedLesson}
+                  targetLesson={targetSelectedLesson}
+                  onMyLessonClick={() => setSelectingFor('my')}
+                  onTargetLessonClick={() => setSelectingFor('target')}
                 />
               </div>
             )}
