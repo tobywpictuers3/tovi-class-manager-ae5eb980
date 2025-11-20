@@ -222,7 +222,7 @@ const StudentDashboard = () => {
             ) : (
               <div className="space-y-6">
                 <StudentWeeklySchedule 
-                  studentId={studentId!}
+                  lessons={[]}
                   onLessonClick={(lesson) => {
                     if (selectingFor === 'my') {
                       setMySelectedLesson(lesson);

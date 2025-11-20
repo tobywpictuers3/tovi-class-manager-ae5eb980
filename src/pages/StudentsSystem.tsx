@@ -94,7 +94,7 @@ const StudentsSystem = () => {
               </Card>
 
               <TabsContent value="schedule">
-                <StudentWeeklySchedule studentId={selectedStudentId} />
+                <StudentWeeklySchedule lessons={[]} />
               </TabsContent>
 
               <TabsContent value="swap">

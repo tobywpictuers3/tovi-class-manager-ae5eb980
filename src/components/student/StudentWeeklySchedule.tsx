@@ -1,4 +1,12 @@
-import { Lesson } from "@/lib/types";
+import { getLessons } from "@/lib/storage";
+
+interface Lesson {
+  id: string;
+  date: string;
+  time: string;
+  studentName: string;
+  status: string;
+}
 
 interface Props {
   lessons: Lesson[];
