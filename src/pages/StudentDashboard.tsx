@@ -58,6 +58,7 @@ const StudentDashboard = () => {
         phone: '',
         email: '',
         personalCode: '',
+        swapCode: '0000', // Default swap code for public view
         startDate: '',
         startingLessonNumber: 1,
         annualAmount: 0,

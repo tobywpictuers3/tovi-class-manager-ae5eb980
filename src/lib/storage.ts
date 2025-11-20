@@ -5,6 +5,11 @@ import { logger } from './logger';
 // In-Memory Storage - No localStorage for sensitive data
 const inMemoryStorage: Record<string, any> = {};
 
+// Expose storage via window for lessonSwap module access
+if (typeof window !== 'undefined') {
+  (window as any).__musicSystemStorage = inMemoryStorage;
+}
+
 // Dev Mode: Completely isolated in-memory storage (no Worker, no sync)
 let devModeActive = false;
 const devData: Record<string, any> = {
@@ -13,7 +18,7 @@ const devData: Record<string, any> = {
   calendar: [],
   payments: [],
   scheduleTemplates: [],
-  swapRequests: [],
+  swapRequests: [], // New field for swap requests
   files: [],
   integrationSettings: {},
   performances: [],
@@ -57,6 +62,11 @@ export const initializeStorage = (data: any) => {
       keysFound++;
     }
   });
+  
+  // Ensure swapRequests exists as empty array if not provided
+  if (!inMemoryStorage['swapRequests']) {
+    inMemoryStorage['swapRequests'] = [];
+  }
   
   if (initialized) {
     logger.info(`✅ Memory storage initialized with ${keysFound} data keys`);

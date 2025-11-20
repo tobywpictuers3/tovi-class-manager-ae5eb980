@@ -1,6 +1,11 @@
 import { Student, Lesson, Payment, SwapRequest, FileEntry } from './types';
 
 // Mock data for offline functionality
+// Helper to generate random 4-digit swap code
+const generateSwapCode = (): string => {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+};
+
 export const mockStudents: Student[] = [
   {
     id: '1',
@@ -9,6 +14,7 @@ export const mockStudents: Student[] = [
     phone: '052-123-4567',
     email: 'sarah.cohen@email.com',
     personalCode: '1234',
+    swapCode: generateSwapCode(),
     startDate: '2024-01-15',
     startingLessonNumber: 1,
     annualAmount: 4800,
@@ -22,6 +28,7 @@ export const mockStudents: Student[] = [
     phone: '054-987-6543',
     email: 'rachel.levi@email.com',
     personalCode: '5678',
+    swapCode: generateSwapCode(),
     startDate: '2024-02-01',
     startingLessonNumber: 1,
     annualAmount: 4800,
@@ -35,6 +42,7 @@ export const mockStudents: Student[] = [
     phone: '050-555-1234',
     email: 'miri.abraham@email.com',
     personalCode: '9012',
+    swapCode: generateSwapCode(),
     startDate: '2024-03-10',
     startingLessonNumber: 1,
     annualAmount: 4200,
