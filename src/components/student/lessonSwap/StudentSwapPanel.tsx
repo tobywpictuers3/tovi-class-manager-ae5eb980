@@ -60,9 +60,9 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
     const mySelectedLesson = myLessonId ? lessons.find(l => l.id === myLessonId) : null;
     const targetSelectedLesson = targetLessonId ? getLessons().find(l => l.id === targetLessonId) : null;
 
-    // Handle lesson click from weekly schedule - SMART AUTO-DETECTION
+    // Handle lesson click from weekly schedule - EXPLICIT selectionMode
     const handleLessonDoubleClick = (lesson: Lesson) => {
-      // If lesson is not a future lesson, reject
+      // Validate future lesson
       if (!isFutureLesson(lesson)) {
         toast({ 
           description: 'ניתן לבחור רק שיעורים עתידיים', 
@@ -71,42 +71,35 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         return;
       }
 
-      // SMART MODE: Auto-detect which field to fill
-      
-      // If 'my lesson' is not selected yet, fill it (only if it's the student's lesson)
-      if (!myLessonId) {
+      // Handle based on EXPLICIT selectionMode
+      if (selectionMode === 'my') {
+        // Validate it's the student's lesson
         if (lesson.studentId === student.id) {
           setMyLessonId(lesson.id);
           setSelectionMode(null);
           toast({ description: '✓ השיעור שלי נבחר בהצלחה' });
         } else {
           toast({ 
-            description: 'זה לא השיעור שלך. בחרי את השיעור שלך קודם.', 
+            description: 'זה לא השיעור שלך', 
             variant: 'destructive' 
           });
         }
-        return;
-      }
-
-      // If 'my lesson' is already selected but 'target lesson' is not, fill target
-      if (myLessonId && !targetLessonId) {
-        if (lesson.id === myLessonId) {
+      } else if (selectionMode === 'target') {
+        // Validate it's not the same lesson
+        if (lesson.id !== myLessonId && isFutureLesson(lesson)) {
+          setTargetLessonId(lesson.id);
+          setSelectionMode(null);
+          toast({ description: '✓ השיעור המבוקש נבחר בהצלחה' });
+        } else {
           toast({ 
-            description: 'בחרת את אותו שיעור. בחרי שיעור אחר להחלפה.', 
+            description: 'לא ניתן לבחור שיעור זה', 
             variant: 'destructive' 
           });
-          return;
         }
-        setTargetLessonId(lesson.id);
-        setSelectionMode(null);
-        toast({ description: '✓ השיעור המבוקש נבחר בהצלחה' });
-        return;
-      }
-
-      // If both are selected, let user know they need to clear first
-      if (myLessonId && targetLessonId) {
+      } else {
+        // No selection mode active
         toast({ 
-          description: 'שני השיעורים כבר נבחרו. אם ברצונך לשנות, נקי קודם.', 
+          description: 'לחצי קודם על "בחרי שיעור" או "בחרי שיעור מבוקש"', 
           variant: 'destructive' 
         });
       }
@@ -281,17 +274,22 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         : 'לא ידוע';
 
       return (
-        <div className="mt-2 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+        <div className="mt-2 p-4 bg-green-50 dark:bg-green-950/20 border-2 border-green-500 rounded-lg">
           <div className="flex justify-between items-start">
-            <div className="space-y-1">
-              <div className="font-semibold text-primary">
-                {lesson.date} | {lesson.startTime}-{lesson.endTime}
+            <div className="space-y-1 flex-1">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">✓</span>
+                </div>
+                <div className="font-semibold text-green-700 dark:text-green-400">
+                  {lesson.date} | {lesson.startTime}-{lesson.endTime}
+                </div>
               </div>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground mr-8">
                 {studentName}
               </div>
               {lesson.notes && (
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground mr-8">
                   {lesson.notes}
                 </div>
               )}
@@ -342,10 +340,9 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
                   <div>
                     <Label>בחרי שיעור</Label>
                     <Button
-                      variant="outline"
+                      variant={selectionMode === 'my' ? 'default' : 'outline'}
                       className="w-full justify-start text-right h-auto py-3"
                       onClick={() => setSelectionMode('my')}
-                      disabled={selectionMode !== null}
                     >
                       <MousePointerClick className="h-4 w-4 ml-2" />
                       {mySelectedLesson ? 'שיעור נבחר - לחצי לשינוי' : 'לחצי כאן ובחרי שיעור מהמערכת'}
@@ -383,7 +380,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
                   <div>
                     <Label>בחרי שיעור מבוקש</Label>
                     <Button
-                      variant="outline"
+                      variant={selectionMode === 'target' ? 'default' : 'outline'}
                       className="w-full justify-start text-right h-auto py-3"
                       onClick={() => setSelectionMode('target')}
                       disabled={!myLessonId || !isMyCodeValid}
