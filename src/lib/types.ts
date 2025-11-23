@@ -200,12 +200,11 @@ export interface Message {
   expiresAt?: string; // optional expiration date
   scheduledFor?: string; // scheduled send time
   isRead?: { [studentId: string]: boolean }; // track read status per recipient
-  isStarred?: { [studentId: string]: boolean }; // track starred status per recipient
+  starred?: { [studentId: string]: boolean }; // starred status per user
   isDeleted?: { [studentId: string]: boolean }; // track deleted status per recipient
   deletedBy?: { [studentId: string]: boolean }; // track deleted by specific user
   isDraft?: boolean; // draft status
   inReplyTo?: string; // ID of message being replied to
   type: 'general' | 'swap_request' | 'swap_approval' | 'swap_rejection';
-  starred?: { [studentId: string]: boolean }; // starred status per user
 }
 

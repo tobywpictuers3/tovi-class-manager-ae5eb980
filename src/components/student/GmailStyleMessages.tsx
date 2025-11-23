@@ -185,9 +185,9 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
   ];
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-300px)]">
+    <div className="flex flex-row-reverse gap-4 h-[calc(100vh-300px)]" dir="rtl">
       {/* Right Sidebar - Folders */}
-      <Card className="w-64 flex-shrink-0">
+      <Card className="w-64 flex-shrink-0 order-first">
         <CardContent className="p-4 space-y-2">
           <Button 
             onClick={handleCompose}
@@ -221,7 +221,7 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
       </Card>
 
       {/* Message List */}
-      <Card className="w-96 flex-shrink-0 overflow-hidden">
+      <Card className="w-96 flex-shrink-0 overflow-hidden order-2">
         <CardContent className="p-0">
           <div className="overflow-y-auto h-full">
             {filteredMessages.length === 0 ? (

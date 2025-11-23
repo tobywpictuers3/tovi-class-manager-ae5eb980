@@ -294,7 +294,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
           <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
             <Badge className="text-lg px-6 py-3 bg-primary text-primary-foreground shadow-lg animate-pulse">
               <MousePointerClick className="h-5 w-5 ml-2" />
-              לחצי לחיצה כפולה על שיעור מהמערכת למעלה
+              לחצי על שיעור מהמערכת למעלה
             </Badge>
           </div>
         )}
@@ -361,7 +361,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
                       variant="outline"
                       className="w-full justify-start text-right h-auto py-3"
                       onClick={() => setSelectionMode('target')}
-                      disabled={!myLessonId || !isMyCodeValid || selectionMode !== null}
+                      disabled={!myLessonId || !isMyCodeValid}
                     >
                       <MousePointerClick className="h-4 w-4 ml-2" />
                       {targetSelectedLesson ? 'שיעור נבחר - לחצי לשינוי' : 'לחצי כאן ובחרי שיעור מהמערכת'}
