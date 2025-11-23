@@ -37,6 +37,8 @@ export interface StudentSwapPanelRef {
 
 const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
   ({ student, lessons, onMount }, ref) => {
+    // Step-based state management
+    const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
     const [myLessonId, setMyLessonId] = useState<string>('');
     const [mySwapCode, setMySwapCode] = useState<string>('');
     const [targetLessonId, setTargetLessonId] = useState<string>('');
@@ -60,6 +62,25 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
 
     const mySelectedLesson = myLessonId ? lessons.find(l => l.id === myLessonId) : null;
     const targetSelectedLesson = targetLessonId ? getLessons().find(l => l.id === targetLessonId) : null;
+
+    // Auto-advance steps
+    useEffect(() => {
+      if (currentStep === 1 && isMyCodeValid) {
+        setCurrentStep(2);
+      }
+    }, [mySwapCode, isMyCodeValid, currentStep]);
+
+    useEffect(() => {
+      if (currentStep === 2 && myLessonId) {
+        setCurrentStep(3);
+      }
+    }, [myLessonId, currentStep]);
+
+    useEffect(() => {
+      if (currentStep === 3 && targetLessonId) {
+        setCurrentStep(4);
+      }
+    }, [targetLessonId, currentStep]);
 
     // Handle lesson click from weekly schedule - using persistent selection states
     const handleLessonDoubleClick = (lesson: Lesson) => {
@@ -260,6 +281,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         }
 
         // Reset form
+        setCurrentStep(1);
         setMyLessonId('');
         setMySwapCode('');
         setTargetLessonId('');
@@ -342,36 +364,18 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* My Lesson Selection */}
-              <Card>
+            <div className="space-y-6">
+              {/* Step 1: Code Entry */}
+              <Card className={currentStep === 1 ? 'border-2 border-primary' : 'opacity-60'}>
                 <CardHeader>
-                  <CardTitle className="text-lg">השיעור שלי להחלפה</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Badge variant={currentStep > 1 ? 'default' : 'outline'}>
+                      {currentStep > 1 ? '✓' : '1'}
+                    </Badge>
+                    הזיני קוד החלפה
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>בחרי שיעור</Label>
-                    <Button
-                      variant={isSelectingMy ? 'default' : 'outline'}
-                      className={`w-full justify-start text-right h-auto py-3 ${
-                        isSelectingMy ? 'bg-primary text-primary-foreground animate-pulse' : ''
-                      }`}
-                      onClick={() => {
-                        console.log('🔘 Button clicked - setting isSelectingMy to true');
-                        setIsSelectingMy(true);
-                        setIsSelectingTarget(false);
-                        toast({ 
-                          description: '👆 עכשיו לחצי על שיעור שלך במערכת למעלה',
-                          duration: 3000
-                        });
-                      }}
-                    >
-                      <MousePointerClick className="h-4 w-4 ml-2" />
-                      {mySelectedLesson ? 'שיעור נבחר - לחצי לשינוי' : 'לחצי כאן ובחרי שיעור מהמערכת'}
-                    </Button>
-                    {formatLessonDisplay(mySelectedLesson)}
-                  </div>
-
+                <CardContent>
                   <div>
                     <Label>קוד ההחלפה שלי</Label>
                     <Input
@@ -380,76 +384,121 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
                       value={mySwapCode}
                       onChange={(e) => setMySwapCode(e.target.value)}
                       maxLength={4}
+                      disabled={currentStep > 1}
                     />
                     {mySwapCode && !isMyCodeValid && (
                       <p className="text-sm text-destructive mt-1">קוד שגוי</p>
                     )}
                     {mySwapCode && isMyCodeValid && (
                       <p className="text-sm text-green-600 dark:text-green-400 mt-1">
-                        קוד נכון ✓
+                        קוד נכון ✓ - עברי לשלב הבא
                       </p>
                     )}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Target Lesson Selection */}
-              <Card>
+              {/* Step 2: My Lesson Selection */}
+              <Card className={currentStep === 2 ? 'border-2 border-primary' : 'opacity-60'}>
                 <CardHeader>
-                  <CardTitle className="text-lg">השיעור שאני רוצה לקבל</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Badge variant={currentStep > 2 ? 'default' : currentStep === 2 ? 'outline' : 'secondary'}>
+                      {currentStep > 2 ? '✓' : '2'}
+                    </Badge>
+                    בחרי את השיעור שלך להחלפה
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Button
+                    variant={isSelectingMy ? 'default' : 'outline'}
+                    className={`w-full justify-start text-right h-auto py-3 ${
+                      isSelectingMy ? 'bg-primary text-primary-foreground animate-pulse' : ''
+                    }`}
+                    onClick={() => {
+                      setIsSelectingMy(true);
+                      setIsSelectingTarget(false);
+                      toast({ 
+                        description: '👆 עכשיו לחצי על שיעור שלך במערכת למעלה',
+                        duration: 3000
+                      });
+                    }}
+                    disabled={currentStep < 2 || currentStep > 2}
+                  >
+                    <MousePointerClick className="h-4 w-4 ml-2" />
+                    {mySelectedLesson ? 'שיעור נבחר - לחצי לשינוי' : 'לחצי כאן ובחרי שיעור מהמערכת'}
+                  </Button>
+                  {formatLessonDisplay(mySelectedLesson)}
+                </CardContent>
+              </Card>
+
+              {/* Step 3: Target Lesson Selection */}
+              <Card className={currentStep === 3 ? 'border-2 border-primary' : 'opacity-60'}>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Badge variant={currentStep > 3 ? 'default' : currentStep === 3 ? 'outline' : 'secondary'}>
+                      {currentStep > 3 ? '✓' : '3'}
+                    </Badge>
+                    בחרי את השיעור המבוקש
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Button
+                    variant={isSelectingTarget ? 'default' : 'outline'}
+                    className={`w-full justify-start text-right h-auto py-3 ${
+                      isSelectingTarget ? 'bg-primary text-primary-foreground animate-pulse' : ''
+                    }`}
+                    onClick={() => {
+                      setIsSelectingTarget(true);
+                      setIsSelectingMy(false);
+                      toast({ 
+                        description: '👆 עכשיו לחצי על השיעור המבוקש במערכת למעלה',
+                        duration: 3000
+                      });
+                    }}
+                    disabled={currentStep < 3 || currentStep > 3}
+                  >
+                    <MousePointerClick className="h-4 w-4 ml-2" />
+                    {targetSelectedLesson ? 'שיעור נבחר - לחצי לשינוי' : 'לחצי כאן ובחרי שיעור מהמערכת'}
+                  </Button>
+                  {formatLessonDisplay(targetSelectedLesson)}
+                </CardContent>
+              </Card>
+
+              {/* Step 4: Optional Target Code + Submit */}
+              <Card className={currentStep === 4 ? 'border-2 border-primary' : 'opacity-60'}>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Badge variant={currentStep === 4 ? 'outline' : 'secondary'}>4</Badge>
+                    קוד החלפה של התלמידה השנייה (אופציונלי)
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label>בחרי שיעור מבוקש</Label>
-                    <Button
-                      variant={isSelectingTarget ? 'default' : 'outline'}
-                      className={`w-full justify-start text-right h-auto py-3 ${
-                        isSelectingTarget ? 'bg-primary text-primary-foreground animate-pulse' : ''
-                      }`}
-                      onClick={() => {
-                        console.log('🔘 Button clicked - setting isSelectingTarget to true');
-                        setIsSelectingTarget(true);
-                        setIsSelectingMy(false);
-                        toast({ 
-                          description: '👆 עכשיו לחצי על השיעור המבוקש במערכת למעלה',
-                          duration: 3000
-                        });
-                      }}
-                      disabled={!myLessonId || !isMyCodeValid}
-                    >
-                      <MousePointerClick className="h-4 w-4 ml-2" />
-                      {targetSelectedLesson ? 'שיעור נבחר - לחצי לשינוי' : 'לחצי כאן ובחרי שיעור מהמערכת'}
-                    </Button>
-                    {formatLessonDisplay(targetSelectedLesson)}
-                  </div>
-
-                  <div>
-                    <Label>קוד החלפה של התלמידה השנייה (אופציונלי)</Label>
+                    <Label>קוד החלפה של התלמידה השנייה</Label>
                     <Input
                       type="password"
                       placeholder="לאישור אוטומטי - הזיני קוד"
                       value={targetSwapCode}
                       onChange={(e) => setTargetSwapCode(e.target.value)}
                       maxLength={4}
-                      disabled={!targetLessonId}
+                      disabled={currentStep < 4}
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      אם תזיני קוד נכון, ההחלפה תתבצע אוטומטית
+                      הזיני קוד רק אם יש לך את הקוד של התלמידה השנייה - אחרת הבקשה תישלח למנהלת לאישור
                     </p>
                   </div>
+
+                  {/* Submit Button */}
+                  <Button
+                    onClick={handleSubmitClick}
+                    disabled={!myLessonId || !targetLessonId || !isMyCodeValid || isProcessing || currentStep < 4}
+                    className="w-full mt-4"
+                    size="lg"
+                  >
+                    {isProcessing ? 'מעבד...' : 'אשר והגש בקשה'}
+                  </Button>
                 </CardContent>
               </Card>
-            </div>
-
-            <div className="mt-6 flex justify-center">
-              <Button
-                onClick={handleSubmitClick}
-                disabled={!myLessonId || !targetLessonId || !isMyCodeValid || isProcessing}
-                size="lg"
-                className="w-full md:w-auto"
-              >
-                {isProcessing ? 'מעבד...' : 'שלחי בקשת החלפה'}
-              </Button>
             </div>
           </CardContent>
         </Card>

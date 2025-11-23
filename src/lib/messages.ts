@@ -1,22 +1,37 @@
 import { Message } from './types';
+import { isDevMode, getDevStore } from './storage';
+import { hybridSync } from './hybridSync';
 
-const MESSAGES_KEY = 'music_students_messages';
+// Get storage location
+const getStorage = () => {
+  if (isDevMode()) {
+    const devStore = getDevStore();
+    if (!devStore.messages) {
+      devStore.messages = [];
+    }
+    return devStore;
+  }
+  const win = window as any;
+  if (!win.__musicSystemStorage) {
+    win.__musicSystemStorage = {};
+  }
+  if (!win.__musicSystemStorage.messages) {
+    win.__musicSystemStorage.messages = [];
+  }
+  return win.__musicSystemStorage;
+};
 
 export const getMessages = (): Message[] => {
-  try {
-    const data = localStorage.getItem(MESSAGES_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error('Error loading messages:', error);
-    return [];
-  }
+  const storage = getStorage();
+  return storage.messages || [];
 };
 
 export const saveMessages = (messages: Message[]): void => {
-  try {
-    localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
-  } catch (error) {
-    console.error('Error saving messages:', error);
+  const storage = getStorage();
+  storage.messages = messages;
+  
+  if (!isDevMode()) {
+    hybridSync.onDataChange();
   }
 };
 
