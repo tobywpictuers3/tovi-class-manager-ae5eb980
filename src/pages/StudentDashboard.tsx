@@ -27,7 +27,6 @@ import BackButton from '@/components/ui/back-button';
 import { SaveButton } from '@/components/ui/save-button';
 import { UnreadMessagesBadge } from '@/components/ui/unread-messages-badge';
 import StudentSwapPanel, { StudentSwapPanelRef } from '@/components/student/lessonSwap/StudentSwapPanel';
-import StudentWeeklySchedule from '@/components/student/StudentWeeklySchedule';
 import { Lesson } from '@/lib/types';
 
 const StudentDashboard = () => {
@@ -230,7 +229,7 @@ const StudentDashboard = () => {
               </Card>
             ) : (
               <>
-                <StudentWeeklySchedule 
+                <GeneralWeeklySchedule 
                   studentId={student.id}
                   onLessonDoubleClick={handleLessonDoubleClick}
                   isSelectionActive={isSwapSelectionActive}

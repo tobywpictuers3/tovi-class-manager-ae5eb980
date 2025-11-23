@@ -198,4 +198,5 @@ export interface Message {
   isDraft?: boolean; // draft status
   inReplyTo?: string; // ID of message being replied to
   type: 'general' | 'swap_request' | 'swap_approval' | 'swap_rejection';
+  starred?: boolean; // global starred flag for important messages (auto-starred for all recipients)
 }
