@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Flame, Clock, Target } from 'lucide-react';
-import { getCurrentMonthLeaderboard } from '@/lib/storage';
+import { getCurrentQuarterLeaderboard } from '@/lib/storage';
 import { useEffect, useState } from 'react';
 import { LeaderboardEntry } from '@/lib/types';
 
@@ -15,7 +15,7 @@ const PracticeLeaderboard = () => {
   }, []);
 
   const loadLeaderboard = () => {
-    setLeaderboard(getCurrentMonthLeaderboard());
+    setLeaderboard(getCurrentQuarterLeaderboard());
   };
 
   const getMedalEmoji = (position: number) => {
@@ -37,10 +37,10 @@ const PracticeLeaderboard = () => {
         
         <CardHeader className="relative z-10">
           <CardTitle className="text-center text-3xl font-bold bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-400 bg-clip-text text-transparent animate-pulse">
-            🏆 לוח המצטיינות החודשי 🏆
+            🏆 לוח המצטיינות הרבעוני 🏆
           </CardTitle>
           <p className="text-center text-sm text-yellow-200/80">
-            3 המצטיינות הגבוהות בכל קטגוריה
+            3 המצטיינות הגבוהות ברבעון הנוכחי (3 חודשים)
           </p>
         </CardHeader>
         <CardContent className="space-y-6 relative z-10">

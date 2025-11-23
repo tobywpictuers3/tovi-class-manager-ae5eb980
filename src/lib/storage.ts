@@ -941,6 +941,84 @@ export const getCurrentMonthLeaderboard = (): LeaderboardEntry[] => {
     .sort((a, b) => b.dailyAverage - a.dailyAverage);
 };
 
+export const getCurrentQuarterLeaderboard = (): LeaderboardEntry[] => {
+  const now = new Date();
+  const month = now.getMonth(); // 0-11
+  const year = now.getFullYear();
+  
+  // Determine quarter months (Sep-Nov, Dec-Feb, Mar-May, Jun-Aug)
+  let quarterMonths: string[];
+  if (month >= 8 && month <= 10) {
+    // Q1: Sep-Nov
+    quarterMonths = [
+      `${year}-09`,
+      `${year}-10`,
+      `${year}-11`
+    ];
+  } else if (month === 11 || month <= 1) {
+    // Q2: Dec-Feb (crosses year boundary)
+    const startYear = month === 11 ? year : year - 1;
+    quarterMonths = [
+      `${startYear}-12`,
+      `${startYear + 1}-01`,
+      `${startYear + 1}-02`
+    ];
+  } else if (month >= 2 && month <= 4) {
+    // Q3: Mar-May
+    quarterMonths = [
+      `${year}-03`,
+      `${year}-04`,
+      `${year}-05`
+    ];
+  } else {
+    // Q4: Jun-Aug
+    quarterMonths = [
+      `${year}-06`,
+      `${year}-07`,
+      `${year}-08`
+    ];
+  }
+  
+  const achievements = getMonthlyAchievements().filter(a => quarterMonths.includes(a.month));
+  const students = getStudents();
+  
+  // Aggregate achievements by student
+  const aggregated = new Map<string, { dailyAverage: number; maxDailyMinutes: number; maxStreak: number }>();
+  
+  achievements.forEach(a => {
+    const existing = aggregated.get(a.studentId);
+    if (!existing) {
+      aggregated.set(a.studentId, {
+        dailyAverage: a.maxDailyAverage,
+        maxDailyMinutes: a.maxDailyMinutes,
+        maxStreak: a.maxStreak,
+      });
+    } else {
+      aggregated.set(a.studentId, {
+        dailyAverage: Math.max(existing.dailyAverage, a.maxDailyAverage),
+        maxDailyMinutes: Math.max(existing.maxDailyMinutes, a.maxDailyMinutes),
+        maxStreak: Math.max(existing.maxStreak, a.maxStreak),
+      });
+    }
+  });
+  
+  return Array.from(aggregated.entries())
+    .map(([studentId, stats]) => {
+      const student = students.find(s => s.id === studentId);
+      if (!student) return null;
+      
+      return {
+        studentId,
+        studentName: `${student.firstName} ${student.lastName}`,
+        dailyAverage: stats.dailyAverage,
+        maxDailyMinutes: stats.maxDailyMinutes,
+        maxStreak: stats.maxStreak,
+      };
+    })
+    .filter((entry): entry is LeaderboardEntry => entry !== null)
+    .sort((a, b) => b.dailyAverage - a.dailyAverage);
+};
+
 // Medal Records
 export const getMedalRecords = (): MedalRecord[] => {
   return inMemoryStorage['medalRecords'] || [];

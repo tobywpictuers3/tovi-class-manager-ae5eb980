@@ -95,9 +95,10 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
             else if (m.level === 'silver') medals.push('🥈 כסף');
             else if (m.level === 'bronze') medals.push('🥉 נחושת');
           } else if (m.medalType === 'streak') {
-            if (m.level === 'streak7') medals.push('👑 מרצפת');
-            else if (m.level === 'streak5') medals.push('⚡ מרוצף');
-            else if (m.level === 'streak3') medals.push('🔥 רצוף');
+            if (m.level === 'streak21') medals.push('👑 אלופה');
+            else if (m.level === 'streak12') medals.push('💎 מרצפת');
+            else if (m.level === 'streak7') medals.push('⚡ מרוצף');
+            else if (m.level === 'streak4') medals.push('🔥 רצוף');
           }
         });
 
@@ -148,9 +149,10 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
   };
 
   const getNextStreakInfo = (streak: number): { nextMedal: string; remaining: number } | null => {
-    if (streak < 3) return { nextMedal: 'רצוף (3 ימים)', remaining: 3 - streak };
-    if (streak < 5) return { nextMedal: 'מרוצף (5 ימים)', remaining: 5 - streak };
-    if (streak < 7) return { nextMedal: 'מרצפת (7 ימים)', remaining: 7 - streak };
+    if (streak < 4) return { nextMedal: 'רצוף (4 ימים)', remaining: 4 - streak };
+    if (streak < 7) return { nextMedal: 'מרוצף (7 ימים)', remaining: 7 - streak };
+    if (streak < 12) return { nextMedal: 'מרצפת (12 ימים)', remaining: 12 - streak };
+    if (streak < 21) return { nextMedal: 'אלופה (21 ימים)', remaining: 21 - streak };
     return null;
   };
 
@@ -160,27 +162,34 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
     
     let message = '';
     let medal = '';
-    let level: 'streak3' | 'streak5' | 'streak7' | null = null;
+    let level: 'streak4' | 'streak7' | 'streak12' | 'streak21' | null = null;
     
-    if (streak >= 7) {
-      level = 'streak7';
-      const hasHigherMedal = existingMedals.find(m => m.medalType === 'streak' && m.earnedDate === today && (m.level === 'streak7'));
+    if (streak >= 21) {
+      level = 'streak21';
+      const hasHigherMedal = existingMedals.find(m => m.medalType === 'streak' && m.earnedDate === today && m.level === 'streak21');
       if (!hasHigherMedal) {
-        message = 'וואוווו מהמם! שבוע של אימונים יומיומיים! ככה תוכלי בעזרת השם להגיע רחוק! מגיעה לך מדליית מרצפת!';
+        message = 'בלתי יאומן! 21 ימים ברצף! את אלופת אלופות! מגיעה לך מדליית אלופה!';
         medal = '👑';
       }
-    } else if (streak >= 5) {
-      level = 'streak5';
-      const hasHigherMedal = existingMedals.find(m => m.medalType === 'streak' && m.earnedDate === today && (m.level === 'streak7' || m.level === 'streak5'));
+    } else if (streak >= 12) {
+      level = 'streak12';
+      const hasHigherMedal = existingMedals.find(m => m.medalType === 'streak' && m.earnedDate === today && (m.level === 'streak21' || m.level === 'streak12'));
       if (!hasHigherMedal) {
-        message = 'שמתי לב שהתאמנת ברצף 5 ימים. המשיכי כך! מגיעה לך מדליית מרוצף!';
+        message = 'יוצא מן הכלל! 12 ימים ברצף! ממשיכה חזק! מגיעה לך מדליית מרצפת!';
+        medal = '💎';
+      }
+    } else if (streak >= 7) {
+      level = 'streak7';
+      const hasHigherMedal = existingMedals.find(m => m.medalType === 'streak' && m.earnedDate === today && (m.level === 'streak21' || m.level === 'streak12' || m.level === 'streak7'));
+      if (!hasHigherMedal) {
+        message = 'וואוווו מהמם! שבוע שלם של אימונים! ככה תוכלי להגיע רחוק! מגיעה לך מדליית מרוצף!';
         medal = '⚡';
       }
-    } else if (streak >= 3) {
-      level = 'streak3';
+    } else if (streak >= 4) {
+      level = 'streak4';
       const hasAnyStreakMedal = existingMedals.find(m => m.medalType === 'streak' && m.earnedDate === today);
       if (!hasAnyStreakMedal) {
-        message = 'שמתי לב שהתאמנת ברצף 3 ימים. המשיכי כך! מגיעה לך מדליית רצוף!';
+        message = 'שמתי לב שהתאמנת ברצף 4 ימים. המשיכי כך! מגיעה לך מדליית רצוף!';
         medal = '🔥';
       }
     }
@@ -266,7 +275,7 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
         studentId,
         medalType: 'duration',
         level,
-        minutes: totalMinutes,
+        durationMinutes: totalMinutes,
         earnedDate: targetDate,
       });
       
@@ -463,9 +472,10 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
               else if (m.level === 'silver') medals.push('🥈 כסף');
               else if (m.level === 'bronze') medals.push('🥉 נחושת');
             } else if (m.medalType === 'streak') {
-              if (m.level === 'streak7') medals.push('👑 מרצפת');
-              else if (m.level === 'streak5') medals.push('⚡ מרוצף');
-              else if (m.level === 'streak3') medals.push('🔥 רצוף');
+              if (m.level === 'streak21') medals.push('👑 אלופה');
+              else if (m.level === 'streak12') medals.push('💎 מרצפת');
+              else if (m.level === 'streak7') medals.push('⚡ מרוצף');
+              else if (m.level === 'streak4') medals.push('🔥 רצוף');
             }
           });
           
@@ -496,61 +506,45 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
   };
 
   const calculateDailyAverage = () => {
-    // Get student's lessons to find the period between lessons
+    // Get student's lessons to find the periods between lessons
     const lessons = getLessons().filter(l => l.studentId === studentId && l.status === 'completed');
     if (lessons.length < 2) return 0;
 
     // Sort lessons by date
     const sortedLessons = lessons.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-    // Get the last two lessons to define the "week"
-    const lastLesson = sortedLessons[sortedLessons.length - 1];
-    const previousLesson = sortedLessons[sortedLessons.length - 2];
+    let maxAverage = 0;
     
-    // Calculate the period: from day after previous lesson to last lesson (inclusive)
-    const startDate = new Date(previousLesson.date);
-    startDate.setDate(startDate.getDate() + 1);
-    const endDate = new Date(lastLesson.date);
-    
-    // Get practice sessions in this period
-    const periodSessions = sessions.filter(s => {
-      const sessionDate = new Date(s.date);
-      return sessionDate >= startDate && sessionDate <= endDate;
-    });
-    
-    if (periodSessions.length === 0) return 0;
-    
-    // Calculate total minutes
-    const totalMinutes = periodSessions.reduce((sum, s) => sum + s.durationMinutes, 0);
-    
-    // Calculate "practice days" according to the rule:
-    // Sunday-Thursday: each day counts as 1 day
-    // Friday + Saturday: together count as 1 day
-    const practiceDaysSet = new Set<string>();
-    periodSessions.forEach(s => {
-      const date = new Date(s.date);
-      const dayOfWeek = date.getDay();
+    // Loop through ALL consecutive lesson pairs
+    for (let i = 0; i < sortedLessons.length - 1; i++) {
+      const currentLesson = sortedLessons[i];
+      const nextLesson = sortedLessons[i + 1];
       
-      if (dayOfWeek === 5 || dayOfWeek === 6) {
-        // Friday or Saturday - group them together
-        const weekStart = new Date(date);
-        weekStart.setDate(date.getDate() - dayOfWeek);
-        practiceDaysSet.add(`weekend-${weekStart.toISOString().split('T')[0]}`);
-      } else {
-        // Sunday-Thursday - each day separate
-        practiceDaysSet.add(s.date);
+      const startDate = new Date(currentLesson.date);
+      const endDate = new Date(nextLesson.date);
+      
+      // Get practice sessions between these two lessons (exclusive start, inclusive end)
+      const periodSessions = sessions.filter(s => {
+        const sessionDate = new Date(s.date);
+        return sessionDate > startDate && sessionDate <= endDate;
+      });
+      
+      if (periodSessions.length === 0) continue;
+      
+      // Count unique PRACTICE days (not calendar days!)
+      const practiceDays = new Set(periodSessions.map(s => s.date)).size;
+      
+      if (practiceDays > 0) {
+        const totalMinutes = periodSessions.reduce((sum, s) => sum + s.durationMinutes, 0);
+        const average = totalMinutes / practiceDays;
+        maxAverage = Math.max(maxAverage, average);
       }
-    });
+    }
     
-    const practiceDays = practiceDaysSet.size;
-    if (practiceDays === 0) return 0;
+    // Update monthly achievement with the maximum average found
+    updateMonthlyAchievement(studentId, { maxDailyAverage: maxAverage });
     
-    const average = totalMinutes / practiceDays;
-    
-    // Update monthly achievement
-    updateMonthlyAchievement(studentId, { maxDailyAverage: average });
-    
-    return average;
+    return maxAverage;
   };
 
   const handleDeleteSession = async (sessionId: string) => {
