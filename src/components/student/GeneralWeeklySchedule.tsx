@@ -9,9 +9,11 @@ import StudentsSwapRequestDialog from '@/components/students/StudentsSwapRequest
 
 interface GeneralWeeklyScheduleProps {
   studentId?: string;
+  onLessonDoubleClick?: (lesson: Lesson) => void;
+  isSelectionActive?: boolean;
 }
 
-const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId }) => {
+const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId, onLessonDoubleClick, isSelectionActive }) => {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -158,14 +160,20 @@ const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId
   };
 
   const isSwappedLesson = (lesson: Lesson) => {
-    return lesson.notes?.includes('שיעור שהוחלף') || lesson.notes?.includes('החלפה');
+    return lesson.isSwapped || lesson.notes?.includes('שיעור שהוחלף') || lesson.notes?.includes('החלפה');
   };
 
   const handleLessonDoubleClick = (lesson: Lesson) => {
     const currentDate = new Date().toISOString().split('T')[0];
     if (lesson.date >= currentDate) {
-      setSelectedLesson(lesson);
-      setSwapDialogOpen(true);
+      if (onLessonDoubleClick) {
+        // Use new swap panel logic
+        onLessonDoubleClick(lesson);
+      } else {
+        // Fallback to old dialog
+        setSelectedLesson(lesson);
+        setSwapDialogOpen(true);
+      }
     }
   };
 
@@ -185,16 +193,16 @@ const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId
       <CardContent>
         {/* Week Navigation */}
         <div className="flex justify-between items-center mb-6">
-          <Button onClick={handlePrevWeek} variant="outline" size="sm">
-            <ArrowRight className="h-4 w-4" />
-            שבוע קודם
+          <Button onClick={handleNextWeek} variant="outline" size="sm">
+            <ArrowLeft className="h-4 w-4 ml-2" />
+            שבוע הבא
           </Button>
           <h3 className="text-lg font-semibold">
             {weekDates[0].toLocaleDateString('he-IL')} - {weekDates[6].toLocaleDateString('he-IL')}
           </h3>
-          <Button onClick={handleNextWeek} variant="outline" size="sm">
-            שבוע הבא
-            <ArrowLeft className="h-4 w-4 mr-2" />
+          <Button onClick={handlePrevWeek} variant="outline" size="sm">
+            שבוע קודם
+            <ArrowRight className="h-4 w-4 mr-2" />
           </Button>
         </div>
 
@@ -220,11 +228,12 @@ const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId
                       const isFuture = lesson.date > currentDate;
                       const isCompleted = lesson.status === 'completed';
                       const isSwapped = isSwappedLesson(lesson);
+                      const isClickable = isFuture && onLessonDoubleClick;
 
                       return (
                         <div
                           key={lesson.id}
-                          className={`p-2 border-2 rounded-lg text-xs cursor-pointer transition-all duration-200 hover:shadow-md ${
+                          className={`p-2 border-2 rounded-lg text-xs transition-all duration-200 hover:shadow-md ${
                             isSwapped 
                               ? 'bg-[#8B4513]/10 border-[#8B4513] text-[#8B4513]' 
                               : isFuture 
@@ -232,9 +241,13 @@ const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId
                                 : isCompleted 
                                   ? 'bg-[#FFD700]/10 border-[#FFD700] text-gray-900' 
                                   : 'bg-white border-gray-400 text-black'
+                          } ${isClickable ? 'cursor-pointer' : ''} ${
+                            isSelectionActive && isClickable 
+                              ? 'ring-2 ring-primary ring-offset-2 animate-pulse' 
+                              : ''
                           }`}
                           onDoubleClick={() => handleLessonDoubleClick(lesson)}
-                          title="לחץ פעמיים לבקשת החלפה"
+                          title={isClickable ? "לחץ פעמיים לבקשת החלפה" : ""}
                         >
                           <div className="space-y-1">
                             <div className="font-bold text-base text-black">
@@ -250,8 +263,8 @@ const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId
                               {lesson.startTime} - {lesson.endTime}
                             </div>
                             {isSwapped && (
-                              <Badge className="text-[10px] px-1.5 py-0.5 bg-[#8B4513] text-white border-[#8B4513]">
-                                מוחלף
+                              <Badge className="text-[10px] px-1.5 py-0.5 bg-orange-500 text-white border-orange-500">
+                                הוחלף
                               </Badge>
                             )}
                             {lesson.isOneOff && (
