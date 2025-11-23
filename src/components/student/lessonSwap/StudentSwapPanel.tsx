@@ -42,7 +42,8 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
     const [targetLessonId, setTargetLessonId] = useState<string>('');
     const [targetSwapCode, setTargetSwapCode] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
-    const [selectionMode, setSelectionMode] = useState<'my' | 'target' | null>(null);
+    const [isSelectingMy, setIsSelectingMy] = useState(false);
+    const [isSelectingTarget, setIsSelectingTarget] = useState(false);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
     const myFutureLessons = lessons.filter(
@@ -60,11 +61,12 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
     const mySelectedLesson = myLessonId ? lessons.find(l => l.id === myLessonId) : null;
     const targetSelectedLesson = targetLessonId ? getLessons().find(l => l.id === targetLessonId) : null;
 
-    // Handle lesson click from weekly schedule - EXPLICIT selectionMode
+    // Handle lesson click from weekly schedule - using persistent selection states
     const handleLessonDoubleClick = (lesson: Lesson) => {
       console.log('🔄 handleLessonDoubleClick called', { 
         lessonId: lesson.id, 
-        selectionMode, 
+        isSelectingMy, 
+        isSelectingTarget,
         myLessonId, 
         targetLessonId 
       });
@@ -78,13 +80,13 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         return;
       }
 
-      // Handle based on EXPLICIT selectionMode
-      if (selectionMode === 'my') {
+      // Handle based on persistent selection states
+      if (isSelectingMy) {
         console.log('✅ Selecting MY lesson');
         // Validate it's the student's lesson
         if (lesson.studentId === student.id) {
           setMyLessonId(lesson.id);
-          setSelectionMode(null);
+          setIsSelectingMy(false);
           toast({ description: '✓ השיעור שלי נבחר בהצלחה' });
         } else {
           toast({ 
@@ -92,12 +94,12 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
             variant: 'destructive' 
           });
         }
-      } else if (selectionMode === 'target') {
+      } else if (isSelectingTarget) {
         console.log('✅ Selecting TARGET lesson');
         // Validate it's not the same lesson
         if (lesson.id !== myLessonId && isFutureLesson(lesson)) {
           setTargetLessonId(lesson.id);
-          setSelectionMode(null);
+          setIsSelectingTarget(false);
           toast({ description: '✓ השיעור המבוקש נבחר בהצלחה' });
         } else {
           toast({ 
@@ -106,7 +108,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
           });
         }
       } else {
-        console.log('❌ No selectionMode active');
+        console.log('❌ No selection mode active');
         // No selection mode active
         toast({ 
           description: 'לחצי קודם על "בחרי שיעור" או "בחרי שיעור מבוקש"', 
@@ -323,11 +325,11 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
     return (
       <>
         {/* Selection Mode Banner */}
-        {selectionMode && (
+        {(isSelectingMy || isSelectingTarget) && (
           <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
             <Badge className="text-lg px-6 py-3 bg-primary text-primary-foreground shadow-lg animate-pulse">
               <MousePointerClick className="h-5 w-5 ml-2" />
-              לחצי על שיעור מהמערכת למעלה
+              {isSelectingMy ? 'בחרי את השיעור שלך מהמערכת למעלה' : 'בחרי את השיעור המבוקש מהמערכת למעלה'}
             </Badge>
           </div>
         )}
@@ -350,13 +352,14 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
                   <div>
                     <Label>בחרי שיעור</Label>
                     <Button
-                      variant={selectionMode === 'my' ? 'default' : 'outline'}
+                      variant={isSelectingMy ? 'default' : 'outline'}
                       className={`w-full justify-start text-right h-auto py-3 ${
-                        selectionMode === 'my' ? 'bg-primary text-primary-foreground animate-pulse' : ''
+                        isSelectingMy ? 'bg-primary text-primary-foreground animate-pulse' : ''
                       }`}
                       onClick={() => {
-                        console.log('🔘 Button clicked - setting selectionMode to MY');
-                        setSelectionMode('my');
+                        console.log('🔘 Button clicked - setting isSelectingMy to true');
+                        setIsSelectingMy(true);
+                        setIsSelectingTarget(false);
                         toast({ 
                           description: '👆 עכשיו לחצי על שיעור שלך במערכת למעלה',
                           duration: 3000
@@ -399,13 +402,14 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
                   <div>
                     <Label>בחרי שיעור מבוקש</Label>
                     <Button
-                      variant={selectionMode === 'target' ? 'default' : 'outline'}
+                      variant={isSelectingTarget ? 'default' : 'outline'}
                       className={`w-full justify-start text-right h-auto py-3 ${
-                        selectionMode === 'target' ? 'bg-primary text-primary-foreground animate-pulse' : ''
+                        isSelectingTarget ? 'bg-primary text-primary-foreground animate-pulse' : ''
                       }`}
                       onClick={() => {
-                        console.log('🔘 Button clicked - setting selectionMode to TARGET');
-                        setSelectionMode('target');
+                        console.log('🔘 Button clicked - setting isSelectingTarget to true');
+                        setIsSelectingTarget(true);
+                        setIsSelectingMy(false);
                         toast({ 
                           description: '👆 עכשיו לחצי על השיעור המבוקש במערכת למעלה',
                           duration: 3000
