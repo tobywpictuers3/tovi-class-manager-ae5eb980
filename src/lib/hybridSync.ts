@@ -296,20 +296,22 @@ class HybridSyncManager {
 
   /**
    * On data change - immediately sync to Worker with conflict resolution
+   * Returns: success (local save OK), synced (Dropbox sync OK), message
    */
-  async onDataChange(): Promise<{ success: boolean; message: string }> {
+  async onDataChange(): Promise<{ success: boolean; synced: boolean; message: string }> {
     // Skip Worker sync in dev mode
     if (isDevMode()) {
-      return { success: true, message: 'נשמר במצב מפתחים' };
+      return { success: true, synced: true, message: 'נשמר במצב מפתחים' };
     }
 
     this.syncState.pendingChanges++;
 
     if (!this.syncState.isOnline) {
-      logger.warn('📡 Offline - cannot sync');
+      logger.warn('📡 Offline - saved locally, will retry in 2 minutes');
       return { 
-        success: false, 
-        message: 'שמירה נכשלה, בדקי חיבור לאינטרנט' 
+        success: true,  // ✅ Local save succeeded
+        synced: false,  // ⚠️ Not synced to Dropbox
+        message: 'נשמר מקומית, יסונכרן אוטומטית כשיחזור חיבור' 
       };
     }
 
@@ -317,13 +319,15 @@ class HybridSyncManager {
     
     if (success) {
       return { 
-        success: true, 
+        success: true,
+        synced: true,   // ✅ Synced to Dropbox
         message: 'נשמר בדרופבוקס בהצלחה' 
       };
     } else {
       return { 
-        success: false, 
-        message: 'שמירה נכשלה, בדקי חיבור לאינטרנט' 
+        success: true,  // ✅ Local save still succeeded
+        synced: false,  // ⚠️ Dropbox sync failed, will retry
+        message: 'נשמר מקומית, ננסה שוב בעוד 2 דקות' 
       };
     }
   }

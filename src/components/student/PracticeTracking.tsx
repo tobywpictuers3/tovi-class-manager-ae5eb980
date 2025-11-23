@@ -288,61 +288,73 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
     setActiveCelebration({ message, medal });
   };
 
-  const saveWithRetry = async (sessionData: Omit<PracticeSession, 'id' | 'createdAt'>, maxRetries = 3): Promise<boolean> => {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        setIsSaving(true);
-        
-        // Add session locally first
-        const session = addPracticeSession(sessionData);
-        
-        // Sync to Dropbox
-        const result = await hybridSync.onDataChange();
-        
-        if (result.success) {
-          toast({
-            title: '✅ נשמר בהצלחה!',
-            description: `${sessionData.durationMinutes} דקות נשמרו בדרופבוקס`,
-            duration: 3000,
-          });
-          return true;
-        } else {
-          // Failed - retry
-          if (attempt < maxRetries) {
-            toast({
-              title: '⚠️ ניסיון שמירה...',
-              description: `ניסיון ${attempt + 1} מתוך ${maxRetries}`,
-              duration: 2000,
-            });
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
-          } else {
-            toast({
-              title: '❌ שמירה נכשלה',
-              description: result.message || 'בדקי חיבור לאינטרנט ונסי שוב',
-              variant: 'destructive',
-              duration: 5000,
-            });
-            return false;
-          }
-        }
-      } catch (error) {
-        console.error('Save error:', error);
-        if (attempt === maxRetries) {
-          toast({
-            title: '❌ שגיאה בשמירה',
-            description: 'אנא נסי שוב מאוחר יותר',
-            variant: 'destructive',
-            duration: 5000,
-          });
-          return false;
-        }
-      } finally {
-        if (attempt === maxRetries) {
-          setIsSaving(false);
-        }
+  const saveWithRetry = async (sessionData: Omit<PracticeSession, 'id' | 'createdAt'>): Promise<boolean> => {
+    try {
+      setIsSaving(true);
+      
+      // Create unique session hash to prevent duplicates
+      const sessionHash = `${sessionData.studentId}-${sessionData.date}-${sessionData.startTime}-${sessionData.endTime}`;
+      const existingSessions = getStudentPracticeSessions(studentId);
+      
+      // Check if session already exists
+      const isDuplicate = existingSessions.some(s => 
+        `${s.studentId}-${s.date}-${s.startTime}-${s.endTime}` === sessionHash
+      );
+      
+      if (isDuplicate) {
+        toast({
+          title: '⚠️ אימון כבר קיים',
+          description: 'אימון זה כבר נרשם במערכת',
+          variant: 'destructive',
+          duration: 3000,
+        });
+        return false;
       }
+      
+      // Add session to local storage
+      const session = addPracticeSession(sessionData);
+      
+      // Try to sync to Dropbox
+      const result = await hybridSync.onDataChange();
+      
+      if (result.synced) {
+        // Successfully synced to Dropbox
+        toast({
+          title: '✅ נשמר בדרופבוקס!',
+          description: `${sessionData.durationMinutes} דקות נשמרו בהצלחה`,
+          duration: 3000,
+        });
+      } else if (result.success) {
+        // Saved locally but not synced (offline)
+        toast({
+          title: '💾 נשמר מקומית',
+          description: 'האימון נשמר. יסונכרן אוטומטית בעוד 2 דקות',
+          duration: 4000,
+        });
+      } else {
+        // Save failed
+        toast({
+          title: '❌ שמירה נכשלה',
+          description: result.message || 'בדקי חיבור לאינטרנט',
+          variant: 'destructive',
+          duration: 5000,
+        });
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Save error:', error);
+      toast({
+        title: '❌ שגיאה בשמירה',
+        description: 'אנא נסי שוב מאוחר יותר',
+        variant: 'destructive',
+        duration: 5000,
+      });
+      return false;
+    } finally {
+      setIsSaving(false);
     }
-    return false;
   };
 
   const handleStartTracking = () => {
