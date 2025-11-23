@@ -147,6 +147,7 @@ export interface PracticeSession {
   endTime?: string; // HH:MM - optional for manual entry
   durationMinutes: number; // total minutes
   createdAt: string;
+  lastModified?: string; // Optimistic locking timestamp
 }
 
 export interface MedalRecord {

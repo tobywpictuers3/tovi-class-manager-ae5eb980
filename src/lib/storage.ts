@@ -767,10 +767,12 @@ export const getStudentPracticeSessions = (studentId: string): PracticeSession[]
 
 export const addPracticeSession = (session: Omit<PracticeSession, 'id' | 'createdAt'>): PracticeSession => {
   const sessions = getPracticeSessions();
+  const now = new Date().toISOString();
   const newSession: PracticeSession = {
     ...session,
     id: generateId(),
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    lastModified: now, // Add timestamp for optimistic locking
   };
   sessions.push(newSession);
   if (devModeActive) {
@@ -787,7 +789,11 @@ export const updatePracticeSession = (id: string, updatedFields: Partial<Practic
   const index = sessions.findIndex(s => s.id === id);
   if (index === -1) return undefined;
   
-  sessions[index] = { ...sessions[index], ...updatedFields };
+  sessions[index] = { 
+    ...sessions[index], 
+    ...updatedFields,
+    lastModified: new Date().toISOString() // Update timestamp
+  };
   if (devModeActive) {
     devData['practiceSessions'] = sessions;
   } else {

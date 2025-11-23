@@ -178,7 +178,68 @@ class HybridSyncManager {
   }
 
   /**
-   * On data change - immediately sync to Worker
+   * Merge conflicts using optimistic locking (lastModified timestamp)
+   */
+  private mergeDataWithConflictResolution(localData: any, remoteData: any): any {
+    const merged = { ...remoteData };
+    
+    // Merge practice sessions with conflict resolution
+    const localSessions = localData.musicSystem_practiceSessions || [];
+    const remoteSessions = remoteData.musicSystem_practiceSessions || [];
+    merged.musicSystem_practiceSessions = this.mergeSessions(localSessions, remoteSessions);
+    
+    // Add other data types that don't need conflict resolution
+    // (they will be taken from local as they're the latest)
+    Object.keys(localData).forEach(key => {
+      if (key !== 'musicSystem_practiceSessions' && key !== 'timestamp') {
+        merged[key] = localData[key];
+      }
+    });
+    
+    merged.timestamp = new Date().toISOString();
+    return merged;
+  }
+
+  /**
+   * Merge practice sessions by taking the most recent version of each session
+   */
+  private mergeSessions(localSessions: any[], remoteSessions: any[]): any[] {
+    const sessionMap = new Map<string, any>();
+    
+    // Add all remote sessions first
+    remoteSessions.forEach(session => {
+      sessionMap.set(session.id, session);
+    });
+    
+    // Override with local sessions if they're newer
+    localSessions.forEach(localSession => {
+      const remoteSession = sessionMap.get(localSession.id);
+      
+      if (!remoteSession) {
+        // New local session - add it
+        sessionMap.set(localSession.id, localSession);
+      } else if (localSession.lastModified && remoteSession.lastModified) {
+        // Both have timestamps - take the newer one
+        const localTime = new Date(localSession.lastModified).getTime();
+        const remoteTime = new Date(remoteSession.lastModified).getTime();
+        
+        if (localTime > remoteTime) {
+          sessionMap.set(localSession.id, localSession);
+          logger.info(`🔄 Merged session ${localSession.id}: local newer (${localSession.lastModified} vs ${remoteSession.lastModified})`);
+        } else {
+          logger.info(`🔄 Merged session ${localSession.id}: remote newer (${remoteSession.lastModified} vs ${localSession.lastModified})`);
+        }
+      } else {
+        // No timestamp - prefer local (it's the latest change)
+        sessionMap.set(localSession.id, localSession);
+      }
+    });
+    
+    return Array.from(sessionMap.values());
+  }
+
+  /**
+   * On data change - immediately sync to Worker with conflict resolution
    */
   async onDataChange(): Promise<{ success: boolean; message: string }> {
     // Skip Worker sync in dev mode
@@ -212,8 +273,10 @@ class HybridSyncManager {
   }
 
   /**
-   * Sync all data to Worker
+   * Sync all data to Worker with conflict resolution
    */
+  private isSyncing = false;
+  
   private async syncToWorker(): Promise<boolean> {
     // Skip Worker sync in dev mode
     if (isDevMode()) {
@@ -221,30 +284,44 @@ class HybridSyncManager {
       return true;
     }
 
-    if (this.syncState.isSyncing) {
+    if (this.isSyncing) {
       logger.info('⏳ Sync already in progress');
       return false;
     }
 
     try {
+      this.isSyncing = true;
       this.syncState.isSyncing = true;
-      logger.info('🔄 Syncing to Worker...');
-
-      const data = this.gatherAllData(); // This now throws error if data is empty
+      logger.info('🔄 Starting Worker sync with conflict resolution...');
       
-      // 🛡️ GUARD: Additional check before sending
-      const dataSize = JSON.stringify(data).length;
+      // STEP 1: Download latest data from server
+      const remoteResult = await workerApi.downloadLatest();
+      logger.info('📥 Downloaded latest version from server');
+      
+      // STEP 2: Export current local data
+      const localData = this.gatherAllData();
+      
+      // STEP 3: Merge with conflict resolution
+      const remoteData = remoteResult.data || remoteResult;
+      const mergedData = this.mergeDataWithConflictResolution(localData, remoteData);
+      logger.info('🔀 Merged local and remote changes');
+      
+      // Check data size before sending
+      const dataSize = JSON.stringify(mergedData).length;
+      logger.info(`📦 Data size: ${(dataSize / 1024).toFixed(2)} KB`);
+      
       if (dataSize < 100) {
         logger.error('❌ PREVENTED SYNC - Data too small, likely corrupted');
         return false;
       }
       
-      const result = await workerApi.uploadVersioned(data);
+      // STEP 4: Upload merged data to Worker
+      const result = await workerApi.uploadVersioned(mergedData);
 
       if (result.success) {
         this.syncState.lastSyncTime = new Date().toISOString();
         this.syncState.pendingChanges = 0;
-        logger.info('✅ Synced to Worker successfully');
+        logger.info('✅ Worker sync completed with conflict resolution');
         return true;
       } else {
         logger.warn('⚠️ Sync failed:', result.error);
@@ -254,6 +331,7 @@ class HybridSyncManager {
       logger.error('❌ Sync error:', error);
       return false;
     } finally {
+      this.isSyncing = false;
       this.syncState.isSyncing = false;
     }
   }
