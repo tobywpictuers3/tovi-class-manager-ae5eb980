@@ -14,6 +14,16 @@ import { addMessage } from '@/lib/messages';
 import { ArrowLeftRight, X, MousePointerClick } from 'lucide-react';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface StudentSwapPanelProps {
   student: Student;
@@ -33,6 +43,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
     const [targetSwapCode, setTargetSwapCode] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [selectionMode, setSelectionMode] = useState<'my' | 'target' | null>(null);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
     const myFutureLessons = lessons.filter(
       (lesson) => lesson.studentId === student.id && isFutureLesson(lesson)
@@ -88,7 +99,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
       }
     }, []);
 
-    const handleSubmit = async () => {
+    const handleSubmitClick = () => {
       if (!myLessonId || !targetLessonId) {
         toast({
           title: 'שגיאה',
@@ -107,6 +118,12 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         return;
       }
 
+      // Show confirmation dialog before proceeding
+      setShowConfirmDialog(true);
+    };
+
+    const handleConfirmedSubmit = async () => {
+      setShowConfirmDialog(false);
       setIsProcessing(true);
 
       try {
@@ -372,7 +389,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
 
             <div className="mt-6 flex justify-center">
               <Button
-                onClick={handleSubmit}
+                onClick={handleSubmitClick}
                 disabled={!myLessonId || !targetLessonId || !isMyCodeValid || isProcessing}
                 size="lg"
                 className="w-full md:w-auto"
@@ -382,6 +399,60 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
             </div>
           </CardContent>
         </Card>
+
+        {/* Confirmation Dialog */}
+        <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>אישור החלפת שיעור</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-4 text-right">
+                  <p className="font-semibold text-foreground">הינך מעוניינת להחליף:</p>
+                  
+                  {mySelectedLesson && (
+                    <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+                      <p className="font-semibold text-primary">📅 השיעור שלך:</p>
+                      <p className="text-sm">
+                        {format(new Date(mySelectedLesson.date), 'dd/MM/yyyy', { locale: he })} 
+                        {' '}בשעה{' '}
+                        {mySelectedLesson.startTime}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex justify-center">
+                    <ArrowLeftRight className="h-6 w-6 text-primary" />
+                  </div>
+
+                  {targetSelectedLesson && (
+                    <div className="p-3 bg-secondary/10 rounded-lg border border-secondary/20">
+                      <p className="font-semibold text-secondary-foreground">📅 השיעור המבוקש:</p>
+                      <p className="text-sm">
+                        {format(new Date(targetSelectedLesson.date), 'dd/MM/yyyy', { locale: he })}
+                        {' '}בשעה{' '}
+                        {targetSelectedLesson.startTime}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {(() => {
+                          const targetStudent = getStudents().find(s => s.id === targetSelectedLesson.studentId);
+                          return targetStudent ? `${targetStudent.firstName} ${targetStudent.lastName}` : '';
+                        })()}
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="font-semibold text-foreground pt-2">האם את בטוחה?</p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-row-reverse gap-2">
+              <AlertDialogAction onClick={handleConfirmedSubmit}>
+                אישור
+              </AlertDialogAction>
+              <AlertDialogCancel>ביטול</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </>
     );
   }

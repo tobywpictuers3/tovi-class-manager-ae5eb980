@@ -282,15 +282,6 @@ const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId
           })}
         </div>
 
-        {/* Info */}
-        <div className="mt-6 p-4 bg-gray-100 rounded-lg border-2 border-gray-300">
-          <div className="text-sm text-gray-900 space-y-1 font-medium">
-            <p>🔄 <strong className="text-[#8B4513]">שיעורים מוחלפים</strong> - שיעורים שהוחלפו בין תלמידות</p>
-            <p>🏆 <strong className="text-[#FFD700]">שיעורים שהושלמו</strong> - שיעורים שכבר התקיימו</p>
-            <p>⚪ <strong>שיעורי עתיד</strong> - שיעורים מתוכננים</p>
-            <p>💡 <strong>לחיצה כפולה על שיעור עתידי</strong> - לבקשת החלפה עם אימות קוד אישי</p>
-          </div>
-        </div>
       </CardContent>
 
       {/* Swap Request Dialog */}
