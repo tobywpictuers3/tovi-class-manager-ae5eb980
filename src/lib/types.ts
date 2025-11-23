@@ -162,9 +162,9 @@ export interface MedalRecord {
   id: string;
   studentId: string;
   medalType: 'duration' | 'streak';
-  level: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'streak3' | 'streak5' | 'streak7';
-  minutes?: number; // for duration medals
-  streakDays?: number; // for streak medals
+  level: 'bronze' | 'silver' | 'gold' | 'platinum' | 'diamond' | 'streak4' | 'streak7' | 'streak12' | 'streak21';
+  durationMinutes?: number;
+  streakDays?: number;
   earnedDate: string; // YYYY-MM-DD
   createdAt: string;
   used?: boolean; // whether medal was used for store purchase

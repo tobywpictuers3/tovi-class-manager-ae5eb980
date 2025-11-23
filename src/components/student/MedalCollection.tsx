@@ -29,37 +29,39 @@ const MedalCollection = ({ studentId }: MedalCollectionProps) => {
     setBestAchievements(best);
   };
 
-  const getMedalIcon = (level: string) => {
-    switch (level) {
-      case 'bronze': return '🥉';
-      case 'silver': return '🥈';
-      case 'gold': return '🥇';
-      case 'platinum': return '💎';
-      case 'diamond': return '💠';
-      case 'streak3': return '🔥';
-      case 'streak5': return '⚡';
-      case 'streak7': return '👑';
-      default: return '🏅';
-    }
+  const getMedalIcon = (level: string): string => {
+    const icons: Record<string, string> = {
+      'bronze': '🥉',
+      'silver': '🥈',
+      'gold': '🥇',
+      'platinum': '💎',
+      'diamond': '💠',
+      'streak4': '🔥',
+      'streak7': '⚡',
+      'streak12': '💎',
+      'streak21': '👑',
+    };
+    return icons[level] || '⭐';
   };
 
-  const getMedalName = (level: string) => {
-    switch (level) {
-      case 'bronze': return 'מדליית נחושת';
-      case 'silver': return 'מדליית כסף';
-      case 'gold': return 'מדליית זהב';
-      case 'platinum': return 'מדליית פלטינום';
-      case 'diamond': return 'מדליית יהלום';
-      case 'streak3': return 'מדליית רצוף';
-      case 'streak5': return 'מדליית מרוצף';
-      case 'streak7': return 'מדליית מרצפת';
-      default: return 'מדליה';
-    }
+  const getMedalName = (level: string): string => {
+    const names: Record<string, string> = {
+      'bronze': 'נחושת',
+      'silver': 'כסף',
+      'gold': 'זהב',
+      'platinum': 'פלטינום',
+      'diamond': 'יהלום',
+      'streak4': 'רצוף',
+      'streak7': 'מרוצף',
+      'streak12': 'מרצפת',
+      'streak21': 'אלופה',
+    };
+    return names[level] || 'מדליה';
   };
 
   const getMedalDescription = (medal: MedalRecord) => {
     if (medal.medalType === 'duration') {
-      return `${medal.minutes} דקות אימון`;
+      return `${medal.durationMinutes} דקות אימון`;
     } else {
       return `${medal.streakDays} ימים רצופים`;
     }
@@ -72,7 +74,7 @@ const MedalCollection = ({ studentId }: MedalCollectionProps) => {
     return acc;
   }, {} as Record<string, MedalRecord[]>);
 
-  const formatMonth = (month: string) => {
+  const formatMonth = (month: string): string => {
     const [year, monthNum] = month.split('-');
     const date = new Date(parseInt(year), parseInt(monthNum) - 1);
     return date.toLocaleDateString('he-IL', { year: 'numeric', month: 'long' });
@@ -80,88 +82,83 @@ const MedalCollection = ({ studentId }: MedalCollectionProps) => {
 
   return (
     <div className="space-y-6">
-      {/* Best Achievements */}
-      <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950/20 dark:to-orange-950/20 border-2 border-yellow-400/50">
+      {/* Best Achievements Card */}
+      <Card className="bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-2 border-blue-400/50">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
-            <Award className="h-6 w-6" />
-            🏆 ההישגים הגבוהים ביותר שלי 🏆
+          <CardTitle className="flex items-center gap-2 text-2xl">
+            <Award className="h-6 w-6 text-blue-600" />
+            ההישגים הטובים ביותר שלי
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-white/60 dark:bg-black/20 rounded-lg border-2 border-blue-300">
-              <div className="text-sm text-muted-foreground mb-2">ממוצע יומי מקסימלי</div>
-              <div className="text-3xl font-bold text-blue-600 mb-1">
-                {bestAchievements.bestDailyAverage.toFixed(1)}
-              </div>
-              <div className="text-sm text-muted-foreground">דקות</div>
-            </div>
-            <div className="text-center p-4 bg-white/60 dark:bg-black/20 rounded-lg border-2 border-green-300">
-              <div className="text-sm text-muted-foreground mb-2">שיא אימון יומי</div>
-              <div className="text-3xl font-bold text-green-600 mb-1">
-                {bestAchievements.bestDailyMinutes}
-              </div>
-              <div className="text-sm text-muted-foreground">דקות</div>
-            </div>
-            <div className="text-center p-4 bg-white/60 dark:bg-black/20 rounded-lg border-2 border-orange-300">
-              <div className="text-sm text-muted-foreground mb-2">רצף מקסימלי</div>
-              <div className="text-3xl font-bold text-orange-600 mb-1">
-                {bestAchievements.bestStreak}
-              </div>
-              <div className="text-sm text-muted-foreground">ימים</div>
-            </div>
+        <CardContent className="grid md:grid-cols-3 gap-4">
+          <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
+            <Target className="h-8 w-8 mx-auto mb-2 text-blue-600" />
+            <div className="text-2xl font-bold text-blue-600">{bestAchievements.bestDailyAverage.toFixed(1)}</div>
+            <div className="text-sm text-muted-foreground">דקות ממוצע יומי מקסימלי</div>
+          </div>
+          <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
+            <TrendingUp className="h-8 w-8 mx-auto mb-2 text-green-600" />
+            <div className="text-2xl font-bold text-green-600">{bestAchievements.bestDailyMinutes}</div>
+            <div className="text-sm text-muted-foreground">דקות יומי מקסימלי</div>
+          </div>
+          <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
+            <Trophy className="h-8 w-8 mx-auto mb-2 text-orange-600" />
+            <div className="text-2xl font-bold text-orange-600">{bestAchievements.bestStreak}</div>
+            <div className="text-sm text-muted-foreground">רצף מקסימלי</div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Medal Collection */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5" />
+      {/* Medal Collection Card */}
+      <Card className="relative overflow-hidden bg-gradient-to-br from-black via-gray-900 to-black border-2 border-yellow-400">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,215,0,0.15),transparent_50%)] animate-pulse" />
+        <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_48%,rgba(255,215,0,0.3)_49%,rgba(255,215,0,0.3)_51%,transparent_52%)] bg-[length:20px_20px] opacity-20" />
+        
+        <CardHeader className="relative z-10">
+          <CardTitle className="flex items-center gap-2 text-2xl bg-gradient-to-r from-yellow-400 via-yellow-200 to-yellow-400 bg-clip-text text-transparent">
+            <Trophy className="h-6 w-6 text-yellow-400" />
             אוסף המדליות שלי
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {Object.keys(groupedByMonth).length > 0 ? (
-            <div className="space-y-6">
-              {Object.entries(groupedByMonth)
-                .sort(([a], [b]) => b.localeCompare(a))
-                .map(([month, monthMedals]) => (
-                  <div key={month} className="space-y-3">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                      <Target className="h-5 w-5" />
-                      {formatMonth(month)}
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {monthMedals.map((medal) => (
-                        <div
-                          key={medal.id}
-                          className="p-4 rounded-lg bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-yellow-950/10 dark:to-orange-950/10 border border-yellow-200 dark:border-yellow-800"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-4xl">{getMedalIcon(medal.level)}</span>
-                            <div className="flex-1">
-                              <div className="font-semibold">{getMedalName(medal.level)}</div>
-                              <div className="text-sm text-muted-foreground">
-                                {getMedalDescription(medal)}
-                              </div>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {new Date(medal.earnedDate).toLocaleDateString('he-IL')}
-                              </div>
+        <CardContent className="space-y-4 relative z-10">
+          {Object.entries(groupedByMonth).length > 0 ? (
+            Object.entries(groupedByMonth)
+              .sort((a, b) => b[0].localeCompare(a[0]))
+              .map(([month, monthMedals]) => (
+                <div key={month} className="space-y-2">
+                  <h3 className="font-semibold text-lg bg-gradient-to-r from-yellow-400 to-yellow-200 bg-clip-text text-transparent">
+                    {formatMonth(month)}
+                  </h3>
+                  <div className="grid gap-2">
+                    {monthMedals.map((medal) => (
+                      <div
+                        key={medal.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border border-yellow-600/50 hover:border-yellow-400 transition-all hover:shadow-lg hover:shadow-yellow-500/20"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-3xl drop-shadow-[0_0_8px_rgba(255,215,0,0.5)]">{getMedalIcon(medal.level)}</span>
+                          <div>
+                            <div className="font-medium text-yellow-100">
+                              {getMedalName(medal.level)} - {getMedalDescription(medal)}
+                            </div>
+                            <div className="text-sm text-yellow-300/60">
+                              {new Date(medal.earnedDate).toLocaleDateString('he-IL')}
                             </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        <Badge className={medal.used ? "bg-gray-600 text-gray-200" : "bg-yellow-600 text-yellow-50 border-yellow-400"}>
+                          {medal.used ? `נוצל ב${medal.usedForItem}` : 'זמין'}
+                        </Badge>
+                      </div>
+                    ))}
                   </div>
-                ))}
-            </div>
+                </div>
+              ))
           ) : (
-            <p className="text-center text-muted-foreground py-8">
-              עדיין אין מדליות. המשיכי להתאמן כדי לזכות במדליות!
-            </p>
+            <div className="text-center py-8 text-yellow-200/60">
+              <Trophy className="h-16 w-16 mx-auto mb-4 opacity-20 text-yellow-400" />
+              <p>עדיין אין מדליות. המשיכי להתאמן כדי לזכות במדליות!</p>
+            </div>
           )}
         </CardContent>
       </Card>
