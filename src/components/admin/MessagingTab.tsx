@@ -192,9 +192,9 @@ export default function MessagingTab() {
   };
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-250px)]">
+    <div className="flex flex-row-reverse gap-4 h-[calc(100vh-250px)]" dir="rtl">
       {/* Right Sidebar - Folders */}
-      <Card className="w-64 flex-shrink-0">
+      <Card className="w-64 flex-shrink-0 order-first">
         <CardContent className="p-4 space-y-2">
           <Button 
             onClick={handleCompose}
@@ -228,7 +228,7 @@ export default function MessagingTab() {
       </Card>
 
       {/* Message List */}
-      <Card className="w-96 flex-shrink-0 overflow-hidden">
+      <Card className="w-96 flex-shrink-0 overflow-hidden order-2">
         <CardContent className="p-0">
           <ScrollArea className="h-[calc(100vh-250px)]">
             {filteredMessages.length === 0 ? (
@@ -297,7 +297,7 @@ export default function MessagingTab() {
       </Card>
 
       {/* Message View / Compose */}
-      <Card className="flex-1 overflow-hidden">
+      <Card className="flex-1 overflow-hidden order-last">
         <CardContent className="p-6 h-full overflow-y-auto">
           {isComposing ? (
             <div className="space-y-4">
