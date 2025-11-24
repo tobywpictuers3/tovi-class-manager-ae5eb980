@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, ArrowRight, ArrowLeft } from 'lucide-react';
-import { getStudents, getActiveScheduleTemplate } from '@/lib/storage';
-import { getAllLessonsIncludingTemplates } from '@/lib/lessonUtils';
+import { getStudents } from '@/lib/storage';
 import { Lesson, Student } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import StudentsSwapRequestDialog from '@/components/students/StudentsSwapRequestDialog';
@@ -61,76 +60,15 @@ const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId
     const day = String(date.getDate()).padStart(2, '0');
     const dateStr = `${year}-${month}-${day}`;
     
-    // Get template lessons
-    const activeTemplate = getActiveScheduleTemplate();
-    const templateLessons: Lesson[] = [];
-    
-    if (activeTemplate) {
-      const dayOfWeek = date.getDay();
-      const dayKey = dayOfWeek.toString();
-      const daySchedule = activeTemplate.schedule[dayKey] || {};
-      
-      Object.entries(daySchedule).forEach(([time, data]) => {
-        const student = students.find(s => s.id === data.studentId);
-        if (!student) return;
-        
-        const lessonDate = new Date(dateStr);
-        const studentStartDate = new Date(student.startDate);
-        
-        if (lessonDate < studentStartDate) {
-          return;
-        }
-        
-        const getEndOfSchoolYear = (startDate: string): Date => {
-          const start = new Date(startDate);
-          const year = start.getFullYear();
-          const month = start.getMonth();
-          const endYear = month >= 8 ? year + 1 : year;
-          return new Date(`${endYear}-08-31`);
-        };
-        
-        const effectiveEndDate = student.endDate 
-          ? new Date(student.endDate)
-          : getEndOfSchoolYear(student.startDate);
-        
-        if (lessonDate > effectiveEndDate) {
-          return;
-        }
-        
-        const existingLesson = lessons.find(
-          l => l.date === dateStr && l.startTime === time && l.studentId === data.studentId
-        );
-        
-        if (existingLesson && existingLesson.status === 'cancelled') {
-          return;
-        }
-        
-        if (!existingLesson) {
-          const endTime = calculateEndTime(time, 30);
-          
-          templateLessons.push({
-            id: `template-${dateStr}-${time}-${data.studentId}`,
-            studentId: data.studentId,
-            date: dateStr,
-            startTime: time,
-            endTime,
-            status: 'scheduled',
-            isFromTemplate: true
-          });
-        }
-      });
-    }
-    
-    const actualLessons: Lesson[] = lessons
+    // Use only lessons from props - no template generation here
+    const dayLessons = lessons
       .filter(l => l.date === dateStr && l.status !== 'cancelled')
       .filter(l => {
         const student = students.find(s => s.id === l.studentId);
         return student !== undefined;
       });
     
-    const allLessons = [...templateLessons, ...actualLessons];
-    
-    return allLessons.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    return dayLessons.sort((a, b) => a.startTime.localeCompare(b.startTime));
   };
 
   const getStudentDetails = (studentId: string) => {
@@ -267,36 +205,31 @@ const GeneralWeeklySchedule: React.FC<GeneralWeeklyScheduleProps> = ({ studentId
                             <div className="text-sm font-medium text-gray-900">
                               {studentDetails.phone}
                             </div>
-                            <div className="text-sm font-bold mt-2 text-black">
-                              {lesson.startTime} - {lesson.endTime}
-                             </div>
-                             <div className="flex gap-1 flex-wrap mt-1">
-                               {lesson.isSwapped && (
-                                 <Badge className="text-[10px] px-1.5 py-0.5 bg-orange-500 text-white border-orange-500">
-                                   הוחלף
-                                 </Badge>
-                               )}
-                               {isClickableForSelection && (
-                                 <Badge className="text-[10px] px-1.5 py-0.5 bg-blue-500 text-white animate-pulse">
-                                   לחצי כאן
-                                 </Badge>
-                               )}
-                               {isSelected && (
-                                 <Badge className="text-[10px] px-1.5 py-0.5 bg-primary text-white">
-                                   ✓ נבחר
-                                 </Badge>
-                               )}
-                               {isSwapped && (
-                                 <Badge className="text-[10px] px-1.5 py-0.5 bg-orange-500 text-white border-orange-500">
-                                   הוחלף
-                                 </Badge>
-                               )}
-                               {lesson.isOneOff && (
-                                 <Badge className="text-[10px] px-1.5 py-0.5 bg-[#FFD700] text-black border-[#FFD700]">
-                                   חד פעמי
-                                 </Badge>
-                               )}
-                             </div>
+                             <div className="text-sm font-bold mt-2 text-black">
+                               {lesson.startTime} - {lesson.endTime}
+                              </div>
+                              <div className="flex gap-1 flex-wrap mt-1">
+                                {lesson.isSwapped && (
+                                  <Badge className="text-[10px] px-1.5 py-0.5 bg-orange-500 text-white border-orange-500">
+                                    הוחלף
+                                  </Badge>
+                                )}
+                                {isClickableForSelection && (
+                                  <Badge className="text-[10px] px-1.5 py-0.5 bg-blue-500 text-white animate-pulse">
+                                    לחצי כאן
+                                  </Badge>
+                                )}
+                                {isSelected && (
+                                  <Badge className="text-[10px] px-1.5 py-0.5 bg-primary text-white">
+                                    ✓ נבחר
+                                  </Badge>
+                                )}
+                                {lesson.isOneOff && (
+                                  <Badge className="text-[10px] px-1.5 py-0.5 bg-[#FFD700] text-black border-[#FFD700]">
+                                    חד פעמי
+                                  </Badge>
+                                )}
+                              </div>
                           </div>
                         </div>
                       );
