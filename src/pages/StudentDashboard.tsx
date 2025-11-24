@@ -256,6 +256,7 @@ const StudentDashboard = () => {
                   <StudentSwapPanel 
                     student={student} 
                     lessons={getAllLessonsIncludingTemplates()}
+                    students={getStudents()}
                     onMount={(ref) => setSwapPanelRef(ref)}
                     onStepChange={(step) => setCurrentSwapStep(step)}
                   />
