@@ -59,7 +59,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
       (lesson) => lesson.studentId === student.id && isFutureLesson(lesson)
     );
 
-    const allFutureLessons = getLessons().filter(isFutureLesson);
+    const allFutureLessons = lessons.filter(isFutureLesson);
 
     const availableTargetLessons = allFutureLessons.filter(
       (lesson) => lesson.id !== myLessonId
@@ -68,7 +68,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
     const isMyCodeValid = mySwapCode === student.swapCode;
 
     const mySelectedLesson = myLessonId ? lessons.find(l => l.id === myLessonId) : null;
-    const targetSelectedLesson = targetLessonId ? getLessons().find(l => l.id === targetLessonId) : null;
+    const targetSelectedLesson = targetLessonId ? lessons.find(l => l.id === targetLessonId) : null;
 
     // Sync ref with state for real-time access
     useEffect(() => {
@@ -267,7 +267,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
           swapRequest as SwapRequest,
           lessons,
           allStudents,
-          (req) => markLessonsAsSwapped(req, getLessons, updateLesson)
+          (req) => markLessonsAsSwapped(req, () => lessons, updateLesson)
         );
 
         if (!result.ok) {
