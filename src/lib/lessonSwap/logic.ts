@@ -3,9 +3,9 @@ import { SwapRequest } from './types';
 import { Lesson, Student } from '@/lib/types';
 import { parse, isBefore, parseISO } from 'date-fns';
 
-// Check if a lesson is in the future
+// Check if a lesson is in the future (allowing swaps up to 10 minutes before start)
 export function isFutureLesson(lesson: Lesson): boolean {
-  const now = new Date();
+  const now = Date.now();
   
   // Parse lesson date and time
   const lessonDateTime = parse(
@@ -14,7 +14,9 @@ export function isFutureLesson(lesson: Lesson): boolean {
     new Date()
   );
   
-  return isBefore(now, lessonDateTime);
+  // Allow swap if lesson starts more than 10 minutes from now
+  const tenMinutesInMs = 10 * 60 * 1000;
+  return (lessonDateTime.getTime() - now) >= tenMinutesInMs;
 }
 
 // Validate a swap request before processing

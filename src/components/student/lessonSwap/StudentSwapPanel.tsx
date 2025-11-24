@@ -9,7 +9,7 @@ import { Student, Lesson } from '@/lib/types';
 import { SwapRequest } from '@/lib/lessonSwap/types';
 import { isFutureLesson, validateSwap, applySwap } from '@/lib/lessonSwap/logic';
 import { addSwapRequest, markLessonsAsSwapped } from '@/lib/lessonSwap/swapStore';
-import { getLessons, getStudents, updateLesson } from '@/lib/storage';
+import { updateLesson } from '@/lib/storage';
 import { addMessage } from '@/lib/messages';
 import { ArrowLeftRight, X, MousePointerClick } from 'lucide-react';
 import { format } from 'date-fns';
@@ -28,6 +28,7 @@ import {
 interface StudentSwapPanelProps {
   student: Student;
   lessons: Lesson[];
+  students: Student[];
   onMount?: (ref: { handleLessonDoubleClick: (lesson: Lesson) => void }) => void;
   onStepChange?: (step: 1 | 2 | 3 | 4) => void;
 }
@@ -37,7 +38,7 @@ export interface StudentSwapPanelRef {
 }
 
 const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
-  ({ student, lessons, onMount, onStepChange }, ref) => {
+  ({ student, lessons, students, onMount, onStepChange }, ref) => {
     // Step-based state management
     const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
     const [myLessonId, setMyLessonId] = useState<string>('');
@@ -223,8 +224,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
       setIsProcessing(true);
 
       try {
-        // Use lessons prop which includes template lessons
-        const allStudents = getStudents();
+        // Use lessons and students from props
         const myLesson = lessons.find(l => l.id === myLessonId);
         const targetLesson = lessons.find(l => l.id === targetLessonId);
 
@@ -232,7 +232,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
           throw new Error('שיעורים לא נמצאו');
         }
 
-        const targetStudent = allStudents.find(s => s.id === targetLesson.studentId);
+        const targetStudent = students.find(s => s.id === targetLesson.studentId);
 
         if (!targetStudent) {
           throw new Error('תלמידת יעד לא נמצאה');
@@ -251,7 +251,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         };
 
         // Validate the swap
-        const validation = validateSwap(swapRequest as SwapRequest, lessons, allStudents);
+        const validation = validateSwap(swapRequest as SwapRequest, lessons, students);
         if (!validation.ok) {
           toast({
             title: 'שגיאה',
@@ -266,7 +266,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         const result = applySwap(
           swapRequest as SwapRequest,
           lessons,
-          allStudents,
+          students,
           (req) => markLessonsAsSwapped(req, () => lessons, updateLesson)
         );
 
@@ -346,7 +346,6 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
     const formatLessonDisplay = (lesson: Lesson | null) => {
       if (!lesson) return null;
 
-      const students = getStudents();
       const lessonStudent = students.find((s) => s.id === lesson.studentId);
       const studentName = lessonStudent
         ? `${lessonStudent.firstName} ${lessonStudent.lastName}`
@@ -550,7 +549,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {(() => {
-                          const targetStudent = getStudents().find(s => s.id === targetSelectedLesson.studentId);
+                          const targetStudent = students.find(s => s.id === targetSelectedLesson.studentId);
                           return targetStudent ? `${targetStudent.firstName} ${targetStudent.lastName}` : '';
                         })()}
                       </p>
