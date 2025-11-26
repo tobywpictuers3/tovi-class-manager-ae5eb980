@@ -349,7 +349,7 @@ export const updateSwapRequestStatus = (requestId: string, status: 'approved' | 
   updateSwapRequest(requestId, { status });
 };
 
-const performLessonSwap = (swapRequest: SwapRequest) => {
+export const performLessonSwap = (swapRequest: SwapRequest) => {
   const lessons = getLessons();
   
   // Find EXISTING lessons only (not templates)

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 import { Student, Lesson, SwapRequest } from '@/lib/types';
-import { addSwapRequest, updateSwapRequestStatus, getLessons, addLesson } from '@/lib/storage';
+import { addSwapRequest, performLessonSwap, getLessons, addLesson } from '@/lib/storage';
 import { addMessage } from '@/lib/messages';
 import { ArrowLeftRight, X, MousePointerClick } from 'lucide-react';
 import { format } from 'date-fns';
@@ -269,11 +269,19 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         // Check if target swap code is valid
         const isTargetCodeValid = targetSwapCode && targetStudent?.swapCode === targetSwapCode;
 
-        // Determine swap status - auto-approve only if BOTH codes are correct
-        let swapStatus: 'pending' | 'approved' = 'pending';
-        if (isMyCodeValid && isTargetCodeValid) {
-          swapStatus = 'approved';
+        // CRITICAL: Both codes MUST be correct - no pending system
+        if (!isMyCodeValid || !isTargetCodeValid) {
+          toast({
+            title: 'שגיאה',
+            description: 'שני הקודים חייבים להיות נכונים לביצוע החלפה',
+            variant: 'destructive',
+          });
+          setIsProcessing(false);
+          return; // EXIT - no SwapRequest created, no message sent
         }
+
+        // Only reach here if BOTH codes are correct
+        const swapStatus: 'approved' = 'approved';
 
         // Create swap request in storage.ts format
         const swapRequestData: Omit<SwapRequest, 'id' | 'lastModified'> = {
@@ -283,11 +291,7 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
           time: myLesson.startTime,
           targetDate: targetLesson.date,
           targetTime: targetLesson.startTime,
-          reason: isTargetCodeValid 
-            ? `החלפה אוטומטית עם שני קודים` 
-            : targetSwapCode 
-              ? `בקשת החלפה - קוד יעד שגוי` 
-              : 'בקשת החלפה (ללא קוד)',
+          reason: `החלפה אוטומטית עם שני קודים`,
           status: swapStatus,
           createdAt: new Date().toISOString(),
         };
@@ -295,50 +299,31 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         // Save to storage
         const savedRequest = addSwapRequest(swapRequestData);
 
-        // Format lesson details for messages
-        const myLessonDetails = `${format(new Date(myLesson.date), 'dd/MM/yyyy', { locale: he })} בשעה ${myLesson.startTime}`;
-        const targetLessonDetails = `${format(new Date(targetLesson.date), 'dd/MM/yyyy', { locale: he })} בשעה ${targetLesson.startTime}`;
+        // Perform the lesson swap immediately
+        performLessonSwap(savedRequest);
 
-        // Only auto-approve if BOTH codes are correct
-        if (swapStatus === 'approved') {
-          // Auto-approve: update status and perform swap
-          updateSwapRequestStatus(savedRequest.id, 'approved');
-          
-          // Send success message to all parties
-          addMessage({
-            senderId: 'system',
-            senderName: 'מערכת',
-            recipientIds: ['admin', student.id, targetStudent.id],
-            subject: '⭐ ✓ החלפת שיעור בוצעה',
-            content: `✅ החלפת שיעור בוצעה בהצלחה!\n\n👥 בין: ${student.firstName} ${student.lastName} ↔ ${targetStudent.firstName} ${targetStudent.lastName}\n\n📅 שיעור של ${student.firstName}: ${myLessonDetails}\n📅 שיעור של ${targetStudent.firstName}: ${targetLessonDetails}\n\n✨ ההחלפה אושרה ועודכנה במערכת.`,
-            type: 'swap_approval',
-            starred: { [student.id]: true, [targetStudent.id]: true, 'admin': true },
-          });
-          
-          toast({
-            title: 'הצלחה!',
-            description: 'ההחלפה בוצעה בהצלחה',
-          });
-        } else {
-          // Pending: Do NOT call updateSwapRequestStatus - only send message to admin
-          addMessage({
-            senderId: student.id,
-            senderName: `${student.firstName} ${student.lastName}`,
-            recipientIds: ['admin'],
-            subject: '⏳ בקשת החלפת שיעור לאישור',
-            content: `📋 בקשת החלפת שיעור ממתינה לאישור\n\n👤 מבקשת: ${student.firstName} ${student.lastName}\n👤 עם: ${targetStudent.firstName} ${targetStudent.lastName}\n\n📅 שיעור של ${student.firstName}: ${myLessonDetails}\n📅 שיעור של ${targetStudent.firstName}: ${targetLessonDetails}\n\n⚠️ הסיבה: ${swapRequestData.reason}`,
-            type: 'swap_request',
-            metadata: {
-              swapRequestId: savedRequest.id,
-              action: 'approve_or_reject'
-            }
-          });
-          
-          toast({
-            title: 'נשלח לאישור',
-            description: 'הבקשה נשלחה למנהלת לאישור',
-          });
-        }
+        // Format lesson details for success message
+        const myLessonDetails = `${format(new Date(myLesson.date), 'dd/MM/yyyy', { locale: he })} בשעה ${myLesson.startTime}`;
+
+        // Send swap notice to all parties
+        addMessage({
+          senderId: 'system',
+          senderName: 'מערכת',
+          recipientIds: [student.id, targetStudent.id, 'admin'],
+          subject: '✓ שיעור הוחלף',
+          content: `שיעור הוחלף בין ${student.firstName} ${student.lastName} ו-${targetStudent.firstName} ${targetStudent.lastName}.\nתאריך: ${myLesson.date}\nשעה: ${myLesson.startTime}`,
+          type: 'swap_notice',
+          starred: { 
+            [student.id]: true, 
+            [targetStudent.id]: true, 
+            'admin': true 
+          },
+        });
+        
+        toast({
+          title: 'הצלחה!',
+          description: 'ההחלפה בוצעה בהצלחה',
+        });
 
         // Refresh parent component to reload all lessons including templates
         if (onSwapCompleted) {
