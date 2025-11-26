@@ -1,13 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Checkbox } from "@/components/ui/checkbox";
 import { 
   getMessagesForAdmin, 
   markMessageAsRead, 
@@ -42,8 +40,6 @@ import {
   Forward,
   RotateCcw
 } from "lucide-react";
-import { format } from "date-fns";
-import { he } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { MessageTypeBadge } from "../student/MessageTypeBadge";
 
@@ -67,15 +63,48 @@ export default function MessagingTab() {
   const [isReplying, setIsReplying] = useState(false);
   
   const [composeSubject, setComposeSubject] = useState('');
-  const [composeContent, setComposeContent] = useState('');
   const [composeRecipients, setComposeRecipients] = useState<string[]>(['all']);
   const [expirationDate, setExpirationDate] = useState('');
+  const editorRef = useRef<HTMLDivElement>(null);
   
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Handle paste for inline images
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) continue;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const img = document.createElement('img');
+            img.src = reader.result as string;
+            img.style.maxWidth = '100%';
+            img.style.borderRadius = '8px';
+            img.style.marginTop = '8px';
+            img.style.marginBottom = '8px';
+            el.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    };
+
+    el.addEventListener('paste', handlePaste as any);
+    return () => el.removeEventListener('paste', handlePaste as any);
   }, []);
 
   const loadData = () => {
@@ -138,7 +167,7 @@ export default function MessagingTab() {
     setIsComposing(true);
     setIsReplying(false);
     setComposeSubject('');
-    setComposeContent('');
+    if (editorRef.current) editorRef.current.innerHTML = '';
     setComposeRecipients(['all']);
     setExpirationDate('');
     setSelectedMessage(null);
@@ -148,7 +177,7 @@ export default function MessagingTab() {
     setIsReplying(true);
     setIsComposing(true);
     setComposeSubject(`תגובה: ${message.subject}`);
-    setComposeContent('');
+    if (editorRef.current) editorRef.current.innerHTML = '';
     setComposeRecipients([message.senderId]);
     setSelectedMessage(message);
   };
@@ -157,9 +186,20 @@ export default function MessagingTab() {
     setIsReplying(false);
     setIsComposing(true);
     setComposeSubject(`FW: ${message.subject}`);
-    setComposeContent(`\n\n--- הודעה מועברת ---\nמאת: ${message.senderName}\nנושא: ${message.subject}\n\n${message.content}`);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = `<p><br></p><p>--- הודעה מועברת ---</p><p>מאת: ${message.senderName}</p><p>נושא: ${message.subject}</p><p><br></p>${message.contentHtml || message.content}`;
+    }
     setComposeRecipients(['all']);
     setSelectedMessage(message);
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const sel = window.getSelection();
+    if (!sel || !editorRef.current) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(document.createTextNode(emoji));
+    range.collapse(false);
   };
 
   const handleSend = () => {
@@ -168,12 +208,16 @@ export default function MessagingTab() {
       return;
     }
 
+    const html = editorRef.current?.innerHTML || '';
+    const plain = editorRef.current?.innerText || '';
+
     addMessage({
       senderId: 'admin',
       senderName: 'המנהל',
       recipientIds: composeRecipients,
       subject: composeSubject,
-      content: composeContent,
+      content: plain,
+      contentHtml: html,
       expiresAt: expirationDate || undefined,
       inReplyTo: isReplying && selectedMessage ? selectedMessage.id : undefined,
       type: 'general',
@@ -183,7 +227,7 @@ export default function MessagingTab() {
     setIsComposing(false);
     setIsReplying(false);
     setComposeSubject('');
-    setComposeContent('');
+    if (editorRef.current) editorRef.current.innerHTML = '';
     setComposeRecipients(['all']);
     setExpirationDate('');
     setSelectedMessage(null);
@@ -191,24 +235,28 @@ export default function MessagingTab() {
   };
 
   const handleSaveDraft = () => {
-    if (!composeSubject.trim() && !composeContent.trim()) {
+    if (!composeSubject.trim() && !editorRef.current?.innerText?.trim()) {
       toast.error('נא למלא נושא או תוכן');
       return;
     }
+
+    const html = editorRef.current?.innerHTML || '';
+    const plain = editorRef.current?.innerText || '';
 
     saveDraft({
       senderId: 'admin',
       senderName: 'המנהל',
       recipientIds: composeRecipients,
       subject: composeSubject,
-      content: composeContent,
+      content: plain,
+      contentHtml: html,
       type: 'general',
     });
 
     toast.success('הטיוטה נשמרה');
     setIsComposing(false);
     setComposeSubject('');
-    setComposeContent('');
+    if (editorRef.current) editorRef.current.innerHTML = '';
     setComposeRecipients(['all']);
     setExpirationDate('');
     loadData();
@@ -255,9 +303,16 @@ export default function MessagingTab() {
     toast.success('ההודעה סומנה כלא נקראה');
   };
 
-  const filteredMessages = getFilteredMessages().sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  // Filter out messages shown in starred banner
+  const bannerStarredIds = new Set(
+    getStarredMessages('admin').slice(0, 3).map(m => m.id)
   );
+
+  const filteredMessages = getFilteredMessages()
+    .filter(m => !bannerStarredIds.has(m.id))
+    .sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   
   const unreadCount = allMessages.filter(m => 
     m.senderId !== 'admin' && 
@@ -289,11 +344,17 @@ export default function MessagingTab() {
 
   const getRecipientName = (recipientIds: string[]) => {
     if (recipientIds.includes('all')) return 'כל התלמידות';
-    if (recipientIds.length === 1) {
-      const student = students.find(s => s.id === recipientIds[0]);
-      return student ? `${student.firstName} ${student.lastName}` : 'תלמידה';
-    }
-    return `${recipientIds.length} תלמידות`;
+
+    const names = recipientIds
+      .map(id => students.find(s => s.id === id))
+      .filter(Boolean)
+      .map(s => `${s!.firstName} ${s!.lastName}`);
+
+    if (names.length <= 1) return names[0] || 'תלמידה';
+    if (names.length === 2) return `${names[0]}, ${names[1]}`;
+
+    const extra = names.length - 2;
+    return `${names[0]}, ${names[1]} ועוד ${extra} תלמידות`;
   };
 
   return (
@@ -388,20 +449,22 @@ export default function MessagingTab() {
                       </button>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <div className="flex items-center gap-2">
-                            <p className={cn("text-sm truncate", !isRead && "font-bold")}>
-                              {selectedFolder === 'sent' 
-                                ? `אל: ${getRecipientName(message.recipientIds)}` 
-                                : `מאת: ${message.senderName}`}
-                            </p>
-                            <MessageTypeBadge message={message} />
-                          </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={cn("font-semibold truncate", !isRead && "font-bold")}>
+                            {message.subject || '(ללא נושא)'}
+                          </span>
                           <span className="text-xs text-muted-foreground whitespace-nowrap">
                             {formatMessageDate(message.createdAt)}
                           </span>
                         </div>
-                        <p className={cn("text-sm truncate", !isRead ? "font-bold" : "font-medium")}>{message.subject}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground truncate mt-1">
+                          <span>
+                            {selectedFolder === 'sent' 
+                              ? `אל: ${getRecipientName(message.recipientIds)}` 
+                              : `מאת: ${message.senderName}`}
+                          </span>
+                          <MessageTypeBadge message={message} />
+                        </div>
                         <p className="text-xs text-muted-foreground truncate mt-1">
                           {message.content}
                         </p>
@@ -474,21 +537,71 @@ export default function MessagingTab() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="content">תוכן</Label>
-                <Textarea
-                  id="content"
-                  value={composeContent}
-                  onChange={(e) => setComposeContent(e.target.value)}
-                  placeholder="תוכן ההודעה"
-                  rows={10}
-                />
+                <Label>תוכן</Label>
+                <div className="border rounded-md overflow-hidden">
+                  {/* Toolbar */}
+                  <div className="flex items-center gap-2 px-2 py-1 border-b bg-muted">
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => document.execCommand('bold')}
+                    >
+                      <span className="font-bold">B</span>
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => document.execCommand('underline')}
+                    >
+                      <span style={{ textDecoration: 'underline' }}>U</span>
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => document.execCommand('foreColor', false, '#c53030')}
+                    >
+                      <span className="text-red-600">A</span>
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => document.execCommand('fontSize', false, '4')}
+                    >
+                      A+
+                    </Button>
+                    <div className="ml-auto flex gap-1">
+                      {['🎵','⭐','😊','🔥','👏'].map(e => (
+                        <button 
+                          key={e} 
+                          type="button" 
+                          className="text-lg hover:bg-muted rounded p-1"
+                          onClick={() => insertEmoji(e)}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Editable area */}
+                  <div
+                    ref={editorRef}
+                    className="min-h-[120px] px-3 py-2 outline-none focus:ring-1 focus:ring-ring"
+                    contentEditable
+                    suppressContentEditableWarning
+                    dir="rtl"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="expiration">תאריך תפוגה (אופציונלי)</Label>
                 <Input
                   id="expiration"
-                  type="datetime-local"
+                  type="date"
                   value={expirationDate}
                   onChange={(e) => setExpirationDate(e.target.value)}
                 />
@@ -525,124 +638,122 @@ export default function MessagingTab() {
                     <h3 className="text-xl font-semibold">{selectedMessage.subject}</h3>
                     <MessageTypeBadge message={selectedMessage} />
                   </div>
-                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                    <span>מאת: {selectedMessage.senderName}</span>
-                    <span>אל: {getRecipientName(selectedMessage.recipientIds)}</span>
-                    <span>
-                      {format(new Date(selectedMessage.createdAt), 'dd/MM/yyyy HH:mm', { locale: he })}
-                    </span>
+                  <div className="text-sm text-muted-foreground">
+                    <div>מאת: {selectedMessage.senderName}</div>
+                    <div>אל: {getRecipientName(selectedMessage.recipientIds)}</div>
+                    <div>{new Date(selectedMessage.createdAt).toLocaleString('he-IL')}</div>
                   </div>
                 </div>
-                
-                <div className="flex gap-2">
-                  {canUserRemoveStar(selectedMessage, 'admin') && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleToggleStar(selectedMessage.id)}
-                      title={selectedMessage.starred?.['admin'] ? "הסר כוכב" : "הוסף כוכב"}
-                    >
-                      <Star 
-                        className={cn(
-                          "w-4 h-4",
-                          selectedMessage.starred?.['admin'] ? "fill-yellow-400 text-yellow-400" : ""
-                        )} 
-                      />
-                    </Button>
-                  )}
-                  
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSelectedMessage(null)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="text-sm leading-relaxed">
+                {selectedMessage.contentHtml ? (
+                  <div dangerouslySetInnerHTML={{ __html: selectedMessage.contentHtml }} />
+                ) : (
+                  <div className="whitespace-pre-wrap">{selectedMessage.content}</div>
+                )}
+              </div>
+
+              {/* Swap request actions */}
+              {selectedMessage.metadata?.action === 'approve_or_reject' && selectedMessage.metadata.swapRequestId && (
+                <div className="flex gap-2 p-4 bg-muted rounded-lg">
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleMarkAsUnread(selectedMessage.id)}
-                    title="סמן כלא נקרא"
+                    onClick={() => handleApproveSwap(selectedMessage.metadata!.swapRequestId!)}
+                    variant="default"
                   >
-                    <Mail className="w-4 h-4" />
+                    אשר החלפה
                   </Button>
-                  
-                  {selectedFolder !== 'trash' ? (
+                  <Button
+                    onClick={() => handleRejectSwap(selectedMessage.metadata!.swapRequestId!)}
+                    variant="destructive"
+                  >
+                    דחה החלפה
+                  </Button>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleReply(selectedMessage)}
+                >
+                  <Reply className="w-4 h-4 mr-2" />
+                  השב
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleForward(selectedMessage)}
+                >
+                  <Forward className="w-4 h-4 mr-2" />
+                  העבר
+                </Button>
+                {!selectedMessage.isRead?.['admin'] && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleMarkAsUnread(selectedMessage.id)}
+                  >
+                    <MailOpen className="w-4 h-4 mr-2" />
+                    סמן כלא נקרא
+                  </Button>
+                )}
+                {selectedFolder !== 'trash' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleMoveToTrash(selectedMessage.id)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    העבר לאשפה
+                  </Button>
+                ) : (
+                  <>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleMoveToTrash(selectedMessage.id)}
-                      title="העבר לאשפה"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRestore(selectedMessage.id)}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      שחזר
                     </Button>
-                  ) : (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRestore(selectedMessage.id)}
-                        title="שחזר"
-                      >
-                        <MailOpen className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handlePermanentDelete(selectedMessage.id)}
-                        title="מחק לצמיתות"
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                {selectedMessage.content}
-              </div>
-
-              {/* Swap Request Action Buttons */}
-              {selectedMessage.type === 'swap_request' && 
-               selectedMessage.metadata?.action === 'approve_or_reject' && (
-                <div className="pt-4 border-t">
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="default" 
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => handleApproveSwap(selectedMessage.metadata!.swapRequestId)}
-                    >
-                      ✓ אשר החלפה
-                    </Button>
-                    <Button 
+                    <Button
                       variant="destructive"
-                      onClick={() => handleRejectSwap(selectedMessage.metadata!.swapRequestId)}
+                      size="sm"
+                      onClick={() => handlePermanentDelete(selectedMessage.id)}
                     >
-                      ✗ דחה החלפה
+                      <X className="w-4 h-4 mr-2" />
+                      מחק לצמיתות
                     </Button>
-                  </div>
-                </div>
-              )}
-
-              {selectedMessage.expiresAt && (
-                <div className="text-xs text-muted-foreground pt-2 border-t">
-                  תוקף עד: {format(new Date(selectedMessage.expiresAt), 'dd/MM/yyyy HH:mm', { locale: he })}
-                </div>
-              )}
-
-              {selectedFolder === 'inbox' && (
-                <div className="pt-4 border-t flex gap-2">
-                  <Button onClick={() => handleReply(selectedMessage)}>
-                    <Reply className="w-4 h-4 mr-2" />
-                    השב
-                  </Button>
-                  <Button variant="outline" onClick={() => handleForward(selectedMessage)}>
-                    <Forward className="w-4 h-4 mr-2" />
-                    העבר
-                  </Button>
-                </div>
-              )}
+                  </>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleToggleStar(selectedMessage.id)}
+                  disabled={selectedMessage.starred?.['admin'] && !canUserRemoveStar(selectedMessage, 'admin')}
+                >
+                  <Star 
+                    className={cn(
+                      "w-4 h-4 mr-2",
+                      selectedMessage.starred?.['admin'] && "fill-yellow-400"
+                    )} 
+                  />
+                  {selectedMessage.starred?.['admin'] ? 'הסר כוכב' : 'סמן בכוכב'}
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">
-              <div className="text-center space-y-2">
-                <Mail className="w-16 h-16 mx-auto opacity-20" />
-                <p>בחר הודעה לצפייה</p>
-              </div>
+              בחר הודעה לצפייה
             </div>
           )}
         </CardContent>

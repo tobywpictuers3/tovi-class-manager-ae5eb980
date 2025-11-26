@@ -1,12 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { 
   getMessagesForStudent, 
   markMessageAsRead, 
@@ -38,8 +36,6 @@ import {
   Forward,
   RotateCcw
 } from "lucide-react";
-import { format } from "date-fns";
-import { he } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { MessageTypeBadge } from "./MessageTypeBadge";
 
@@ -68,8 +64,8 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
   const [isReplying, setIsReplying] = useState(false);
   
   const [composeSubject, setComposeSubject] = useState('');
-  const [composeContent, setComposeContent] = useState('');
   const [composeRecipients, setComposeRecipients] = useState<string[]>(['admin']);
+  const editorRef = useRef<HTMLDivElement>(null);
   
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [students, setStudents] = useState<any[]>([]);
@@ -78,6 +74,39 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
     loadMessages();
     loadStudents();
   }, [studentId]);
+
+  // Handle paste for inline images
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) continue;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const img = document.createElement('img');
+            img.src = reader.result as string;
+            img.style.maxWidth = '100%';
+            img.style.borderRadius = '8px';
+            img.style.marginTop = '8px';
+            img.style.marginBottom = '8px';
+            el.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    };
+
+    el.addEventListener('paste', handlePaste as any);
+    return () => el.removeEventListener('paste', handlePaste as any);
+  }, []);
 
   const loadMessages = () => {
     const messages = getMessagesForStudent(studentId, true); // include deleted
@@ -97,14 +126,17 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
 
   const getRecipientDisplay = (message: Message): string => {
     if (message.recipientIds.includes('all')) return 'כל התלמידות';
-    if (message.recipientIds.length > 1) {
-      const firstStudent = students.find(s => s.id === message.recipientIds[0]);
-      const firstName = firstStudent ? `${firstStudent.firstName} ${firstStudent.lastName}` : 'תלמידה';
-      return `${firstName} ועוד ${message.recipientIds.length - 1}`;
-    }
-    if (message.recipientIds[0] === 'admin') return 'המורה';
-    const recipient = students.find(s => s.id === message.recipientIds[0]);
-    return recipient ? `${recipient.firstName} ${recipient.lastName}` : 'תלמידה';
+
+    const names = message.recipientIds
+      .map(id => students.find(s => s.id === id))
+      .filter(Boolean)
+      .map(s => `${s!.firstName} ${s!.lastName}`);
+
+    if (names.length <= 1) return names[0] || 'תלמידה';
+    if (names.length === 2) return `${names[0]}, ${names[1]}`;
+
+    const extra = names.length - 2;
+    return `${names[0]}, ${names[1]} ועוד ${extra} תלמידות`;
   };
 
   const getFilteredMessages = (): Message[] => {
@@ -134,7 +166,7 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
     setIsComposing(true);
     setIsReplying(false);
     setComposeSubject('');
-    setComposeContent('');
+    if (editorRef.current) editorRef.current.innerHTML = '';
     setComposeRecipients(['admin']);
     setSelectedMessage(null);
   };
@@ -143,7 +175,7 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
     setIsReplying(true);
     setIsComposing(true);
     setComposeSubject(`תגובה: ${message.subject}`);
-    setComposeContent('');
+    if (editorRef.current) editorRef.current.innerHTML = '';
     setComposeRecipients([message.senderId]);
     setSelectedMessage(message);
   };
@@ -152,9 +184,20 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
     setIsReplying(false);
     setIsComposing(true);
     setComposeSubject(`FW: ${message.subject}`);
-    setComposeContent(`\n\n--- הודעה מועברת ---\nמאת: ${message.senderName}\nנושא: ${message.subject}\n\n${message.content}`);
+    if (editorRef.current) {
+      editorRef.current.innerHTML = `<p><br></p><p>--- הודעה מועברת ---</p><p>מאת: ${message.senderName}</p><p>נושא: ${message.subject}</p><p><br></p>${message.contentHtml || message.content}`;
+    }
     setComposeRecipients(['admin']);
     setSelectedMessage(message);
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const sel = window.getSelection();
+    if (!sel || !editorRef.current) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(document.createTextNode(emoji));
+    range.collapse(false);
   };
 
   const handleSend = () => {
@@ -163,12 +206,16 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
       return;
     }
 
+    const html = editorRef.current?.innerHTML || '';
+    const plain = editorRef.current?.innerText || '';
+
     addMessage({
       senderId: studentId,
       senderName: studentName,
       recipientIds: composeRecipients,
       subject: composeSubject,
-      content: composeContent,
+      content: plain,
+      contentHtml: html,
       inReplyTo: isReplying && selectedMessage ? selectedMessage.id : undefined,
       type: 'general',
     });
@@ -177,31 +224,35 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
     setIsComposing(false);
     setIsReplying(false);
     setComposeSubject('');
-    setComposeContent('');
+    if (editorRef.current) editorRef.current.innerHTML = '';
     setComposeRecipients(['admin']);
     setSelectedMessage(null);
     loadMessages();
   };
 
   const handleSaveDraft = () => {
-    if (!composeSubject.trim() && !composeContent.trim()) {
+    if (!composeSubject.trim() && !editorRef.current?.innerText?.trim()) {
       toast.error('נא למלא נושא או תוכן');
       return;
     }
+
+    const html = editorRef.current?.innerHTML || '';
+    const plain = editorRef.current?.innerText || '';
 
     saveDraft({
       senderId: studentId,
       senderName: studentName,
       recipientIds: composeRecipients,
       subject: composeSubject,
-      content: composeContent,
+      content: plain,
+      contentHtml: html,
       type: 'general',
     });
 
     toast.success('הטיוטה נשמרה');
     setIsComposing(false);
     setComposeSubject('');
-    setComposeContent('');
+    if (editorRef.current) editorRef.current.innerHTML = '';
     setComposeRecipients(['admin']);
     loadMessages();
   };
@@ -240,9 +291,16 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
     toast.success('ההודעה סומנה כלא נקראה');
   };
 
-  const filteredMessages = getFilteredMessages().sort((a, b) => 
-    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  // Filter out messages shown in starred banner
+  const bannerStarredIds = new Set(
+    getStarredMessages(studentId).slice(0, 3).map(m => m.id)
   );
+
+  const filteredMessages = getFilteredMessages()
+    .filter(m => !bannerStarredIds.has(m.id))
+    .sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   
   const unreadCount = allMessages.filter(m => 
     m.senderId !== studentId && 
@@ -358,18 +416,20 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
                       </button>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <div className="flex items-center gap-2">
-                            <p className={cn("text-sm truncate", !isRead && "font-bold")}>
-                              {selectedFolder === 'sent' ? `אל: ${getRecipientDisplay(message)}` : `מאת: ${message.senderName}`}
-                            </p>
-                            <MessageTypeBadge message={message} />
-                          </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={cn("font-semibold truncate", !isRead && "font-bold")}>
+                            {message.subject || '(ללא נושא)'}
+                          </span>
                           <span className="text-xs text-muted-foreground whitespace-nowrap">
                             {formatMessageDate(message.createdAt)}
                           </span>
                         </div>
-                        <p className={cn("text-sm truncate", !isRead ? "font-bold" : "font-medium")}>{message.subject}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground truncate mt-1">
+                          <span>
+                            {selectedFolder === 'sent' ? `אל: ${getRecipientDisplay(message)}` : `מאת: ${message.senderName}`}
+                          </span>
+                          <MessageTypeBadge message={message} />
+                        </div>
                         <p className="text-xs text-muted-foreground truncate mt-1">
                           {message.content}
                         </p>
@@ -443,14 +503,64 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="content">תוכן</Label>
-                <Textarea
-                  id="content"
-                  value={composeContent}
-                  onChange={(e) => setComposeContent(e.target.value)}
-                  placeholder="תוכן ההודעה"
-                  rows={10}
-                />
+                <Label>תוכן</Label>
+                <div className="border rounded-md overflow-hidden">
+                  {/* Toolbar */}
+                  <div className="flex items-center gap-2 px-2 py-1 border-b bg-muted">
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => document.execCommand('bold')}
+                    >
+                      <span className="font-bold">B</span>
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => document.execCommand('underline')}
+                    >
+                      <span style={{ textDecoration: 'underline' }}>U</span>
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => document.execCommand('foreColor', false, '#c53030')}
+                    >
+                      <span className="text-red-600">A</span>
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => document.execCommand('fontSize', false, '4')}
+                    >
+                      A+
+                    </Button>
+                    <div className="ml-auto flex gap-1">
+                      {['🎵','⭐','😊','🔥','👏'].map(e => (
+                        <button 
+                          key={e} 
+                          type="button" 
+                          className="text-lg hover:bg-muted rounded p-1"
+                          onClick={() => insertEmoji(e)}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Editable area */}
+                  <div
+                    ref={editorRef}
+                    className="min-h-[120px] px-3 py-2 outline-none focus:ring-1 focus:ring-ring"
+                    contentEditable
+                    suppressContentEditableWarning
+                    dir="rtl"
+                  />
+                </div>
               </div>
 
               <div className="flex gap-2">
@@ -484,86 +594,94 @@ export default function GmailStyleMessages({ studentId, studentName }: GmailStyl
                     <h3 className="text-xl font-semibold">{selectedMessage.subject}</h3>
                     <MessageTypeBadge message={selectedMessage} />
                   </div>
-                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                    <span>מאת: {selectedMessage.senderName}</span>
-                    <span>אל: {getRecipientDisplay(selectedMessage)}</span>
-                    <span>
-                      {format(new Date(selectedMessage.createdAt), 'dd/MM/yyyy HH:mm', { locale: he })}
-                    </span>
+                  <div className="text-sm text-muted-foreground">
+                    <div>מאת: {selectedMessage.senderName}</div>
+                    <div>אל: {getRecipientDisplay(selectedMessage)}</div>
+                    <div>{new Date(selectedMessage.createdAt).toLocaleString('he-IL')}</div>
                   </div>
                 </div>
-                
-                <div className="flex gap-2">
-                  {canUserRemoveStar(selectedMessage, studentId) && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleToggleStar(selectedMessage.id)}
-                      title={selectedMessage.starred?.[studentId] ? "הסר כוכב" : "הוסף כוכב"}
-                    >
-                      <Star 
-                        className={cn(
-                          "w-4 h-4",
-                          selectedMessage.starred?.[studentId] ? "fill-yellow-400 text-yellow-400" : ""
-                        )} 
-                      />
-                    </Button>
-                  )}
-                  
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSelectedMessage(null)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="text-sm leading-relaxed">
+                {selectedMessage.contentHtml ? (
+                  <div dangerouslySetInnerHTML={{ __html: selectedMessage.contentHtml }} />
+                ) : (
+                  <div className="whitespace-pre-wrap">{selectedMessage.content}</div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleReply(selectedMessage)}
+                >
+                  <Reply className="w-4 h-4 mr-2" />
+                  השב
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleForward(selectedMessage)}
+                >
+                  <Forward className="w-4 h-4 mr-2" />
+                  העבר
+                </Button>
+                {!selectedMessage.isRead?.[studentId] && (
                   <Button
-                    variant="ghost"
-                    size="icon"
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleMarkAsUnread(selectedMessage.id)}
-                    title="סמן כלא נקרא"
                   >
-                    <Mail className="w-4 h-4" />
+                    <MailOpen className="w-4 h-4 mr-2" />
+                    סמן כלא נקרא
                   </Button>
-                  
-                  {selectedFolder !== 'trash' ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleMoveToTrash(selectedMessage.id)}
-                      title="העבר לאשפה"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRestore(selectedMessage.id)}
-                      title="שחזר"
-                    >
-                      <MailOpen className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
+                )}
+                {selectedFolder !== 'trash' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleMoveToTrash(selectedMessage.id)}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    העבר לאשפה
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRestore(selectedMessage.id)}
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    שחזר
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleToggleStar(selectedMessage.id)}
+                  disabled={selectedMessage.starred?.[studentId] && !canUserRemoveStar(selectedMessage, studentId)}
+                >
+                  <Star 
+                    className={cn(
+                      "w-4 h-4 mr-2",
+                      selectedMessage.starred?.[studentId] && "fill-yellow-400"
+                    )} 
+                  />
+                  {selectedMessage.starred?.[studentId] ? 'הסר כוכב' : 'סמן בכוכב'}
+                </Button>
               </div>
-
-              <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                {selectedMessage.content}
-              </div>
-
-              {selectedFolder === 'inbox' && (
-                <div className="pt-4 border-t flex gap-2">
-                  <Button onClick={() => handleReply(selectedMessage)}>
-                    <Reply className="w-4 h-4 mr-2" />
-                    השב
-                  </Button>
-                  <Button variant="outline" onClick={() => handleForward(selectedMessage)}>
-                    <Forward className="w-4 h-4 mr-2" />
-                    העבר
-                  </Button>
-                </div>
-              )}
             </div>
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">
-              <div className="text-center space-y-2">
-                <Mail className="w-16 h-16 mx-auto opacity-20" />
-                <p>בחר הודעה לצפייה</p>
-              </div>
+              בחר הודעה לצפייה
             </div>
           )}
         </CardContent>
