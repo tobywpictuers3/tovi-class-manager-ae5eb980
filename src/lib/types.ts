@@ -209,7 +209,7 @@ export interface Message {
   isDeleted?: { [studentId: string]: boolean }; // track deleted status per recipient
   isDraft?: boolean; // draft status
   inReplyTo?: string; // ID of message being replied to
-  type: 'general' | 'swap_request' | 'swap_approval' | 'swap_rejection';
+  type: 'general' | 'swap_request' | 'swap_approval' | 'swap_rejection' | 'swap_notice';
   messageType?: 'broadcast' | 'group' | 'direct-teacher' | 'direct-student';
   metadata?: {
     swapRequestId?: string;
