@@ -200,6 +200,7 @@ export interface Message {
   recipientIds: string[]; // 'all', 'admin', or specific student IDs
   subject: string;
   content: string;
+  contentHtml?: string; // HTML version for rich text
   createdAt: string;
   expiresAt?: string; // optional expiration date
   scheduledFor?: string; // scheduled send time

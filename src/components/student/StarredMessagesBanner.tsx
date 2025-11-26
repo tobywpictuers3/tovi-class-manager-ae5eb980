@@ -18,8 +18,14 @@ export default function StarredMessagesBanner({ studentId }: StarredMessagesBann
   }, [studentId]);
 
   const loadStarredMessages = () => {
-    const messages = getStarredMessages(studentId);
-    setStarredMessages(messages);
+    const all = getStarredMessages(studentId);
+    // De-duplicate by id
+    const uniqueById = Array.from(new Map(all.map(m => [m.id, m])).values());
+    // Filter deleted and sort by date
+    const valid = uniqueById
+      .filter(m => !m.isDeleted?.[studentId])
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    setStarredMessages(valid.slice(0, 3));
   };
 
   const handleMessageRead = (messageId: string) => {

@@ -51,7 +51,7 @@ export function UnreadMessagesTooltip({ userId, children }: UnreadMessagesToolti
             {unreadMessages.map((msg) => (
               <div key={msg.id} className="text-xs border-b border-border pb-1 last:border-0">
                 <div className="flex justify-between gap-2">
-                  <span className="font-medium truncate flex-1">{msg.subject}</span>
+                  <span className="font-medium truncate flex-1">{msg.subject?.trim() || '(ללא נושא)'}</span>
                   <span className="text-muted-foreground whitespace-nowrap">{formatTime(msg.createdAt)}</span>
                 </div>
                 <div className="text-muted-foreground truncate">
