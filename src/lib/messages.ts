@@ -292,3 +292,125 @@ export const getUnreadCount = (userId: string): number => {
   
   return messages.filter(message => !message.isRead?.[userId]).length;
 };
+
+// Helper function for unique by ID
+const uniqueById = (msgs: Message[]): Message[] => 
+  Array.from(new Map(msgs.map(m => [m.id, m])).values());
+
+// Sort by date (newest first)
+const sortByDate = (msgs: Message[]): Message[] => 
+  msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+// Get mailbox organized by folders - Gmail style
+export const getMailbox = (userId: string): {
+  inbox: Message[];
+  sent: Message[];
+  starred: Message[];
+  trash: Message[];
+  drafts: Message[];
+} => {
+  const messages = userId === 'admin' 
+    ? getMessagesForAdmin(true) 
+    : getMessagesForStudent(userId, true);
+  
+  const allMessages = getMessages();
+  const now = new Date();
+
+  // Filter out expired stars
+  messages.forEach(message => {
+    if (message.starred?.[userId]) {
+      const expiresAt = message.starExpiresAt?.[userId];
+      if (expiresAt && new Date(expiresAt) < now) {
+        message.starred[userId] = false;
+      }
+    }
+  });
+
+  const inbox = sortByDate(uniqueById(
+    messages.filter(m => {
+      const isRecipient = m.recipientIds.includes(userId) || 
+        (userId !== 'admin' && m.recipientIds.includes('all'));
+      return isRecipient && 
+        !m.isDeleted?.[userId] && 
+        m.senderId !== userId &&
+        !m.isDraft;
+    })
+  ));
+
+  const sent = sortByDate(uniqueById(
+    messages.filter(m => 
+      m.senderId === userId && 
+      !m.isDeleted?.[userId] &&
+      !m.isDraft
+    )
+  ));
+
+  const starred = sortByDate(uniqueById(
+    messages.filter(m => 
+      m.starred?.[userId] && 
+      !m.isDeleted?.[userId]
+    )
+  ));
+
+  const trash = sortByDate(uniqueById(
+    messages.filter(m => m.isDeleted?.[userId])
+  ));
+
+  const drafts = sortByDate(uniqueById(
+    allMessages.filter(m => 
+      m.isDraft && 
+      m.senderId === userId && 
+      !m.isDeleted?.[userId]
+    )
+  ));
+
+  return { inbox, sent, starred, trash, drafts };
+};
+
+// Format recipients for display - Gmail style
+export const formatRecipients = (recipientIds: string[], students: { id: string; firstName: string; lastName: string }[]): string => {
+  if (recipientIds.includes('all')) return 'כל התלמידות';
+  if (recipientIds.includes('admin')) return 'המנהל';
+  
+  const names = recipientIds
+    .map(id => students.find(s => s.id === id))
+    .filter(Boolean)
+    .map(s => `${s!.firstName} ${s!.lastName}`);
+  
+  if (names.length === 0) return 'נמען לא ידוע';
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]}, ${names[1]}`;
+  return `${names[0]}, ${names[1]} + ${names.length - 2} נוספות`;
+};
+
+// Toggle reaction on a message
+export const toggleReaction = (messageId: string, userId: string, emoji: string): void => {
+  const messages = getMessages();
+  const message = messages.find(m => m.id === messageId);
+  if (!message) return;
+  
+  if (!message.reactions) {
+    message.reactions = {};
+  }
+  
+  // If same emoji, remove it; otherwise set new emoji
+  if (message.reactions[userId] === emoji) {
+    delete message.reactions[userId];
+  } else {
+    message.reactions[userId] = emoji;
+  }
+  
+  saveMessages(messages);
+};
+
+// Hard delete message (permanent)
+export const hardDeleteMessage = (messageId: string): void => {
+  const messages = getMessages();
+  saveMessages(messages.filter(m => m.id !== messageId));
+};
+
+// Empty trash for user
+export const emptyTrash = (userId: string): void => {
+  const messages = getMessages();
+  saveMessages(messages.filter(m => !m.isDeleted?.[userId]));
+};

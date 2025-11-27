@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/safe-ui/alert';
 import { Button } from '@/components/safe-ui/button';
 import { Star, X } from 'lucide-react';
-import { getStarredMessages, markMessageAsRead, toggleMessageStar, canUserRemoveStar } from '@/lib/messages';
+import { getMailbox, toggleMessageStar, canUserRemoveStar } from '@/lib/messages';
 import { Message } from '@/lib/types';
 import { MessageTypeBadge } from './MessageTypeBadge';
 
@@ -15,23 +15,15 @@ export default function StarredMessagesBanner({ studentId }: StarredMessagesBann
 
   useEffect(() => {
     loadStarredMessages();
+    // Refresh every 30 seconds
+    const interval = setInterval(loadStarredMessages, 30000);
+    return () => clearInterval(interval);
   }, [studentId]);
 
   const loadStarredMessages = () => {
-    const all = getStarredMessages(studentId);
-    // De-duplicate by id
-    const uniqueById = Array.from(new Map(all.map(m => [m.id, m])).values());
-    // Filter deleted and sort by date
-    const valid = uniqueById
-      .filter(m => !m.isDeleted?.[studentId])
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    setStarredMessages(valid.slice(0, 3));
-  };
-
-  const handleMessageRead = (messageId: string) => {
-    markMessageAsRead(messageId, studentId, true);
-    toggleMessageStar(messageId, studentId);
-    loadStarredMessages();
+    const mailbox = getMailbox(studentId);
+    // Get starred messages that are not deleted, limited to 3
+    setStarredMessages(mailbox.starred.slice(0, 3));
   };
 
   const handleRemoveStar = (messageId: string) => {
@@ -47,12 +39,12 @@ export default function StarredMessagesBanner({ studentId }: StarredMessagesBann
         <Alert 
           key={message.id} 
           variant="default" 
-          className="border-yellow-500 bg-gradient-to-br from-white to-yellow-100 shadow-lg dark:from-yellow-950 dark:to-yellow-900"
+          className="border-yellow-500 bg-gradient-to-br from-background to-yellow-100/50 shadow-lg dark:from-yellow-950/20 dark:to-yellow-900/30"
         >
           <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-          <AlertTitle className="text-lg font-bold mb-2 flex items-center justify-between text-red-600 dark:text-red-400">
+          <AlertTitle className="text-lg font-bold mb-2 flex items-center justify-between text-foreground">
             <div className="flex items-center gap-2">
-              <span>{message.subject}</span>
+              <span>{message.subject || '(ללא נושא)'}</span>
               <MessageTypeBadge message={message} />
             </div>
             {canUserRemoveStar(message, studentId) && (
@@ -61,23 +53,19 @@ export default function StarredMessagesBanner({ studentId }: StarredMessagesBann
                 size="icon"
                 onClick={() => handleRemoveStar(message.id)}
                 className="h-6 w-6"
+                title="הסר כוכב"
               >
                 <X className="h-4 w-4" />
               </Button>
             )}
           </AlertTitle>
-          <AlertDescription className="text-base text-black dark:text-gray-200">
-            <div className="mb-3 whitespace-pre-wrap">{message.content}</div>
+          <AlertDescription className="text-base text-foreground/80">
+            <div className="mb-3 whitespace-pre-wrap line-clamp-3">
+              {message.content}
+            </div>
             <div className="flex justify-between items-center text-sm text-muted-foreground">
               <span>מאת: {message.senderName}</span>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => handleMessageRead(message.id)}
-                className="text-xs"
-              >
-                סמן כנקרא והסר כוכב
-              </Button>
+              <span>{new Date(message.createdAt).toLocaleDateString('he-IL')}</span>
             </div>
           </AlertDescription>
         </Alert>
