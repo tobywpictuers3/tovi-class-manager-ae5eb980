@@ -221,6 +221,7 @@ export interface Message {
   inReplyTo?: string; // ID of message being replied to
   type: 'general' | 'swap_request' | 'swap_approval' | 'swap_rejection' | 'swap_notice';
   messageType?: 'broadcast' | 'group' | 'direct-teacher' | 'direct-student';
+  reactions?: { [userId: string]: string }; // emoji reactions per user
   metadata?: {
     swapRequestId?: string;
     action?: 'approve_or_reject';

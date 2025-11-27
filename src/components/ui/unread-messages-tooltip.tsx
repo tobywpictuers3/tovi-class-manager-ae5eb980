@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/safe-ui/tooltip";
-import { getMessagesForStudent, getMessagesForAdmin } from "@/lib/messages";
-import { Message } from "@/lib/types";
+import { getMessagesForStudent, getMessagesForAdmin, formatRecipients } from "@/lib/messages";
+import { getStudents } from "@/lib/storage";
+import { Message, Student } from "@/lib/types";
 
 interface UnreadMessagesTooltipProps {
   userId: string;
@@ -10,6 +11,7 @@ interface UnreadMessagesTooltipProps {
 
 export function UnreadMessagesTooltip({ userId, children }: UnreadMessagesTooltipProps) {
   const [unreadMessages, setUnreadMessages] = useState<Message[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
 
   useEffect(() => {
     const updateMessages = () => {
@@ -23,6 +25,7 @@ export function UnreadMessagesTooltip({ userId, children }: UnreadMessagesToolti
         .slice(0, 5);
       
       setUnreadMessages(unread);
+      setStudents(getStudents());
     };
 
     updateMessages();
@@ -36,7 +39,13 @@ export function UnreadMessagesTooltip({ userId, children }: UnreadMessagesToolti
 
   const formatTime = (createdAt: string): string => {
     const date = new Date(createdAt);
-    return date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      return date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' });
   };
 
   return (
@@ -45,17 +54,24 @@ export function UnreadMessagesTooltip({ userId, children }: UnreadMessagesToolti
         <TooltipTrigger asChild>
           {children}
         </TooltipTrigger>
-        <TooltipContent side="bottom" className="max-w-xs">
+        <TooltipContent side="bottom" className="max-w-xs p-3">
           <div className="space-y-2">
-            <p className="font-semibold text-sm mb-2">הודעות אחרונות שלא נקראו:</p>
+            <p className="font-semibold text-sm mb-3 border-b pb-2">הודעות שלא נקראו:</p>
             {unreadMessages.map((msg) => (
-              <div key={msg.id} className="text-xs border-b border-border pb-1 last:border-0">
-                <div className="flex justify-between gap-2">
-                  <span className="font-medium truncate flex-1">{msg.subject?.trim() || '(ללא נושא)'}</span>
-                  <span className="text-muted-foreground whitespace-nowrap">{formatTime(msg.createdAt)}</span>
+              <div key={msg.id} className="text-xs border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                <div className="flex justify-between gap-2 mb-1">
+                  <span className="font-medium truncate flex-1">
+                    {msg.subject?.trim() || '(ללא נושא)'}
+                  </span>
+                  <span className="text-muted-foreground whitespace-nowrap">
+                    {formatTime(msg.createdAt)}
+                  </span>
                 </div>
-                <div className="text-muted-foreground truncate">
-                  מאת: {msg.senderName}
+                <div className="text-muted-foreground">
+                  {userId === 'admin' 
+                    ? `מאת: ${msg.senderName}`
+                    : `אל: ${formatRecipients(msg.recipientIds, students)}`
+                  }
                 </div>
               </div>
             ))}
