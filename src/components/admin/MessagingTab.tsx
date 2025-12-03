@@ -161,18 +161,33 @@ export default function MessagingTab() {
     return null;
   };
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     
     setIsUploading(true);
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const result = await workerApi.uploadAttachment(file);
       
-      if (result.success && result.data) {
-        setAttachments(prev => [...prev, result.data]);
-      } else {
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`${file.name} גדול מדי (מקסימום 10MB)`);
+        continue;
+      }
+      
+      try {
+        const result = await workerApi.uploadAttachment(file);
+        
+        if (result.success && result.data) {
+          setAttachments(prev => [...prev, result.data]);
+          toast.success(`${file.name} הועלה בהצלחה`);
+        } else {
+          toast.error(`שגיאה בהעלאת ${file.name}: ${result.error || 'שגיאה לא ידועה'}`);
+        }
+      } catch (error) {
         toast.error(`שגיאה בהעלאת ${file.name}`);
+        console.error('Upload error:', error);
       }
     }
     setIsUploading(false);
@@ -320,18 +335,33 @@ export default function MessagingTab() {
     toast.success('ההודעה שוחזרה');
   };
 
-  const handleHardDelete = (messageId: string) => {
-    hardDeleteMessage(messageId);
-    loadData();
-    setSelectedMessage(null);
-    toast.success('ההודעה נמחקה לצמיתות');
-    if (isMobile) setMobileView('list');
+  const [isDeletingTrash, setIsDeletingTrash] = useState(false);
+
+  const handleHardDelete = async (messageId: string) => {
+    try {
+      await hardDeleteMessage(messageId);
+      loadData();
+      setSelectedMessage(null);
+      toast.success('ההודעה נמחקה לצמיתות');
+      if (isMobile) setMobileView('list');
+    } catch (error) {
+      toast.error('שגיאה במחיקת ההודעה');
+      console.error('Hard delete error:', error);
+    }
   };
 
-  const handleEmptyTrash = () => {
-    emptyTrash('admin');
-    loadData();
-    toast.success('האשפה רוקנה');
+  const handleEmptyTrash = async () => {
+    setIsDeletingTrash(true);
+    try {
+      await emptyTrash('admin');
+      loadData();
+      toast.success('האשפה רוקנה');
+    } catch (error) {
+      toast.error('שגיאה בריקון האשפה');
+      console.error('Empty trash error:', error);
+    } finally {
+      setIsDeletingTrash(false);
+    }
   };
 
   const handleToggleReaction = (messageId: string, emoji: string) => {

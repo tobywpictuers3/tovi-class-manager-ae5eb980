@@ -242,8 +242,8 @@ export const getMessagesForAdmin = (includeDeleted: boolean = false): Message[] 
       return false;
     }
     
-    // Include messages sent to admin
-    return message.recipientIds.includes('admin');
+    // FIX: Include messages sent TO admin OR sent BY admin
+    return message.recipientIds.includes('admin') || message.senderId === 'admin';
   });
 };
 
@@ -403,14 +403,50 @@ export const toggleReaction = (messageId: string, userId: string, emoji: string)
   saveMessages(messages);
 };
 
-// Hard delete message (permanent)
-export const hardDeleteMessage = (messageId: string): void => {
+// Hard delete message (permanent) - also deletes attachments
+export const hardDeleteMessage = async (messageId: string): Promise<void> => {
   const messages = getMessages();
+  const message = messages.find(m => m.id === messageId);
+  
+  // Delete attachments from Dropbox first
+  if (message?.attachments?.length) {
+    const { workerApi } = await import('./workerApi');
+    for (const att of message.attachments) {
+      if (att.path) {
+        try {
+          await workerApi.deleteAttachment(att.path);
+        } catch (e) {
+          console.error('Failed to delete attachment:', att.path, e);
+        }
+      }
+    }
+  }
+  
   saveMessages(messages.filter(m => m.id !== messageId));
 };
 
-// Empty trash for user
-export const emptyTrash = (userId: string): void => {
+// Empty trash for user - also deletes attachments of permanently deleted messages
+export const emptyTrash = async (userId: string): Promise<void> => {
   const messages = getMessages();
+  const trashMessages = messages.filter(m => m.isDeleted?.[userId]);
+  
+  // Delete attachments from Dropbox for each trashed message
+  if (trashMessages.length > 0) {
+    const { workerApi } = await import('./workerApi');
+    for (const msg of trashMessages) {
+      if (msg.attachments?.length) {
+        for (const att of msg.attachments) {
+          if (att.path) {
+            try {
+              await workerApi.deleteAttachment(att.path);
+            } catch (e) {
+              console.error('Failed to delete attachment:', att.path, e);
+            }
+          }
+        }
+      }
+    }
+  }
+  
   saveMessages(messages.filter(m => !m.isDeleted?.[userId]));
 };

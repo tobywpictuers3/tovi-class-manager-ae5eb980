@@ -36,18 +36,21 @@ export default function AttachmentPreview({
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
-  const isImage = attachment.type?.startsWith('image/');
-  const isPDF = attachment.type === 'application/pdf';
-  const isAudio = attachment.type?.startsWith('audio/');
-  const isVideo = attachment.type?.startsWith('video/');
-  const isWord = attachment.type?.includes('word') || 
+  // Support both 'type' and 'mimeType' field names (Worker may return either)
+  const attachmentType = attachment.type || (attachment as any).mimeType || '';
+  
+  const isImage = attachmentType.startsWith('image/');
+  const isPDF = attachmentType === 'application/pdf';
+  const isAudio = attachmentType.startsWith('audio/');
+  const isVideo = attachmentType.startsWith('video/');
+  const isWord = attachmentType.includes('word') || 
     attachment.name?.endsWith('.doc') || 
     attachment.name?.endsWith('.docx');
-  const isPowerPoint = attachment.type?.includes('presentation') || 
+  const isPowerPoint = attachmentType.includes('presentation') || 
     attachment.name?.endsWith('.ppt') || 
     attachment.name?.endsWith('.pptx');
-  const isExcel = attachment.type?.includes('spreadsheet') || 
-    attachment.type?.includes('excel') ||
+  const isExcel = attachmentType.includes('spreadsheet') || 
+    attachmentType.includes('excel') ||
     attachment.name?.endsWith('.xls') || 
     attachment.name?.endsWith('.xlsx');
 
