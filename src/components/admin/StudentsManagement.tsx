@@ -170,7 +170,7 @@ const StudentsManagement = () => {
     if (window.confirm('האם את בטוחה שברצונך למחוק את התלמידה? כל הנתונים שלה יימחקו לצמיתות.')) {
       try {
         await deleteMessagesForStudentCascade(studentId);
-        deleteStudentCascade(studentId);
+        await deleteStudentCascade(studentId);
         refreshStudents();
         toast({
           title: 'הצלחה',

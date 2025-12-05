@@ -209,7 +209,7 @@ const WeeklySchedule = () => {
     setEditingLesson(null);
   };
 
-  const handleDeleteLesson = (lessonId: string) => {
+  const handleDeleteLesson = async (lessonId: string) => {
     // Only delete if it's a real lesson, not a template-generated one
     if (lessonId.startsWith('template-')) {
       toast({
@@ -220,7 +220,7 @@ const WeeklySchedule = () => {
       return;
     }
     
-    deleteLessonCascade(lessonId);
+    await deleteLessonCascade(lessonId);
     toast({
       title: 'הצלחה',
       description: 'השיעור נמחק בהצלחה (כולל בקשות החלפה קשורות)'
