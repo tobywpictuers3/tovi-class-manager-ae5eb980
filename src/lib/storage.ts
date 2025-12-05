@@ -61,6 +61,16 @@ export const initializeStorage = (data: any) => {
     inMemoryStorage['swapRequests'] = [];
   }
   
+  // Initialize tithePaid if present
+  if (data['musicSystem_tithePaid']) {
+    inMemoryStorage['tithePaid'] = data['musicSystem_tithePaid'];
+  }
+  
+  // Initialize studentStats if present
+  if (data['musicSystem_studentStats']) {
+    inMemoryStorage['studentStats'] = data['musicSystem_studentStats'];
+  }
+  
   if (initialized) {
     logger.info(`✅ Memory storage initialized with ${keysFound} data keys`);
   } else {
@@ -79,8 +89,15 @@ export const exportAllData = (allowEmpty: boolean = false): Record<string, any> 
   const data: Record<string, any> = {};
   
   Object.keys(inMemoryStorage).forEach(key => {
-    const fullKey = key === 'oneTimePayments' ? key : `musicSystem_${key}`;
-    data[fullKey] = inMemoryStorage[key];
+    // Handle special keys that need musicSystem_ prefix
+    if (key === 'oneTimePayments') {
+      data[key] = inMemoryStorage[key];
+    } else if (key === 'tithePaid' || key === 'studentStats') {
+      // These need musicSystem_ prefix for proper sync
+      data[`musicSystem_${key}`] = inMemoryStorage[key];
+    } else {
+      data[`musicSystem_${key}`] = inMemoryStorage[key];
+    }
   });
   
   data.timestamp = new Date().toISOString();
@@ -232,25 +249,26 @@ export const deleteLesson = (id: string): boolean => {
   return true;
 };
 
-// Helper for cascade changes
-const persistCascadeChanges = (mutator: (store: typeof inMemoryStorage | typeof devData) => void) => {
+// Helper for cascade changes - uses direct upload to prevent merge from restoring deleted records
+const persistCascadeChanges = async (mutator: (store: typeof inMemoryStorage | typeof devData) => void): Promise<void> => {
   if (isDevMode()) {
     mutator(devData as any);
   } else {
     mutator(inMemoryStorage as any);
-    hybridSync.onDataChange();
+    // Use skipMerge=true to prevent merge from restoring deleted records
+    await hybridSync.onDataChange(true);
   }
 };
 
 // Cascade delete lesson - removes lesson and related swap requests
-export const deleteLessonCascade = (lessonId: string): boolean => {
+export const deleteLessonCascade = async (lessonId: string): Promise<boolean> => {
   const lessons = getLessons();
   const lesson = lessons.find(l => l.id === lessonId);
   if (!lesson) return false;
 
   const { studentId, date, startTime } = lesson;
 
-  persistCascadeChanges(store => {
+  await persistCascadeChanges(store => {
     // 1. Delete the lesson itself
     store['lessons'] = (store['lessons'] || []).filter((l: any) => l.id !== lessonId);
 
@@ -268,11 +286,11 @@ export const deleteLessonCascade = (lessonId: string): boolean => {
 };
 
 // Cascade delete student - removes student and all related data
-export const deleteStudentCascade = (studentId: string): boolean => {
+export const deleteStudentCascade = async (studentId: string): Promise<boolean> => {
   const exists = getStudents().some(s => s.id === studentId);
   if (!exists) return false;
 
-  persistCascadeChanges(store => {
+  await persistCascadeChanges(store => {
     store['students'] = (store['students'] || []).filter((s: any) => s.id !== studentId);
     store['lessons'] = (store['lessons'] || []).filter((l: any) => l.studentId !== studentId);
     store['payments'] = (store['payments'] || []).filter((p: any) => p.studentId !== studentId);
