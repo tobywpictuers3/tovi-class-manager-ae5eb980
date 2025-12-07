@@ -312,9 +312,8 @@ class HybridSyncManager {
   /**
    * On data change - immediately sync to Worker with conflict resolution
    * Returns: success (local save OK), synced (Dropbox sync OK), message
-   * @param skipMerge - If true, uploads directly without downloading/merging (for destructive operations like delete)
    */
-  async onDataChange(skipMerge: boolean = false): Promise<{ success: boolean; synced: boolean; message: string }> {
+  async onDataChange(): Promise<{ success: boolean; synced: boolean; message: string }> {
     // Skip Worker sync in dev mode
     if (isDevMode()) {
       return { success: true, synced: true, message: 'נשמר במצב מפתחים' };
@@ -331,8 +330,7 @@ class HybridSyncManager {
       };
     }
 
-    // Use direct upload for destructive operations (delete) to prevent merge restoring deleted records
-    const success = skipMerge ? await this.directUpload() : await this.syncToWorker();
+    const success = await this.syncToWorker();
     
     if (success) {
       return { 
@@ -350,44 +348,67 @@ class HybridSyncManager {
   }
 
   /**
+   * On destructive change (delete) - directly uploads to Worker without merge
+   * This prevents the merge logic from restoring deleted records
+   */
+  async onDestructiveChange(): Promise<{ success: boolean; synced: boolean; message: string }> {
+    if (isDevMode()) {
+      return { success: true, synced: true, message: 'נשמר במצב מפתחים' };
+    }
+
+    this.syncState.pendingChanges++;
+
+    if (!this.syncState.isOnline) {
+      logger.warn('📡 Offline (delete) - saved locally, will retry in 2 minutes');
+      return {
+        success: true,
+        synced: false,
+        message: 'נמחק מקומית, יסונכרן כשיחזור חיבור',
+      };
+    }
+
+    const success = await this.directUpload();
+
+    if (success) {
+      return {
+        success: true,
+        synced: true,
+        message: 'נמחק בדרופבוקס בהצלחה',
+      };
+    } else {
+      return {
+        success: true,
+        synced: false,
+        message: 'נמחק מקומית, סנכרון לדרופבוקס נכשל – ננסה שוב',
+      };
+    }
+  }
+
+  /**
    * Direct upload without merge - used for destructive operations like delete
    * This prevents the merge logic from restoring deleted records
    */
   private async directUpload(): Promise<boolean> {
     if (isDevMode()) {
-      logger.info('🔧 DEV MODE: Direct upload disabled');
+      logger.info('🔧 DEV MODE: directUpload disabled');
       return true;
     }
 
-    if (this.isSyncing) {
-      logger.info('⏳ Sync already in progress');
-      return false;
-    }
-
     try {
-      this.isSyncing = true;
-      this.syncState.isSyncing = true;
-      logger.info('🔄 Starting direct upload (no merge)...');
-      
-      // Export current local data
-      const localData = this.gatherAllData();
-      
-      // Check data size before sending
-      const dataSize = JSON.stringify(localData).length;
-      logger.info(`📦 Data size: ${(dataSize / 1024).toFixed(2)} KB`);
-      
-      if (dataSize < 100) {
-        logger.error('❌ PREVENTED SYNC - Data too small, likely corrupted');
-        return false;
-      }
-      
-      // Upload directly without downloading/merging
-      const result = await workerApi.uploadVersioned(localData);
+      const data = this.gatherAllData();
+      const result = await workerApi.uploadVersioned(data);
 
       if (result.success) {
         this.syncState.lastSyncTime = new Date().toISOString();
         this.syncState.pendingChanges = 0;
-        logger.info('✅ Direct upload completed');
+        logger.info('✅ Direct upload to worker completed');
+
+        try {
+          recalculateAllMonthlyAchievements();
+        } catch (err) {
+          logger.warn('⚠️ Failed to recalc achievements after direct upload:', err);
+        }
+
         return true;
       } else {
         logger.warn('⚠️ Direct upload failed:', result.error);
@@ -396,9 +417,6 @@ class HybridSyncManager {
     } catch (error) {
       logger.error('❌ Direct upload error:', error);
       return false;
-    } finally {
-      this.isSyncing = false;
-      this.syncState.isSyncing = false;
     }
   }
 

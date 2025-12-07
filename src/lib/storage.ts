@@ -255,8 +255,6 @@ const persistCascadeChanges = async (mutator: (store: typeof inMemoryStorage | t
     mutator(devData as any);
   } else {
     mutator(inMemoryStorage as any);
-    // Use skipMerge=true to prevent merge from restoring deleted records
-    await hybridSync.onDataChange(true);
   }
 };
 
@@ -281,6 +279,9 @@ export const deleteLessonCascade = async (lessonId: string): Promise<boolean> =>
       return !(byLessonId || byLegacyFields);
     });
   });
+
+  // Use onDestructiveChange to directly upload without merge
+  await hybridSync.onDestructiveChange();
 
   return true;
 };
@@ -314,6 +315,9 @@ export const deleteStudentCascade = async (studentId: string): Promise<boolean> 
       store['studentStats'] = updated;
     }
   });
+
+  // Use onDestructiveChange to directly upload without merge
+  await hybridSync.onDestructiveChange();
 
   return true;
 };
@@ -372,14 +376,14 @@ export const updatePayment = (studentId: string, month: string, updatedFields: P
   return payments[paymentIndex];
 };
 
-export const deletePayment = (id: string): boolean => {
+export const deletePayment = async (id: string): Promise<boolean> => {
   const payments = getPayments();
   const updatedPayments = payments.filter(payment => payment.id !== id);
   if (updatedPayments.length === payments.length) {
     return false; // No payment was deleted
   }
   inMemoryStorage['payments'] = updatedPayments;
-  hybridSync.onDataChange();
+  await hybridSync.onDestructiveChange();
   return true;
 };
 
@@ -533,7 +537,7 @@ export const updateFile = (id: string, updatedFields: Partial<FileEntry>): FileE
   return files[fileIndex];
 };
 
-export const deleteFile = (id: string): boolean => {
+export const deleteFile = async (id: string): Promise<boolean> => {
   const files = getFiles();
   const updatedFiles = files.filter(file => file.id !== id);
   if (updatedFiles.length === files.length) {
@@ -543,7 +547,7 @@ export const deleteFile = (id: string): boolean => {
     devData['files'] = updatedFiles;
   } else {
     inMemoryStorage['files'] = updatedFiles;
-    hybridSync.onDataChange();
+    await hybridSync.onDestructiveChange();
   }
   return true;
 };
@@ -635,7 +639,7 @@ export const updateScheduleTemplate = (id: string, updatedFields: Partial<Schedu
   return templates[templateIndex];
 };
 
-export const deleteScheduleTemplate = (id: string): boolean => {
+export const deleteScheduleTemplate = async (id: string): Promise<boolean> => {
   const templates = getScheduleTemplates();
   const updatedTemplates = templates.filter(template => template.id !== id);
   if (updatedTemplates.length === templates.length) {
@@ -645,7 +649,7 @@ export const deleteScheduleTemplate = (id: string): boolean => {
     devData['scheduleTemplates'] = updatedTemplates;
   } else {
     inMemoryStorage['scheduleTemplates'] = updatedTemplates;
-    hybridSync.onDataChange();
+    await hybridSync.onDestructiveChange();
   }
   return true;
 };
@@ -776,7 +780,7 @@ export const updatePerformance = (id: string, updatedFields: Partial<Performance
   return performances[performanceIndex];
 };
 
-export const deletePerformance = (id: string): boolean => {
+export const deletePerformance = async (id: string): Promise<boolean> => {
   const performances = getPerformances();
   const updatedPerformances = performances.filter(perf => perf.id !== id);
   if (updatedPerformances.length === performances.length) {
@@ -786,7 +790,7 @@ export const deletePerformance = (id: string): boolean => {
     devData['performances'] = updatedPerformances;
   } else {
     inMemoryStorage['performances'] = updatedPerformances;
-    hybridSync.onDataChange();
+    await hybridSync.onDestructiveChange();
   }
   return true;
 };
@@ -832,7 +836,7 @@ export const addHoliday = (date: string, description?: string): Holiday => {
   return newHoliday;
 };
 
-export const deleteHoliday = (date: string): boolean => {
+export const deleteHoliday = async (date: string): Promise<boolean> => {
   const holidays = getHolidays();
   const updatedHolidays = holidays.filter(h => h.date !== date);
   if (updatedHolidays.length === holidays.length) {
@@ -842,7 +846,7 @@ export const deleteHoliday = (date: string): boolean => {
     devData['holidays'] = updatedHolidays;
   } else {
     inMemoryStorage['holidays'] = updatedHolidays;
-    hybridSync.onDataChange();
+    await hybridSync.onDestructiveChange();
   }
   return true;
 };
@@ -903,7 +907,7 @@ export const updatePracticeSession = (id: string, updatedFields: Partial<Practic
   return sessions[index];
 };
 
-export const deletePracticeSession = (id: string): boolean => {
+export const deletePracticeSession = async (id: string): Promise<boolean> => {
   const sessions = getPracticeSessions();
   const updatedSessions = sessions.filter(s => s.id !== id);
   if (updatedSessions.length === sessions.length) {
@@ -913,9 +917,8 @@ export const deletePracticeSession = (id: string): boolean => {
     devData['practiceSessions'] = updatedSessions;
   } else {
     inMemoryStorage['practiceSessions'] = updatedSessions;
+    await hybridSync.onDestructiveChange();
   }
-  // ✅ Always trigger sync (dev + production)
-  hybridSync.onDataChange();
   return true;
 };
 
