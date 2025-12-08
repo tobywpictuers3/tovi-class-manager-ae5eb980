@@ -250,11 +250,19 @@ export const deleteLesson = (id: string): boolean => {
 };
 
 // Helper for cascade changes - uses direct upload to prevent merge from restoring deleted records
-const persistCascadeChanges = async (mutator: (store: typeof inMemoryStorage | typeof devData) => void): Promise<void> => {
+const persistCascadeChanges = async (
+  mutator: (store: typeof inMemoryStorage | typeof devData) => void
+): Promise<void> => {
   if (isDevMode()) {
+    // בסביבת dev – עובדים רק על devData
     mutator(devData as any);
   } else {
+    // בסביבת Production – מעדכנים את inMemoryStorage
     mutator(inMemoryStorage as any);
+
+    // העלאה ישירה ל-Worker ללא merge,
+    // כדי שמחיקות לא ישוחזרו ברענון הבא
+    await hybridSync.onDestructiveChange();
   }
 };
 
