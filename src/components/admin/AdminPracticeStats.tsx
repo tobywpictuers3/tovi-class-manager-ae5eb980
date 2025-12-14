@@ -10,6 +10,7 @@ import { TrendingUp, Trophy, Flame, Calendar, User, ShoppingBag } from 'lucide-r
 import { getStudents, getPracticeSessions, getStudentPracticeSessions, getStudentMedalRecords, getStudentStatistics } from '@/lib/storage';
 import { Student, PracticeSession } from '@/lib/types';
 import { recalcAllForStudent } from '@/lib/practiceEngine';
+import { getCurrentStreak } from '@/lib/medalEngine';
 import AdminStoreManagement from './AdminStoreManagement';
 
 interface LeaderboardEntry {
@@ -57,7 +58,6 @@ const AdminPracticeStats = () => {
       let maxDailyMinutes: number;
 
       // Use medalEngine for streak (derived, not stored)
-      const { getCurrentStreak } = require('@/lib/medalEngine');
       const maxStreak = getCurrentStreak(student.id);
       
       if (cached) {
