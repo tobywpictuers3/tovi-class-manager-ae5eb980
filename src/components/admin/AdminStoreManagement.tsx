@@ -6,20 +6,16 @@ import { Input } from '@/components/safe-ui/input';
 import { Label } from '@/components/safe-ui/label';
 import { Textarea } from '@/components/safe-ui/textarea';
 import { Badge } from '@/components/safe-ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/safe-ui/select';
-import { ShoppingBag, Plus, Trash2, Image, Upload, Coins, User } from 'lucide-react';
+import { ShoppingBag, Plus, Trash2, Upload, Gift } from 'lucide-react';
 import { 
   getStoreItems, 
   upsertStoreItem, 
-  deleteStoreItem, 
-  getStudents, 
-  getStudentCredits, 
-  setStudentCredits,
-  addStudentCredits
+  deleteStoreItem
 } from '@/lib/storage';
-import { StoreItem, Student } from '@/lib/types';
+import { StoreItem } from '@/lib/types';
 import { toast } from 'sonner';
 import { workerApi } from '@/lib/workerApi';
+import { formatPriceCompact } from '@/lib/storeCurrency';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +29,6 @@ import {
 
 const AdminStoreManagement = () => {
   const [items, setItems] = useState<StoreItem[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -51,10 +46,6 @@ const AdminStoreManagement = () => {
     imageUrl: '',
     imagePath: ''
   });
-
-  // Credit management
-  const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [creditAmount, setCreditAmount] = useState(0);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,7 +55,6 @@ const AdminStoreManagement = () => {
 
   const loadData = () => {
     setItems(getStoreItems());
-    setStudents(getStudents());
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,7 +94,7 @@ const AdminStoreManagement = () => {
     }
 
     if (formData.priceCredits < 1) {
-      toast.error('המחיר חייב להיות לפחות 1 קרדיט');
+      toast.error('המחיר חייב להיות לפחות 1');
       return;
     }
 
@@ -154,102 +144,31 @@ const AdminStoreManagement = () => {
     loadData();
   };
 
-  const handleAddCredits = () => {
-    if (!selectedStudentId || creditAmount === 0) {
-      toast.error('יש לבחור תלמידה ולהזין כמות קרדיטים');
-      return;
-    }
-
-    addStudentCredits(selectedStudentId, creditAmount);
-    const student = students.find(s => s.id === selectedStudentId);
-    const action = creditAmount > 0 ? 'נוספו' : 'הופחתו';
-    toast.success(`${action} ${Math.abs(creditAmount)} קרדיטים ל${student?.firstName}`);
-    setCreditAmount(0);
-    loadData();
-  };
-
   const getItemImage = (item: StoreItem) => {
     if (item.imageUrl) {
+      // Gift icon with product image inside
       return (
-        <img 
-          src={item.imageUrl} 
-          alt={item.name}
-          className="w-12 h-12 rounded-lg object-cover"
-        />
+        <div className="relative w-12 h-12 rounded-lg border-2 border-dashed border-pink-400 bg-gradient-to-br from-pink-100 to-rose-100 flex items-center justify-center overflow-hidden">
+          <Gift className="absolute h-5 w-5 text-pink-400 opacity-30" />
+          <img 
+            src={item.imageUrl} 
+            alt={item.name}
+            className="w-10 h-10 rounded object-cover relative z-10"
+          />
+        </div>
       );
     }
     
-    // Default gradient icon with first letter
-    const colors = [
-      'from-pink-500 to-rose-500',
-      'from-purple-500 to-indigo-500',
-      'from-blue-500 to-cyan-500',
-      'from-green-500 to-emerald-500',
-      'from-yellow-500 to-orange-500',
-    ];
-    const colorIndex = item.name.charCodeAt(0) % colors.length;
-    
+    // Empty gift icon
     return (
-      <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${colors[colorIndex]} flex items-center justify-center text-white font-bold text-xl`}>
-        {item.name.charAt(0)}
+      <div className="w-12 h-12 rounded-lg border-2 border-dashed border-pink-400 bg-gradient-to-br from-pink-100 to-rose-100 flex items-center justify-center">
+        <Gift className="h-6 w-6 text-pink-500" />
       </div>
     );
   };
 
   return (
     <div className="space-y-6">
-      {/* Credit Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Coins className="h-5 w-5" />
-            ניהול קרדיטים
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-[200px]">
-              <Label>בחרי תלמידה</Label>
-              <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="בחרי תלמידה" />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map(student => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.firstName} {student.lastName} ({getStudentCredits(student.id)} קרדיטים)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-32">
-              <Label>כמות</Label>
-              <Input 
-                type="number"
-                value={creditAmount}
-                onChange={(e) => setCreditAmount(parseInt(e.target.value) || 0)}
-                placeholder="0"
-              />
-            </div>
-            <Button onClick={handleAddCredits} className="gap-2">
-              <Coins className="h-4 w-4" />
-              עדכן קרדיטים
-            </Button>
-          </div>
-          
-          {/* Quick view of all students credits */}
-          <div className="mt-4 flex flex-wrap gap-2">
-            {students.map(student => (
-              <Badge key={student.id} variant="outline" className="gap-1">
-                <User className="h-3 w-3" />
-                {student.firstName}: {getStudentCredits(student.id)}
-              </Badge>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Add Product Form */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -275,7 +194,7 @@ const AdminStoreManagement = () => {
                   />
                 </div>
                 <div>
-                  <Label>מחיר בקרדיטים *</Label>
+                  <Label>מחיר (נחושת)</Label>
                   <Input 
                     type="number"
                     min={1}
@@ -365,7 +284,9 @@ const AdminStoreManagement = () => {
                       )}
                     </Button>
                     {formData.imageUrl && (
-                      <img src={formData.imageUrl} alt="Preview" className="w-10 h-10 rounded object-cover" />
+                      <div className="relative w-10 h-10 rounded-lg border-2 border-dashed border-pink-400 bg-gradient-to-br from-pink-100 to-rose-100 flex items-center justify-center overflow-hidden">
+                        <img src={formData.imageUrl} alt="Preview" className="w-8 h-8 rounded object-cover" />
+                      </div>
                     )}
                   </div>
                 </div>
@@ -382,7 +303,7 @@ const AdminStoreManagement = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-right w-16">תמונה</TableHead>
+                <TableHead className="text-right w-16">מוצר</TableHead>
                 <TableHead className="text-right">שם</TableHead>
                 <TableHead className="text-right">תיאור</TableHead>
                 <TableHead className="text-right">מחיר</TableHead>
@@ -407,9 +328,8 @@ const AdminStoreManagement = () => {
                       {item.description || '-'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="gap-1">
-                        <Coins className="h-3 w-3" />
-                        {item.priceCredits}
+                      <Badge variant="secondary">
+                        {formatPriceCompact(item.priceCredits)}
                       </Badge>
                     </TableCell>
                     <TableCell>
