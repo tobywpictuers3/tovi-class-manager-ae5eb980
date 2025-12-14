@@ -2,7 +2,22 @@ import { workerApi } from './workerApi';
 import { logger } from './logger';
 import { exportAllData, initializeStorage, isDevMode } from './storage';
 import { recalculateAllMonthlyAchievements } from './recalculateAchievements';
-import { setCurrentVersion } from './commitGateway';
+import { setCurrentVersion, COMMIT_FLAGS } from './commitGateway';
+
+/**
+ * ============================================================================
+ * ARCHITECTURE ASSERTION - SINGLE SOURCE OF TRUTH
+ * ============================================================================
+ * 
+ * hybridSync is a READ-ONLY cache + loader.
+ * ALL MUTATIONS must go through commitGateway.commitChange().
+ * 
+ * Legacy write methods (onDataChange, onDestructiveChange) are deprecated
+ * and will be blocked as commit flags are enabled in Phases 1-4.
+ * 
+ * DO NOT add new code that calls legacy write methods.
+ * ============================================================================
+ */
 
 /**
  * Hybrid Sync Manager - Worker as source of truth, localStorage as cache
@@ -52,63 +67,41 @@ class HybridSyncManager {
   }
 
   /**
-   * Start offline retry mechanism - try to sync every 2 minutes when offline with pending changes
+   * DISABLED: Legacy offline retry mechanism
+   * commitGateway now handles its own offline queue with proper retry logic.
+   * This prevents edge cases where legacy retry could resurrect deleted data.
    */
   private startOfflineRetry() {
-    this.retryInterval = setInterval(() => {
-      // Only retry if we have pending changes and think we're offline
-      if (this.syncState.pendingChanges > 0 && !this.syncState.isOnline) {
-        logger.info('🔄 Retrying offline sync (2min interval)...');
-        // Use direct upload on retry to prevent merge from restoring deleted records
-        this.directUpload().then(success => {
-          if (success) {
-            logger.info('✅ Offline retry succeeded!');
-            this.syncState.isOnline = true; // Update online status
-          }
-        });
-      }
-    }, 2 * 60 * 1000); // 2 minutes
+    // NO-OP: Disabled in Phase 0.5
+    // commitGateway.startOfflineRetry() handles offline queue processing
+    logger.info('ℹ️ hybridSync.startOfflineRetry() is disabled - commitGateway manages offline queue');
   }
 
   /**
-   * Setup beforeunload listener to sync on close
+   * Setup beforeunload listener
+   * 
+   * PHASE 0.5: Legacy sendBeacon write path DISABLED
+   * - sendBeacon was a parallel mutation path to the Worker
+   * - Now only shows warning if pending changes exist
+   * - commitGateway handles all writes
    */
   private setupUnloadListener() {
     window.addEventListener('beforeunload', (e) => {
-      // 🔧 DEV MODE: Skip all Worker sync
+      // 🔧 DEV MODE: Skip entirely
       if (isDevMode()) {
-        logger.info('🔧 DEV MODE: Skipping beforeunload sync');
         return;
       }
       
-      // ⚠️ CRITICAL: Warn if pending changes exist
+      // ⚠️ Warn if pending changes exist (but do NOT attempt sync)
       if (this.syncState.pendingChanges > 0) {
-        const warningMessage = 'יש שינויים שטרם נשמרו בדרופבוקס! האם את בטוחה שאת רוצה לצאת?';
+        const warningMessage = 'יש שינויים שטרם נשמרו! האם את בטוחה שאת רוצה לצאת?';
         e.preventDefault();
         e.returnValue = warningMessage;
         
-        logger.warn('⚠️ User trying to leave with pending changes');
-        
-        // Try one last sync with sendBeacon
-        if (this.syncState.isOnline) {
-          logger.info('💾 Attempting last sync before close...');
-          
-          try {
-            const data = this.gatherAllData();
-            
-            // 🛡️ GUARD: Only sync if we have meaningful data
-            const dataSize = JSON.stringify(data).length;
-            if (dataSize >= 100) {
-              const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-              navigator.sendBeacon(
-                'https://lovable-dropbox-api.w0504124161.workers.dev/?action=upload_versioned',
-                blob
-              );
-            }
-          } catch (error) {
-            logger.error('❌ beforeunload sync prevented:', error);
-          }
-        }
+        // 🚫 DISABLED: Legacy sendBeacon write path
+        // Previously this would send data via navigator.sendBeacon()
+        // This is now blocked to ensure single write authority via commitGateway
+        logger.warn('⚠️ User leaving with pending changes - sendBeacon disabled (Phase 0.5)');
         
         return warningMessage;
       }
@@ -176,21 +169,25 @@ class HybridSyncManager {
           logger.warn('⚠️ Loaded empty/invalid data from Worker - initializing fresh state');
           this.updateInMemoryStorage(emptyData);
           this.syncState.lastSyncTime = null;
+          // NO version set - commitGateway remains disabled
+          logger.error('🚨 CRITICAL: No meaningful data and no _version - commitGateway DISABLED');
         } else {
           logger.info('✅ Data loaded from Worker');
           this.updateInMemoryStorage(result.data);
           this.syncState.lastSyncTime = new Date().toISOString();
           
           // CRITICAL: Initialize commit gateway version from Worker response
+          // PHASE 0.5: NO temporary versions allowed
           if (result.data._version) {
             setCurrentVersion(result.data._version);
             logger.info(`📌 Commit Gateway version initialized: ${result.data._version}`);
           } else {
-            // Worker doesn't have _version yet - generate a temporary one
-            // This will be replaced once Worker-side changes are deployed
-            const tempVersion = `v_${Date.now()}_init`;
-            setCurrentVersion(tempVersion);
-            logger.warn(`⚠️ Worker response missing _version - using temporary: ${tempVersion}`);
+            // 🚨 PHASE 0.5: DO NOT generate temporary version
+            // commitGateway will remain disabled (isVersionInitialized() = false)
+            // This is intentional - no fake versions allowed
+            logger.error('🚨 CRITICAL: Worker response missing _version - commitGateway DISABLED');
+            logger.error('🚨 Worker-side must return _version in download_latest response');
+            // DO NOT call setCurrentVersion() - commits will be blocked
           }
         }
       } else if (result && result.error === 'NO_VERSION_FOUND') {
@@ -323,10 +320,17 @@ class HybridSyncManager {
   }
 
   /**
-   * On data change - immediately sync to Worker with conflict resolution
-   * Returns: success (local save OK), synced (Dropbox sync OK), message
+   * DEPRECATED: Legacy data change handler
+   * 
+   * PHASE 0.5: This method is deprecated but kept functional for ~40+ existing call sites.
+   * Will be migrated to commitGateway in Phases 1-4.
+   * 
+   * 🚫 GUARD: Delete operations MUST NOT use this method - use onDestructiveChange() instead.
    */
   async onDataChange(): Promise<{ success: boolean; synced: boolean; message: string }> {
+    // ⚠️ DEPRECATION WARNING - remove in Phase 4
+    logger.warn('⚠️ DEPRECATED: hybridSync.onDataChange() called - migrate to commitGateway.commitChange()');
+    
     // Skip Worker sync in dev mode
     if (isDevMode()) {
       return { success: true, synced: true, message: 'נשמר במצב מפתחים' };
@@ -361,10 +365,28 @@ class HybridSyncManager {
   }
 
   /**
-   * On destructive change (delete) - directly uploads to Worker without merge
-   * This prevents the merge logic from restoring deleted records
+   * DEPRECATED: Legacy destructive change handler (deletes)
+   * 
+   * PHASE 0.5: Conditionally blocked based on COMMIT_FLAGS.
+   * - If commit flags are ENABLED: HARD BLOCK (use commitGateway instead)
+   * - If commit flags are DISABLED: Allow legacy path with directUpload (no merge)
+   * 
+   * This ensures deletes NEVER go through merge-based sync (prevents resurrection).
    */
   async onDestructiveChange(): Promise<{ success: boolean; synced: boolean; message: string }> {
+    // ⚠️ DEPRECATION WARNING
+    logger.warn('⚠️ DEPRECATED: hybridSync.onDestructiveChange() called - migrate to commitGateway.commitChange()');
+    
+    // 🚫 PHASE 0.5: HARD BLOCK if commit flags are enabled
+    if (COMMIT_FLAGS.cascadeDeletes || COMMIT_FLAGS.allDeletes) {
+      logger.error('🚫 BLOCKED: Legacy onDestructiveChange() is disabled - use commitGateway.commitChange()');
+      return {
+        success: false,
+        synced: false,
+        message: 'Legacy delete path blocked - use commitGateway',
+      };
+    }
+    
     if (isDevMode()) {
       return { success: true, synced: true, message: 'נשמר במצב מפתחים' };
     }
@@ -380,7 +402,10 @@ class HybridSyncManager {
       };
     }
 
+    // ✅ SAFE: directUpload has no merge logic - prevents delete resurrection
+    this.currentDirectUploadContext = 'onDestructiveChange';
     const success = await this.directUpload();
+    this.currentDirectUploadContext = null;
 
     if (success) {
       return {
@@ -398,10 +423,28 @@ class HybridSyncManager {
   }
 
   /**
+   * Direct upload context tracking for internal guard
+   * Only allowed callers: 'onDestructiveChange', 'importBackup'
+   */
+  private currentDirectUploadContext: 'onDestructiveChange' | 'importBackup' | null = null;
+  
+  /**
    * Direct upload without merge - used for destructive operations like delete
    * This prevents the merge logic from restoring deleted records
+   * 
+   * PHASE 0.5: Guarded to only allow calls from:
+   * - onDestructiveChange() (legacy delete bridge until Phase 1)
+   * - importBackup() (explicit user action)
    */
   private async directUpload(): Promise<boolean> {
+    // 🛡️ GUARD: Only allow from known safe contexts
+    const allowedContexts = ['onDestructiveChange', 'importBackup'];
+    if (!allowedContexts.includes(this.currentDirectUploadContext || '')) {
+      logger.error('🚫 BLOCKED: directUpload() called from unexpected context:', this.currentDirectUploadContext);
+      logger.error('🚫 Only onDestructiveChange and importBackup may call directUpload');
+      return false;
+    }
+    
     if (isDevMode()) {
       logger.info('🔧 DEV MODE: directUpload disabled');
       return true;
@@ -581,6 +624,9 @@ class HybridSyncManager {
 
   /**
    * Import backup from file and sync to Worker
+   * 
+   * PHASE 0.5: This is an allowed write path (explicit user action)
+   * Uses directUpload (no merge) to prevent data resurrection issues
    */
   async importBackup(file: File): Promise<{ success: boolean; message: string }> {
     try {
@@ -589,11 +635,13 @@ class HybridSyncManager {
 
       this.updateInMemoryStorage(data);
       
-      // Immediately sync to Worker
-      const success = await this.syncToWorker();
+      // Use directUpload (no merge) for backup import
+      this.currentDirectUploadContext = 'importBackup';
+      const success = await this.directUpload();
+      this.currentDirectUploadContext = null;
 
       if (success) {
-        logger.info('✅ Backup imported and synced to Worker');
+        logger.info('✅ Backup imported and synced to Worker (direct upload)');
         return { 
           success: true, 
           message: 'הגיבוי נטען והועלה לדרופבוקס בהצלחה' 
