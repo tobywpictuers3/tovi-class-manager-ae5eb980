@@ -2,6 +2,7 @@ import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleTemplate, Int
 import { hybridSync } from './hybridSync';
 import { logger } from './logger';
 import { isDevMode, setDevMode } from './devMode';
+import { calculateEarnedCopper, formatPriceCompact } from './storeCurrency';
 
 // In-Memory Storage - No localStorage for sensitive data
 const inMemoryStorage: Record<string, any> = {};
@@ -1385,8 +1386,6 @@ export const addStudentUsedCopper = (studentId: string, amount: number): number 
  * availableCopper = earnedCopperTotal - usedCopperTotal
  */
 export const getAvailableCopper = (studentId: string): number => {
-  // Dynamic import to avoid circular dependency
-  const { calculateEarnedCopper } = require('./storeCurrency');
   const earned = calculateEarnedCopper(studentId);
   const used = getStudentUsedCopper(studentId);
   return Math.max(0, earned - used);
@@ -1462,7 +1461,6 @@ export const purchaseStoreItem = async (
   const priceCopper = item.priceCredits;
   
   if (availableCopper < priceCopper) {
-    const { formatPriceCompact } = require('./storeCurrency');
     return { 
       ok: false, 
       reason: `אין מספיק מדליות (יש לך ${formatPriceCompact(availableCopper)}, צריך ${formatPriceCompact(priceCopper)})` 
