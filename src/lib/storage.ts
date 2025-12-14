@@ -1212,9 +1212,7 @@ export const clearPracticeAndMedalData = async (): Promise<void> => {
 // Student Statistics Cache
 export const saveStudentStatistics = (studentId: string, stats: {
   intervals: any[];
-  streak: number;
   maxDaily: number;
-  monthly: Record<string, any>;
   yearly: any[];
   weeklyAverage: number;
 }) => {

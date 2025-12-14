@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, TrendingUp } from 'lucide-react';
-import { getStudentMonthlyAchievements, getStudentStatistics } from '@/lib/storage';
+import { getStudentMonthlyAchievements, getStudentStatistics, getStudentPracticeSessions } from '@/lib/storage';
 import { useEffect, useState } from 'react';
 import { MonthlyAchievement } from '@/lib/types';
 import { recalcAllForStudent } from '@/lib/practiceEngine';

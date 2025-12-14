@@ -36,10 +36,10 @@ export const getMinutesInLastNDays = (
  * Get current streak for a student
  */
 export const getCurrentStreak = (studentId: string): number => {
-  const cached = getStudentStatistics(studentId);
   // Use medalEngine for streak calculation (derived, not stored)
-  const { getCurrentStreak } = await import('./medalEngine');
-  return getCurrentStreak(studentId);
+  const { getCurrentStreak: getStreak } = require('./medalEngine');
+  return getStreak(studentId);
+};
 
 /**
  * Check if a store item is available for purchase by a student
