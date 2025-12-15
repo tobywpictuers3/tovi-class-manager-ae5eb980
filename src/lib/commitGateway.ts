@@ -200,6 +200,12 @@ export function getPendingCommitCount(): number {
 }
 
 // ============================================================================
+// VALID ACTIONS CONSTANT
+// ============================================================================
+
+const VALID_ACTIONS = ['create', 'update', 'delete'] as const;
+
+// ============================================================================
 // CORE COMMIT FUNCTION
 // ============================================================================
 
@@ -210,9 +216,17 @@ async function sendCommitToWorker(delta: DeltaPayload): Promise<CommitResult> {
   try {
     const response = await workerApi.commitDelta(delta);
     
+    // Validate server response has required fields on success
+    if (response.ok && !response.newVersion) {
+      logger.error('❌ Commit Gateway: Server returned ok:true without newVersion');
+      return { confirmed: false, queued: false, error: 'INVALID_SERVER_RESPONSE' };
+    }
+    
     if (response.ok && response.newVersion) {
       // Update local version
+      const oldVersion = currentVersion;
       currentVersion = response.newVersion;
+      logger.info(`📌 Version updated: ${oldVersion} → ${response.newVersion}`);
       
       return {
         confirmed: true,
@@ -222,11 +236,30 @@ async function sendCommitToWorker(delta: DeltaPayload): Promise<CommitResult> {
       };
     }
     
+    // Handle 409 VERSION_CONFLICT with automatic re-sync
     if (response.status === 409) {
+      console.log('Commit blocked due to version conflict – state re-synced');
+      logger.warn('⚠️ Commit Gateway: VERSION_CONFLICT - triggering re-sync from server');
+      
+      // Re-sync from server
+      try {
+        const freshData = await workerApi.downloadLatest();
+        if (freshData.success && freshData.data?._version) {
+          currentVersion = freshData.data._version;
+          logger.info(`📌 Version re-synced to: ${currentVersion}`);
+          // Emit event for UI to refresh
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('commitgateway:resync', { detail: freshData.data }));
+          }
+        }
+      } catch (syncErr) {
+        logger.error('❌ Commit Gateway: Failed to re-sync after conflict', syncErr);
+      }
+      
       return {
         confirmed: false,
         queued: false,
-        error: 'VERSION_CONFLICT',
+        error: 'VERSION_CONFLICT_RESYNCED',
       };
     }
     
@@ -266,35 +299,53 @@ export async function commitChange(params: {
   }
   
   // -------------------------------------------------------------------------
-  // VALIDATION
+  // HARD GUARD: Validate delta BEFORE sending (Section A)
   // -------------------------------------------------------------------------
   
-  // Entity must be registered
-  if (!isRegisteredEntity(entity)) {
-    logger.error(`❌ Commit Gateway: Unknown entity type: ${entity}`);
-    return { confirmed: false, queued: false, error: `Unknown entity: ${entity}` };
+  // Action must be one of allowed values
+  if (!VALID_ACTIONS.includes(action)) {
+    console.error('Blocked invalid commit_delta from client', { entity, action, id, payload });
+    logger.error(`❌ Commit Gateway: Invalid action: ${action}`);
+    return { confirmed: false, queued: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
   }
   
-  // Version must be initialized
+  // Entity must be defined and non-empty string
+  if (!entity || typeof entity !== 'string') {
+    console.error('Blocked invalid commit_delta from client', { entity, action, id, payload });
+    logger.error('❌ Commit Gateway: Entity is required and must be non-empty');
+    return { confirmed: false, queued: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
+  }
+  
+  // Entity must be registered in DB_REGISTRY
+  if (!isRegisteredEntity(entity)) {
+    console.error('Blocked invalid commit_delta from client', { entity, action, id, payload });
+    logger.error(`❌ Commit Gateway: Unknown entity type: ${entity}`);
+    return { confirmed: false, queued: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
+  }
+  
+  // Version must be initialized (baseVersion will be a string)
   if (currentVersion === null) {
+    console.error('Blocked invalid commit_delta from client - version not initialized', { entity, action, id });
     logger.error('❌ Commit Gateway: Version not initialized - reload required');
     return { 
       confirmed: false, 
       queued: false, 
-      error: 'Version not initialized - reload required' 
+      error: 'INVALID_DELTA_BLOCKED_CLIENT' 
     };
   }
   
   // ID required for update/delete
   if ((action === 'update' || action === 'delete') && !id) {
+    console.error('Blocked invalid commit_delta from client', { entity, action, id, payload });
     logger.error(`❌ Commit Gateway: ${action} requires id`);
-    return { confirmed: false, queued: false, error: `${action} requires id` };
+    return { confirmed: false, queued: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
   }
   
   // Payload required for create/update
   if ((action === 'create' || action === 'update') && !payload) {
+    console.error('Blocked invalid commit_delta from client', { entity, action, id, payload });
     logger.error(`❌ Commit Gateway: ${action} requires payload`);
-    return { confirmed: false, queued: false, error: `${action} requires payload` };
+    return { confirmed: false, queued: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
   }
   
   // -------------------------------------------------------------------------
