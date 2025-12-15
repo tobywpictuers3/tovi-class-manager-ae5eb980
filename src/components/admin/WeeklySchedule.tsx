@@ -192,17 +192,33 @@ const WeeklySchedule = () => {
     const studentName = getStudentName(editingLesson.studentId);
 
     if (isUpdate) {
-      updateLesson(editingLesson.id, lessonData);
-      toast({
-        title: 'הצלחה',
-        description: 'השיעור עודכן בהצלחה'
-      });
+      const result = await updateLesson(editingLesson.id, lessonData);
+      if (result) {
+        toast({
+          title: 'הצלחה',
+          description: 'השיעור עודכן בהצלחה'
+        });
+      } else {
+        toast({
+          title: 'שגיאה',
+          description: 'לא הצלחנו לעדכן את השיעור',
+          variant: 'destructive'
+        });
+      }
     } else {
-      addLesson(lessonData);
-      toast({
-        title: 'הצלחה',
-        description: 'השיעור נוסף בהצלחה'
-      });
+      const result = await addLesson(lessonData);
+      if (result) {
+        toast({
+          title: 'הצלחה',
+          description: 'השיעור נוסף בהצלחה'
+        });
+      } else {
+        toast({
+          title: 'שגיאה',
+          description: 'לא הצלחנו להוסיף את השיעור',
+          variant: 'destructive'
+        });
+      }
     }
 
     setIsEditDialogOpen(false);

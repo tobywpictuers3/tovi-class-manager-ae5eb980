@@ -24,21 +24,23 @@ export const updateStudentBankTimeEnhanced = (
 };
 
 // Enhanced lesson addition with bank time management
-export const addLessonEnhanced = (lesson: Omit<Lesson, 'id'>): Lesson => {
-  const newLesson = originalAddLesson(lesson);
+export const addLessonEnhanced = async (lesson: Omit<Lesson, 'id'>): Promise<Lesson | null> => {
+  const newLesson = await originalAddLesson(lesson);
   
-  // Check if this triggers bank time management
-  autoManageBankTime(lesson.studentId);
+  if (newLesson) {
+    // Check if this triggers bank time management
+    autoManageBankTime(lesson.studentId);
+  }
   
   return newLesson;
 };
 
 // Enhanced lesson update with bank time management
-export const updateLessonEnhanced = (
+export const updateLessonEnhanced = async (
   id: string, 
   updatedFields: Partial<Lesson>
-): Lesson | undefined => {
-  const result = originalUpdateLesson(id, updatedFields);
+): Promise<Lesson | undefined> => {
+  const result = await originalUpdateLesson(id, updatedFields);
   
   if (result) {
     // Auto-manage bank time after lesson updates
