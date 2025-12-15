@@ -259,11 +259,11 @@ const LessonJournal = () => {
     return completedLessons.length + (student.startingLessonNumber || 1);
   };
 
-  const handleMarkCompleted = (lesson: LessonWithStudent) => {
+  const handleMarkCompleted = async (lesson: LessonWithStudent) => {
     if (lesson.isFromTemplate) {
       // Create actual lesson from template
       const endTime = calculateEndTime(lesson.startTime, 30);
-      addLesson({
+      await addLesson({
         studentId: lesson.studentId,
         date: lesson.date,
         startTime: lesson.startTime,
@@ -272,7 +272,7 @@ const LessonJournal = () => {
         isOneOff: false
       });
     } else {
-      updateLesson(lesson.id, { status: 'completed' });
+      await updateLesson(lesson.id, { status: 'completed' });
     }
     
     loadData();
@@ -295,26 +295,26 @@ const LessonJournal = () => {
         isOneOff: false,
         notes: 'שיעור מהמערכת שנמחק'
       };
-      addLesson(deletedLesson);
+      await addLesson(deletedLesson);
     } else {
       const lessonData = lessons.find(l => l.id === lesson.id);
       setUndoStack([...undoStack, { action: 'delete', data: lessonData }]);
-      deleteLesson(lesson.id);
+      await deleteLesson(lesson.id);
     }
     
     loadData();
     toast({ description: 'השיעור נמחק לצמיתות' });
   };
 
-  const handleUndo = () => {
+  const handleUndo = async () => {
     if (undoStack.length === 0) return;
     
     const lastAction = undoStack[undoStack.length - 1];
     
     if (lastAction.action === 'delete') {
-      addLesson(lastAction.data);
+      await addLesson(lastAction.data);
     } else if (lastAction.action === 'update') {
-      updateLesson(lastAction.data.id, lastAction.data);
+      await updateLesson(lastAction.data.id, lastAction.data);
     }
     
     setUndoStack(undoStack.slice(0, -1));
@@ -347,7 +347,7 @@ const LessonJournal = () => {
     setDraggedLesson(lesson as Lesson);
   };
 
-  const handleDrop = (date: Date) => {
+  const handleDrop = async (date: Date) => {
     if (!draggedLesson) return;
 
     const year = date.getFullYear();
@@ -357,7 +357,7 @@ const LessonJournal = () => {
 
     if (draggedLesson.isFromTemplate) {
       // STEP 1 – Cancel original template
-      addLesson({
+      await addLesson({
         studentId: draggedLesson.studentId,
         date: draggedLesson.date,
         startTime: draggedLesson.startTime,
@@ -369,7 +369,7 @@ const LessonJournal = () => {
 
       // STEP 2 – Create scheduled lesson in the new date
       const endTime = calculateEndTime(draggedLesson.startTime, 30);
-      addLesson({
+      await addLesson({
         studentId: draggedLesson.studentId,
         date: newDateStr,
         startTime: draggedLesson.startTime,
@@ -380,7 +380,7 @@ const LessonJournal = () => {
       });
 
     } else {
-      updateLesson(draggedLesson.id, { 
+      await updateLesson(draggedLesson.id, { 
         date: newDateStr,
         notes: `שיעור הועבר מ-${draggedLesson.date}`
       });
@@ -430,7 +430,7 @@ const LessonJournal = () => {
     if (markAsNoShow) {
       setUndoStack([...undoStack, { action: 'update', data: lesson }]);
       const currentNotes = editingLesson.notes || '';
-      updateLesson(editingLesson.id, {
+      await updateLesson(editingLesson.id, {
         notes: currentNotes ? `${currentNotes}\n⚠️ תלמידה נעדרה` : '⚠️ תלמידה נעדרה'
       });
       
@@ -439,7 +439,7 @@ const LessonJournal = () => {
     // אם מפחיתים בדיוק 30 דקות - מוחקים את השיעור לגמרי
     else if (bankTimeChange === -30) {
       setUndoStack([...undoStack, { action: 'delete', data: lesson }]);
-      deleteLesson(editingLesson.id);
+      await deleteLesson(editingLesson.id);
       
       toast({ description: 'השיעור נמחק לצמיתות (כולל המיספור)' });
     } 
@@ -449,7 +449,7 @@ const LessonJournal = () => {
       const currentNotes = editingLesson.notes || '';
       const newNote = `בנק זמן: ${bankTimeChange > 0 ? '+' : ''}${bankTimeChange} דקות`;
       
-      updateLesson(editingLesson.id, {
+      await updateLesson(editingLesson.id, {
         notes: currentNotes ? `${currentNotes}\n${newNote}` : newNote
       });
       
@@ -472,7 +472,7 @@ const LessonJournal = () => {
     setUndoStack([...undoStack, { action: 'update', data: lesson }]);
 
     const endTime = calculateEndTime(editedTime, 30);
-    updateLesson(editingLesson.id, {
+    await updateLesson(editingLesson.id, {
       startTime: editedTime,
       endTime
     });
@@ -482,7 +482,7 @@ const LessonJournal = () => {
     toast({ description: 'שעת השיעור עודכנה' });
   };
 
-  const handleAddLesson = () => {
+  const handleAddLesson = async () => {
     // Check if either student or custom name is provided
     if ((!newLessonStudent && !customStudentName) || !newLessonDate || !newLessonTime) {
       toast({
@@ -509,7 +509,7 @@ const LessonJournal = () => {
       lessonData.notes = `תלמידה חד פעמית: ${customStudentName}`;
     }
     
-    addLesson(lessonData);
+    const result = await addLesson(lessonData);
 
     setShowAddDialog(false);
     setNewLessonStudent('');
@@ -517,7 +517,11 @@ const LessonJournal = () => {
     setNewLessonTime('');
     setCustomStudentName('');
     loadData();
-    toast({ description: 'השיעור נוסף' });
+    if (result) {
+      toast({ description: 'השיעור נוסף' });
+    } else {
+      toast({ description: 'שגיאה בהוספת השיעור', variant: 'destructive' });
+    }
   };
 
   const getBankTimeFromNotes = (notes?: string): number => {

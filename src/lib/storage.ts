@@ -259,24 +259,49 @@ export const getLessons = (): Lesson[] => {
   return inMemoryStorage['lessons'] || [];
 };
 
-export const addLesson = (lesson: Omit<Lesson, 'id'>): Lesson => {
-  const lessons = getLessons();
-  const newLesson: Lesson = {
+export const addLesson = async (lesson: Omit<Lesson, 'id'>): Promise<Lesson | null> => {
+  const now = new Date().toISOString();
+  const payload = {
     ...lesson,
-    id: generateId(),
-    lastModified: new Date().toISOString(),
+    lastModified: now,
   };
-  lessons.push(newLesson);
+
+  // Dev mode: legacy path
   if (isDevMode()) {
+    const newLesson: Lesson = {
+      ...payload,
+      id: generateId(),
+    };
+    const lessons = getLessons();
+    lessons.push(newLesson);
     devData['lessons'] = lessons;
-  } else {
-    inMemoryStorage['lessons'] = lessons;
-    hybridSync.onDataChange();
+    return newLesson;
   }
-  return newLesson;
+
+  // Production: use commitGateway
+  const result = await commitChange({
+    entity: 'lessons',
+    action: 'create',
+    payload,
+  });
+
+  if (result.confirmed && result.data) {
+    const newLesson: Lesson = result.data;
+    const lessons = getLessons();
+    lessons.push(newLesson);
+    inMemoryStorage['lessons'] = lessons;
+    return newLesson;
+  }
+
+  if (result.queued) {
+    logger.warn('⚠️ addLesson: Queued for sync - creation pending');
+  } else {
+    logger.error(`❌ addLesson failed: ${result.error}`);
+  }
+  return null;
 };
 
-export const updateLesson = (id: string, updatedFields: Partial<Lesson>): Lesson | undefined => {
+export const updateLesson = async (id: string, updatedFields: Partial<Lesson>): Promise<Lesson | undefined> => {
   const lessons = getLessons();
   const lessonIndex = lessons.findIndex(lesson => lesson.id === id);
 
@@ -284,33 +309,74 @@ export const updateLesson = (id: string, updatedFields: Partial<Lesson>): Lesson
     return undefined; // Lesson not found
   }
 
-  lessons[lessonIndex] = { 
-    ...lessons[lessonIndex], 
+  const now = new Date().toISOString();
+  const updatedLesson: Lesson = {
+    ...lessons[lessonIndex],
     ...updatedFields,
-    lastModified: new Date().toISOString()
+    lastModified: now,
   };
+
+  // Dev mode: legacy path
   if (isDevMode()) {
+    lessons[lessonIndex] = updatedLesson;
     devData['lessons'] = lessons;
-  } else {
-    inMemoryStorage['lessons'] = lessons;
-    hybridSync.onDataChange();
+    return updatedLesson;
   }
-  return lessons[lessonIndex];
+
+  // Production: use commitGateway
+  const result = await commitChange({
+    entity: 'lessons',
+    action: 'update',
+    id,
+    payload: updatedLesson,
+  });
+
+  if (result.confirmed) {
+    lessons[lessonIndex] = updatedLesson;
+    inMemoryStorage['lessons'] = lessons;
+    return updatedLesson;
+  }
+
+  if (result.queued) {
+    logger.warn('⚠️ updateLesson: Queued for sync - update pending');
+  } else {
+    logger.error(`❌ updateLesson failed: ${result.error}`);
+  }
+  return undefined;
 };
 
-export const deleteLesson = (id: string): boolean => {
+export const deleteLesson = async (id: string): Promise<boolean> => {
   const lessons = getLessons();
-  const updatedLessons = lessons.filter(lesson => lesson.id !== id);
-  if (updatedLessons.length === lessons.length) {
-    return false; // No lesson was deleted
+  const lessonExists = lessons.some(lesson => lesson.id === id);
+  if (!lessonExists) {
+    return false; // No lesson found
   }
+
+  // Dev mode: legacy path
   if (isDevMode()) {
-    devData['lessons'] = updatedLessons;
-  } else {
-    inMemoryStorage['lessons'] = updatedLessons;
-    hybridSync.onDataChange();
+    devData['lessons'] = lessons.filter(lesson => lesson.id !== id);
+    return true;
   }
-  return true;
+
+  // Production: use commitGateway
+  const result = await commitChange({
+    entity: 'lessons',
+    action: 'delete',
+    id,
+  });
+
+  if (result.confirmed) {
+    inMemoryStorage['lessons'] = lessons.filter(lesson => lesson.id !== id);
+    return true;
+  }
+
+  if (result.queued) {
+    logger.warn('⚠️ deleteLesson: Queued for sync - deletion pending');
+    return false;
+  }
+
+  logger.error(`❌ deleteLesson failed: ${result.error}`);
+  return false;
 };
 
 // Helper for cascade changes - uses direct upload to prevent merge from restoring deleted records

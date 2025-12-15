@@ -89,7 +89,7 @@ export const calculateEnhancedLessonNumber = (
 };
 
 // Handle bank time to lesson conversion (when bank time >= 30 minutes)
-export const convertBankTimeToLesson = (studentId: string): boolean => {
+export const convertBankTimeToLesson = async (studentId: string): Promise<boolean> => {
   const student = getStudents().find(s => s.id === studentId);
   if (!student) return false; // Bank time feature removed
 
@@ -115,7 +115,9 @@ export const convertBankTimeToLesson = (studentId: string): boolean => {
     status: 'completed'
   };
 
-  const newLesson = addLesson(duplicateLesson);
+  const newLesson = await addLesson(duplicateLesson);
+  
+  if (!newLesson) return false;
   
   // Update student bank time (subtract 30 minutes)
   updateStudentBankTime(studentId, -30);
@@ -124,7 +126,7 @@ export const convertBankTimeToLesson = (studentId: string): boolean => {
 };
 
 // Handle lesson skipping for negative bank time
-export const handleNegativeBankTime = (studentId: string, lessonId: string): boolean => {
+export const handleNegativeBankTime = async (studentId: string, lessonId: string): Promise<boolean> => {
   const student = getStudents().find(s => s.id === studentId);
   if (!student) return false; // Bank time feature removed
 
@@ -136,7 +138,7 @@ export const handleNegativeBankTime = (studentId: string, lessonId: string): boo
   // Mark lesson as skipped (bank time feature removed)
   const remainingMinutes = 0;
   
-  updateLesson(lessonId, {
+  await updateLesson(lessonId, {
     notes: `${targetLesson.notes || ''} (דילוג מיספור - החסרה בבנק זמן - ${new Date().toLocaleDateString('he-IL')})`,
     status: 'cancelled'
   });
