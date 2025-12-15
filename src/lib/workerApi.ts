@@ -427,6 +427,26 @@ export const workerApi = {
       return { ok: true, newVersion: 'dev-mode-v1', data: delta.payload };
     }
 
+    // -------------------------------------------------------------------------
+    // SECONDARY GUARD: Pre-send validation (Section A - defense in depth)
+    // -------------------------------------------------------------------------
+    const VALID_ACTIONS = ['create', 'update', 'delete'];
+    
+    if (!delta || !delta.entity || !delta.action || !delta.baseVersion) {
+      console.error('Blocked invalid commit_delta from client', delta);
+      return { ok: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
+    }
+    
+    if (!VALID_ACTIONS.includes(delta.action)) {
+      console.error('Blocked invalid commit_delta from client', delta);
+      return { ok: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
+    }
+    
+    if (typeof delta.baseVersion !== 'string' || delta.baseVersion.length === 0) {
+      console.error('Blocked invalid commit_delta from client - baseVersion must be non-empty string', delta);
+      return { ok: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
+    }
+
     try {
       const response = await fetch(`${WORKER_BASE_URL}?action=commit_delta`, {
         method: "POST",
