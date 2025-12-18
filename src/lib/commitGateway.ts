@@ -380,3 +380,28 @@ export function __startAutoFlush(intervalMs = 5 * 60 * 1000) {
     });
   } catch {}
 }
+
+// ---- Backward-compatibility export -----------------------------------------
+// Old code expects: commitChange(entity, action, id, payload, baseVersion?)
+// Returns: { confirmed: boolean, queued: boolean, data: any }
+
+export type LegacyCommitResult = {
+  confirmed: boolean;
+  queued: boolean;
+  data: any;
+};
+
+export async function commitChange(
+  entity: EntityType,
+  action: DeltaAction,
+  id: string | null,
+  payload: any,
+  baseVersion?: string | null
+): Promise<LegacyCommitResult> {
+  const result = await commitDelta(entity, action, id, payload, baseVersion ?? null);
+  return {
+    confirmed: result.ok && (result.state === "queued" || result.state === "flushed"),
+    queued: result.ok && result.state === "local",
+    data: payload,
+  };
+}
