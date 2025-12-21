@@ -239,12 +239,12 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
         }
 
         // Materialize template lessons before creating swap request
-        const materializeIfTemplate = async (lesson: Lesson): Promise<Lesson> => {
+        const materializeIfTemplate = (lesson: Lesson): Lesson => {
           // If lesson is not from template, return as-is
           if (!lesson.isFromTemplate) return lesson;
           
           // Create a real lesson from template
-          const realLesson = await addLesson({
+          const realLesson = addLesson({
             studentId: lesson.studentId,
             date: lesson.date,
             startTime: lesson.startTime,
@@ -253,16 +253,12 @@ const StudentSwapPanel = forwardRef<StudentSwapPanelRef, StudentSwapPanelProps>(
             isOneOff: false
           });
           
-          if (!realLesson) {
-            throw new Error('שגיאה ביצירת שיעור מתבנית');
-          }
-          
           return realLesson;
         };
 
         // Materialize both lessons if needed
-        myLesson = await materializeIfTemplate(myLesson);
-        targetLesson = await materializeIfTemplate(targetLesson);
+        myLesson = materializeIfTemplate(myLesson);
+        targetLesson = materializeIfTemplate(targetLesson);
 
         const targetStudent = students.find(s => s.id === targetLesson.studentId);
 

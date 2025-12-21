@@ -1,6 +1,5 @@
 import { logger } from "@/lib/logger";
 import { isDevMode, getManagerCode } from "@/lib/devMode";
-import type { EntityType } from "@/lib/dbRegistry";
 
 export interface WorkerResponse<T = any> {
   success: boolean;
@@ -8,32 +7,7 @@ export interface WorkerResponse<T = any> {
   error?: string;
 }
 
-// ============================================================================
-// COMMIT DELTA TYPES
-// ============================================================================
-
-export interface DeltaPayload {
-  entity: EntityType;
-  action: 'create' | 'update' | 'delete';
-  id?: string;
-  payload?: any;
-  baseVersion: string;
-  registryVersion: string;
-}
-
-export interface CommitDeltaResponse {
-  ok: boolean;
-  newVersion?: string;
-  status?: number;
-  error?: string;
-  data?: any;
-  conflictData?: any;
-}
-
 const WORKER_BASE_URL = "https://lovable-dropbox-api.w0504124161.workers.dev";
-
-// Fixed manager code for commit_delta auth
-const MANAGER_CODE = "1234";
 
 /* ===========================================================
    HEADERS HELPERS — VERY IMPORTANT !
@@ -43,11 +17,6 @@ const getJsonHeaders = () => ({
   "Content-Type": "application/json",
   "Cache-Control": "no-store",
   "X-Sonata-Manager-Code": getManagerCode(),
-});
-
-const getCommitDeltaHeaders = () => ({
-  "Content-Type": "application/json",
-  "X-Sonata-Manager-Code": MANAGER_CODE,
 });
 
 // NOTICE:
@@ -407,84 +376,6 @@ export const workerApi = {
     } catch (err) {
       logger.error("gmailModifyLabels error:", err);
       return { success: false, error: (err as Error).message };
-    }
-  },
-
-  /* -----------------------------------------------------------
-     Commit Delta - Worker-First Mutation Endpoint
-     
-     Route: POST ${WORKER_BASE_URL}?action=commit_delta
-     
-     Request: DeltaPayload { entity, action, id?, payload?, baseVersion, registryVersion }
-     
-     Success Response (200): { ok: true, newVersion: string, data?: any }
-     Conflict Response (409): { ok: false, error: "VERSION_CONFLICT", currentVersion: string, current?: any }
-     Error Response (400/500): { ok: false, error: string }
-     ----------------------------------------------------------- */
-  commitDelta: async (delta: DeltaPayload): Promise<CommitDeltaResponse> => {
-    if (isDevMode()) {
-      logger.warn("DEV MODE: commitDelta returning mock success");
-      return { ok: true, newVersion: 'dev-mode-v1', data: delta.payload };
-    }
-
-    // -------------------------------------------------------------------------
-    // SECONDARY GUARD: Pre-send validation (Section A - defense in depth)
-    // -------------------------------------------------------------------------
-    const VALID_ACTIONS = ['create', 'update', 'delete'];
-    
-    if (!delta || !delta.entity || !delta.action || !delta.baseVersion) {
-      console.error('Blocked invalid commit_delta from client', delta);
-      return { ok: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
-    }
-    
-    if (!VALID_ACTIONS.includes(delta.action)) {
-      console.error('Blocked invalid commit_delta from client', delta);
-      return { ok: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
-    }
-    
-    if (typeof delta.baseVersion !== 'string' || delta.baseVersion.length === 0) {
-      console.error('Blocked invalid commit_delta from client - baseVersion must be non-empty string', delta);
-      return { ok: false, error: 'INVALID_DELTA_BLOCKED_CLIENT' };
-    }
-
-    try {
-      const response = await fetch(`${WORKER_BASE_URL}?action=commit_delta`, {
-        method: "POST",
-        headers: getCommitDeltaHeaders(),
-        body: JSON.stringify(delta),
-        cache: "no-store",
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (response.status === 409) {
-        logger.warn("commitDelta: Version conflict detected");
-        return { 
-          ok: false, 
-          status: 409, 
-          error: 'VERSION_CONFLICT',
-          conflictData: data.current,
-        };
-      }
-
-      if (!response.ok) {
-        logger.error("commitDelta failed:", data.error || response.statusText);
-        return { 
-          ok: false, 
-          status: response.status,
-          error: data.error || `HTTP ${response.status}`,
-        };
-      }
-
-      logger.info("commitDelta success:", data.newVersion);
-      return { 
-        ok: true, 
-        newVersion: data.newVersion,
-        data: data.data,
-      };
-    } catch (err) {
-      logger.error("commitDelta network error:", err);
-      throw err; // Re-throw to let commitGateway handle as network error
     }
   },
 };

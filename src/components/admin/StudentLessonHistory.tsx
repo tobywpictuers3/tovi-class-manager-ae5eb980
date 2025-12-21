@@ -44,7 +44,7 @@ const StudentLessonHistory = ({ student, open, onOpenChange }: StudentLessonHist
     }
   }, [student?.id, open]);
 
-  const handleGrade = async (lessonId: string, grade: number) => {
+  const handleGrade = (lessonId: string, grade: number) => {
     const lesson = lessons.find(l => l.id === lessonId);
     if (lesson) {
       // Save previous state for undo
@@ -54,7 +54,7 @@ const StudentLessonHistory = ({ student, open, onOpenChange }: StudentLessonHist
         gradeNotes: lesson.gradeNotes
       });
       
-      await updateLesson(lessonId, { ...lesson, grade, gradeNotes });
+      updateLesson(lessonId, { ...lesson, grade, gradeNotes });
       setLessons(prev => prev.map(l => l.id === lessonId ? { ...l, grade, gradeNotes } : l));
       setGradingLesson(null);
       setGradeNotes('');
@@ -65,11 +65,11 @@ const StudentLessonHistory = ({ student, open, onOpenChange }: StudentLessonHist
     }
   };
 
-  const handleUndo = async () => {
+  const handleUndo = () => {
     if (previousGrade) {
       const lesson = lessons.find(l => l.id === previousGrade.lessonId);
       if (lesson) {
-        await updateLesson(previousGrade.lessonId, { 
+        updateLesson(previousGrade.lessonId, { 
           ...lesson, 
           grade: previousGrade.grade, 
           gradeNotes: previousGrade.gradeNotes 
@@ -88,7 +88,7 @@ const StudentLessonHistory = ({ student, open, onOpenChange }: StudentLessonHist
     }
   };
 
-  const handleDeleteGrade = async (lessonId: string) => {
+  const handleDeleteGrade = (lessonId: string) => {
     const lesson = lessons.find(l => l.id === lessonId);
     if (lesson) {
       // Save previous state for undo
@@ -98,7 +98,7 @@ const StudentLessonHistory = ({ student, open, onOpenChange }: StudentLessonHist
         gradeNotes: lesson.gradeNotes
       });
       
-      await updateLesson(lessonId, { ...lesson, grade: undefined, gradeNotes: undefined });
+      updateLesson(lessonId, { ...lesson, grade: undefined, gradeNotes: undefined });
       setLessons(prev => prev.map(l => l.id === lessonId ? { ...l, grade: undefined, gradeNotes: undefined } : l));
       setDeletingLesson(null);
       toast({

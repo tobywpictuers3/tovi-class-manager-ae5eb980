@@ -1,36 +1,8 @@
-import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleTemplate, IntegrationSettings, Performance, OneTimePayment, Holiday, PracticeSession, MonthlyAchievement, LeaderboardEntry, MedalRecord, StoreItem, StorePurchase, AcademicYearSettings } from './types';
+import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleTemplate, IntegrationSettings, Performance, OneTimePayment, Holiday, PracticeSession, MonthlyAchievement, LeaderboardEntry, MedalRecord, StoreItem, StorePurchase } from './types';
 import { hybridSync } from './hybridSync';
 import { logger } from './logger';
 import { isDevMode, setDevMode } from './devMode';
-import { commitDelta, CommitResult as NewCommitResult } from './commitGateway';
 import { calculateEarnedCopper, formatPriceCompact } from './storeCurrency';
-
-// Compatibility layer: adapt new commitDelta to old commitChange interface
-interface LegacyCommitResult {
-  confirmed: boolean;
-  queued: boolean;
-  error?: string;
-  data?: any;
-}
-
-async function commitChange(params: {
-  entity: string;
-  action: 'create' | 'update' | 'delete';
-  id?: string;
-  payload?: any;
-}): Promise<LegacyCommitResult> {
-  const { entity, action, id, payload } = params;
-  const result = await commitDelta(entity, action, id || null, payload);
-  
-  // Translate new interface to old interface
-  // New gateway is UI-first: ok=true means locally stored, state shows if queued to worker
-  return {
-    confirmed: result.ok && result.state !== 'error',
-    queued: result.state === 'queued' || result.state === 'local',
-    error: result.error,
-    data: payload, // UI-first model: return the payload as data since we apply locally
-  };
-}
 
 // In-Memory Storage - No localStorage for sensitive data
 const inMemoryStorage: Record<string, any> = {};
@@ -61,8 +33,7 @@ const devData: Record<string, any> = {
   studentStats: {},
   tithePaid: {},
   storeItems: [],
-  storePurchases: [],
-  academicYearSettings: null
+  storePurchases: []
 };
 
 export { isDevMode, setDevMode };
@@ -177,87 +148,44 @@ export const getStudents = (): Student[] => {
   return inMemoryStorage['students'] || [];
 };
 
-export const addStudent = async (student: Omit<Student, 'id'>): Promise<Student | null> => {
-  const now = new Date().toISOString();
-  const payload = {
+export const addStudent = (student: Omit<Student, 'id'>): Student => {
+  const students = getStudents();
+  const newStudent: Student = {
     ...student,
-    lastModified: now,
+    id: generateId(),
+    lastModified: new Date().toISOString(),
   };
-
-  // Dev mode: legacy path
+  students.push(newStudent);
   if (isDevMode()) {
-    const newStudent: Student = {
-      ...payload,
-      id: generateId(),
-    };
-    const students = getStudents();
-    students.push(newStudent);
     devData['students'] = students;
-    return newStudent;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'students',
-    action: 'create',
-    payload,
-  });
-
-  if (result.confirmed && result.data) {
-    const newStudent: Student = result.data;
-    const students = getStudents();
-    students.push(newStudent);
-    inMemoryStorage['students'] = students;
-    return newStudent;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ addStudent: Queued for sync - creation pending');
   } else {
-    logger.error(`❌ addStudent failed: ${result.error}`);
+    inMemoryStorage['students'] = students;
+    hybridSync.onDataChange();
   }
-  return null;
+  return newStudent;
 };
 
-export const updateStudent = async (id: string, updatedFields: Partial<Student>): Promise<Student | undefined> => {
+export const updateStudent = (id: string, updatedFields: Partial<Student>): Student | undefined => {
   const students = getStudents();
   const studentIndex = students.findIndex(student => student.id === id);
-  if (studentIndex === -1) return undefined;
 
-  const now = new Date().toISOString();
-  const updatedStudent: Student = {
-    ...students[studentIndex],
+  if (studentIndex === -1) {
+    return undefined; // Student not found
+  }
+
+  // Update the student with the provided fields
+  students[studentIndex] = { 
+    ...students[studentIndex], 
     ...updatedFields,
-    lastModified: now,
+    lastModified: new Date().toISOString()
   };
-
-  // Dev mode: legacy path
   if (isDevMode()) {
-    students[studentIndex] = updatedStudent;
     devData['students'] = students;
-    return updatedStudent;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'students',
-    action: 'update',
-    id,
-    payload: updatedStudent,
-  });
-
-  if (result.confirmed) {
-    students[studentIndex] = updatedStudent;
-    inMemoryStorage['students'] = students;
-    return updatedStudent;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ updateStudent: Queued for sync - update pending');
   } else {
-    logger.error(`❌ updateStudent failed: ${result.error}`);
+    inMemoryStorage['students'] = students;
+    hybridSync.onDataChange();
   }
-  return undefined;
+  return students[studentIndex];
 };
 
 export const deleteStudent = (id: string): boolean => {
@@ -287,49 +215,24 @@ export const getLessons = (): Lesson[] => {
   return inMemoryStorage['lessons'] || [];
 };
 
-export const addLesson = async (lesson: Omit<Lesson, 'id'>): Promise<Lesson | null> => {
-  const now = new Date().toISOString();
-  const payload = {
+export const addLesson = (lesson: Omit<Lesson, 'id'>): Lesson => {
+  const lessons = getLessons();
+  const newLesson: Lesson = {
     ...lesson,
-    lastModified: now,
+    id: generateId(),
+    lastModified: new Date().toISOString(),
   };
-
-  // Dev mode: legacy path
+  lessons.push(newLesson);
   if (isDevMode()) {
-    const newLesson: Lesson = {
-      ...payload,
-      id: generateId(),
-    };
-    const lessons = getLessons();
-    lessons.push(newLesson);
     devData['lessons'] = lessons;
-    return newLesson;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'lessons',
-    action: 'create',
-    payload,
-  });
-
-  if (result.confirmed && result.data) {
-    const newLesson: Lesson = result.data;
-    const lessons = getLessons();
-    lessons.push(newLesson);
-    inMemoryStorage['lessons'] = lessons;
-    return newLesson;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ addLesson: Queued for sync - creation pending');
   } else {
-    logger.error(`❌ addLesson failed: ${result.error}`);
+    inMemoryStorage['lessons'] = lessons;
+    hybridSync.onDataChange();
   }
-  return null;
+  return newLesson;
 };
 
-export const updateLesson = async (id: string, updatedFields: Partial<Lesson>): Promise<Lesson | undefined> => {
+export const updateLesson = (id: string, updatedFields: Partial<Lesson>): Lesson | undefined => {
   const lessons = getLessons();
   const lessonIndex = lessons.findIndex(lesson => lesson.id === id);
 
@@ -337,74 +240,33 @@ export const updateLesson = async (id: string, updatedFields: Partial<Lesson>): 
     return undefined; // Lesson not found
   }
 
-  const now = new Date().toISOString();
-  const updatedLesson: Lesson = {
-    ...lessons[lessonIndex],
+  lessons[lessonIndex] = { 
+    ...lessons[lessonIndex], 
     ...updatedFields,
-    lastModified: now,
+    lastModified: new Date().toISOString()
   };
-
-  // Dev mode: legacy path
   if (isDevMode()) {
-    lessons[lessonIndex] = updatedLesson;
     devData['lessons'] = lessons;
-    return updatedLesson;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'lessons',
-    action: 'update',
-    id,
-    payload: updatedLesson,
-  });
-
-  if (result.confirmed) {
-    lessons[lessonIndex] = updatedLesson;
-    inMemoryStorage['lessons'] = lessons;
-    return updatedLesson;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ updateLesson: Queued for sync - update pending');
   } else {
-    logger.error(`❌ updateLesson failed: ${result.error}`);
+    inMemoryStorage['lessons'] = lessons;
+    hybridSync.onDataChange();
   }
-  return undefined;
+  return lessons[lessonIndex];
 };
 
-export const deleteLesson = async (id: string): Promise<boolean> => {
+export const deleteLesson = (id: string): boolean => {
   const lessons = getLessons();
-  const lessonExists = lessons.some(lesson => lesson.id === id);
-  if (!lessonExists) {
-    return false; // No lesson found
+  const updatedLessons = lessons.filter(lesson => lesson.id !== id);
+  if (updatedLessons.length === lessons.length) {
+    return false; // No lesson was deleted
   }
-
-  // Dev mode: legacy path
   if (isDevMode()) {
-    devData['lessons'] = lessons.filter(lesson => lesson.id !== id);
-    return true;
+    devData['lessons'] = updatedLessons;
+  } else {
+    inMemoryStorage['lessons'] = updatedLessons;
+    hybridSync.onDataChange();
   }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'lessons',
-    action: 'delete',
-    id,
-  });
-
-  if (result.confirmed) {
-    inMemoryStorage['lessons'] = lessons.filter(lesson => lesson.id !== id);
-    return true;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ deleteLesson: Queued for sync - deletion pending');
-    return false;
-  }
-
-  logger.error(`❌ deleteLesson failed: ${result.error}`);
-  return false;
+  return true;
 };
 
 // Helper for cascade changes - uses direct upload to prevent merge from restoring deleted records
@@ -430,41 +292,26 @@ export const deleteLessonCascade = async (lessonId: string): Promise<boolean> =>
   const lesson = lessons.find(l => l.id === lessonId);
   if (!lesson) return false;
 
-  // Dev mode: use legacy path
-  if (isDevMode()) {
-    const { studentId, date, startTime } = lesson;
-    devData['lessons'] = (devData['lessons'] || []).filter((l: any) => l.id !== lessonId);
-    devData['swapRequests'] = (devData['swapRequests'] || []).filter((r: any) => {
+  const { studentId, date, startTime } = lesson;
+
+  await persistCascadeChanges(store => {
+    // 1. Delete the lesson itself
+    store['lessons'] = (store['lessons'] || []).filter((l: any) => l.id !== lessonId);
+
+    // 2. Delete related swap requests
+    store['swapRequests'] = (store['swapRequests'] || []).filter((r: any) => {
       const byLessonId = r.requesterLessonId === lessonId || r.targetLessonId === lessonId;
       const byLegacyFields =
         (r.requesterId === studentId && r.date === date && r.time === startTime) ||
         (r.targetId === studentId && r.targetDate === date && r.targetTime === startTime);
       return !(byLessonId || byLegacyFields);
     });
-    return true;
-  }
-
-  // Production: use commitGateway (Worker handles cascade)
-  const result = await commitChange({
-    entity: 'lessons',
-    action: 'delete',
-    id: lessonId,
   });
 
-  if (result.confirmed) {
-    // Update local memory to reflect Worker state
-    inMemoryStorage['lessons'] = (inMemoryStorage['lessons'] || []).filter((l: any) => l.id !== lessonId);
-    // Note: Worker handles swapRequests cascade - we could refresh from Worker or trust it
-    return true;
-  }
+  // Use onDestructiveChange to directly upload without merge
+  await hybridSync.onDestructiveChange();
 
-  if (result.queued) {
-    logger.warn('⚠️ deleteLessonCascade: Queued for sync - deletion pending');
-    return false;
-  }
-
-  logger.error(`❌ deleteLessonCascade failed: ${result.error}`);
-  return false;
+  return true;
 };
 
 // Cascade delete student - removes student and all related data
@@ -472,66 +319,35 @@ export const deleteStudentCascade = async (studentId: string): Promise<boolean> 
   const exists = getStudents().some(s => s.id === studentId);
   if (!exists) return false;
 
-  // Dev mode: use legacy path
-  if (isDevMode()) {
-    devData['students'] = (devData['students'] || []).filter((s: any) => s.id !== studentId);
-    devData['lessons'] = (devData['lessons'] || []).filter((l: any) => l.studentId !== studentId);
-    devData['payments'] = (devData['payments'] || []).filter((p: any) => p.studentId !== studentId);
-    devData['files'] = (devData['files'] || []).filter((f: any) => f.studentId !== studentId);
-    devData['practiceSessions'] = (devData['practiceSessions'] || []).filter((s: any) => s.studentId !== studentId);
-    devData['monthlyAchievements'] = (devData['monthlyAchievements'] || []).filter((a: any) => a.studentId !== studentId);
-    devData['medalRecords'] = (devData['medalRecords'] || []).filter((m: any) => m.studentId !== studentId);
-    devData['swapRequests'] = (devData['swapRequests'] || []).filter((r: any) => {
+  await persistCascadeChanges(store => {
+    store['students'] = (store['students'] || []).filter((s: any) => s.id !== studentId);
+    store['lessons'] = (store['lessons'] || []).filter((l: any) => l.studentId !== studentId);
+    store['payments'] = (store['payments'] || []).filter((p: any) => p.studentId !== studentId);
+    store['files'] = (store['files'] || []).filter((f: any) => f.studentId !== studentId);
+    store['practiceSessions'] = (store['practiceSessions'] || []).filter((s: any) => s.studentId !== studentId);
+    store['monthlyAchievements'] = (store['monthlyAchievements'] || []).filter((a: any) => a.studentId !== studentId);
+    store['medalRecords'] = (store['medalRecords'] || []).filter((m: any) => m.studentId !== studentId);
+
+    // Clean swap requests
+    store['swapRequests'] = (store['swapRequests'] || []).filter((r: any) => {
       const oldShape = r.requesterId !== studentId && r.targetId !== studentId;
       const newShape = r.requesterStudentId !== studentId && r.targetStudentId !== studentId;
       return oldShape && newShape;
     });
-    const stats = devData['studentStats'] || {};
+
+    // Delete student statistics
+    const stats = store['studentStats'] || {};
     if (stats[studentId]) {
       const updated = { ...stats };
       delete updated[studentId];
-      devData['studentStats'] = updated;
+      store['studentStats'] = updated;
     }
-    return true;
-  }
-
-  // Production: use commitGateway (Worker handles cascade)
-  const result = await commitChange({
-    entity: 'students',
-    action: 'delete',
-    id: studentId,
   });
 
-  if (result.confirmed) {
-    // Update local memory to reflect Worker state
-    inMemoryStorage['students'] = (inMemoryStorage['students'] || []).filter((s: any) => s.id !== studentId);
-    inMemoryStorage['lessons'] = (inMemoryStorage['lessons'] || []).filter((l: any) => l.studentId !== studentId);
-    inMemoryStorage['payments'] = (inMemoryStorage['payments'] || []).filter((p: any) => p.studentId !== studentId);
-    inMemoryStorage['files'] = (inMemoryStorage['files'] || []).filter((f: any) => f.studentId !== studentId);
-    inMemoryStorage['practiceSessions'] = (inMemoryStorage['practiceSessions'] || []).filter((s: any) => s.studentId !== studentId);
-    inMemoryStorage['monthlyAchievements'] = (inMemoryStorage['monthlyAchievements'] || []).filter((a: any) => a.studentId !== studentId);
-    inMemoryStorage['medalRecords'] = (inMemoryStorage['medalRecords'] || []).filter((m: any) => m.studentId !== studentId);
-    inMemoryStorage['swapRequests'] = (inMemoryStorage['swapRequests'] || []).filter((r: any) => {
-      const oldShape = r.requesterId !== studentId && r.targetId !== studentId;
-      const newShape = r.requesterStudentId !== studentId && r.targetStudentId !== studentId;
-      return oldShape && newShape;
-    });
-    const stats = inMemoryStorage['studentStats'] || {};
-    if (stats[studentId]) {
-      const updated = { ...stats };
-      delete updated[studentId];
-      inMemoryStorage['studentStats'] = updated;
-    }
-    return true;
-  }
+  // Use onDestructiveChange to directly upload without merge
+  await hybridSync.onDestructiveChange();
 
-  if (result.queued) {
-    logger.warn('⚠️ deleteStudentCascade: Queued for sync - deletion pending');
-    return false;
-  }
-
-  logger.error(`❌ deleteStudentCascade failed: ${result.error}`);
-  return false;
+  return true;
 };
 
 // Payments
@@ -590,32 +406,13 @@ export const updatePayment = (studentId: string, month: string, updatedFields: P
 
 export const deletePayment = async (id: string): Promise<boolean> => {
   const payments = getPayments();
-  if (!payments.some(p => p.id === id)) return false;
-
-  // Dev mode: legacy path
-  if (isDevMode()) {
-    devData['payments'] = payments.filter(p => p.id !== id);
-    return true;
+  const updatedPayments = payments.filter(payment => payment.id !== id);
+  if (updatedPayments.length === payments.length) {
+    return false; // No payment was deleted
   }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'payments',
-    action: 'delete',
-    id,
-  });
-
-  if (result.confirmed) {
-    inMemoryStorage['payments'] = payments.filter(p => p.id !== id);
-    return true;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ deletePayment: Queued for sync - deletion pending');
-  } else {
-    logger.error(`❌ deletePayment failed: ${result.error}`);
-  }
-  return false;
+  inMemoryStorage['payments'] = updatedPayments;
+  await hybridSync.onDestructiveChange();
+  return true;
 };
 
 // Swap Requests
@@ -770,32 +567,17 @@ export const updateFile = (id: string, updatedFields: Partial<FileEntry>): FileE
 
 export const deleteFile = async (id: string): Promise<boolean> => {
   const files = getFiles();
-  if (!files.some(f => f.id === id)) return false;
-
-  // Dev mode: legacy path
+  const updatedFiles = files.filter(file => file.id !== id);
+  if (updatedFiles.length === files.length) {
+    return false; // No file was deleted
+  }
   if (isDevMode()) {
-    devData['files'] = files.filter(f => f.id !== id);
-    return true;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'files',
-    action: 'delete',
-    id,
-  });
-
-  if (result.confirmed) {
-    inMemoryStorage['files'] = files.filter(f => f.id !== id);
-    return true;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ deleteFile: Queued for sync - deletion pending');
+    devData['files'] = updatedFiles;
   } else {
-    logger.error(`❌ deleteFile failed: ${result.error}`);
+    inMemoryStorage['files'] = updatedFiles;
+    await hybridSync.onDestructiveChange();
   }
-  return false;
+  return true;
 };
 
 // Schedule Templates
@@ -887,32 +669,17 @@ export const updateScheduleTemplate = (id: string, updatedFields: Partial<Schedu
 
 export const deleteScheduleTemplate = async (id: string): Promise<boolean> => {
   const templates = getScheduleTemplates();
-  if (!templates.some(t => t.id === id)) return false;
-
-  // Dev mode: legacy path
+  const updatedTemplates = templates.filter(template => template.id !== id);
+  if (updatedTemplates.length === templates.length) {
+    return false; // No template was deleted
+  }
   if (isDevMode()) {
-    devData['scheduleTemplates'] = templates.filter(t => t.id !== id);
-    return true;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'scheduleTemplates',
-    action: 'delete',
-    id,
-  });
-
-  if (result.confirmed) {
-    inMemoryStorage['scheduleTemplates'] = templates.filter(t => t.id !== id);
-    return true;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ deleteScheduleTemplate: Queued for sync - deletion pending');
+    devData['scheduleTemplates'] = updatedTemplates;
   } else {
-    logger.error(`❌ deleteScheduleTemplate failed: ${result.error}`);
+    inMemoryStorage['scheduleTemplates'] = updatedTemplates;
+    await hybridSync.onDestructiveChange();
   }
-  return false;
+  return true;
 };
 
 export const syncStudentWithTemplate = (studentId: string, dayOfWeek: number, timeSlot: string, add: boolean): void => {
@@ -954,21 +721,6 @@ export const saveIntegrationSettings = (settings: IntegrationSettings): void => 
     hybridSync.onDataChange();
   }
 };
-
-// Academic Year Settings
-export const getAcademicYearSettings = (): { startDate: string; endDate: string } | null => {
-  if (isDevMode()) return devData['academicYearSettings'] || null;
-  return inMemoryStorage['academicYearSettings'] || null;
-};
-
-export const setAcademicYearSettings = (settings: { startDate: string; endDate: string }): void => {
-  if (isDevMode()) {
-    devData['academicYearSettings'] = settings;
-  } else {
-    inMemoryStorage['academicYearSettings'] = settings;
-    hybridSync.onDataChange();
-  }
-}
 
 // User Authentication - Only stored in sessionStorage
 export const setCurrentUser = (user: { type: string; studentId?: string; adminId?: string; adminCode?: string } | null): void => {
@@ -1058,32 +810,17 @@ export const updatePerformance = (id: string, updatedFields: Partial<Performance
 
 export const deletePerformance = async (id: string): Promise<boolean> => {
   const performances = getPerformances();
-  if (!performances.some(p => p.id === id)) return false;
-
-  // Dev mode: legacy path
+  const updatedPerformances = performances.filter(perf => perf.id !== id);
+  if (updatedPerformances.length === performances.length) {
+    return false;
+  }
   if (isDevMode()) {
-    devData['performances'] = performances.filter(p => p.id !== id);
-    return true;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'performances',
-    action: 'delete',
-    id,
-  });
-
-  if (result.confirmed) {
-    inMemoryStorage['performances'] = performances.filter(p => p.id !== id);
-    return true;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ deletePerformance: Queued for sync - deletion pending');
+    devData['performances'] = updatedPerformances;
   } else {
-    logger.error(`❌ deletePerformance failed: ${result.error}`);
+    inMemoryStorage['performances'] = updatedPerformances;
+    await hybridSync.onDestructiveChange();
   }
-  return false;
+  return true;
 };
 
 // One Time Payments
@@ -1127,35 +864,19 @@ export const addHoliday = (date: string, description?: string): Holiday => {
   return newHoliday;
 };
 
-export const deleteHoliday = async (id: string): Promise<boolean> => {
+export const deleteHoliday = async (date: string): Promise<boolean> => {
   const holidays = getHolidays();
-  const holiday = holidays.find(h => h.date === id || h.id === id);
-  if (!holiday) return false;
-
-  // Dev mode: legacy path
+  const updatedHolidays = holidays.filter(h => h.date !== date);
+  if (updatedHolidays.length === holidays.length) {
+    return false;
+  }
   if (isDevMode()) {
-    devData['holidays'] = holidays.filter(h => h.id !== holiday.id);
-    return true;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'holidays',
-    action: 'delete',
-    id: holiday.id,
-  });
-
-  if (result.confirmed) {
-    inMemoryStorage['holidays'] = holidays.filter(h => h.id !== holiday.id);
-    return true;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ deleteHoliday: Queued for sync - deletion pending');
+    devData['holidays'] = updatedHolidays;
   } else {
-    logger.error(`❌ deleteHoliday failed: ${result.error}`);
+    inMemoryStorage['holidays'] = updatedHolidays;
+    await hybridSync.onDestructiveChange();
   }
-  return false;
+  return true;
 };
 
 export const isHoliday = (date: string): boolean => {
@@ -1216,60 +937,36 @@ export const updatePracticeSession = (id: string, updatedFields: Partial<Practic
 
 export const deletePracticeSession = async (id: string): Promise<boolean> => {
   const sessions = getPracticeSessions();
-  if (!sessions.some(s => s.id === id)) return false;
-
-  // Dev mode: legacy path
+  const updatedSessions = sessions.filter(s => s.id !== id);
+  if (updatedSessions.length === sessions.length) {
+    return false;
+  }
   if (isDevMode()) {
-    devData['practiceSessions'] = sessions.filter(s => s.id !== id);
-    return true;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'practiceSessions',
-    action: 'delete',
-    id,
-  });
-
-  if (result.confirmed) {
-    inMemoryStorage['practiceSessions'] = sessions.filter(s => s.id !== id);
-    return true;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ deletePracticeSession: Queued for sync - deletion pending');
+    devData['practiceSessions'] = updatedSessions;
   } else {
-    logger.error(`❌ deletePracticeSession failed: ${result.error}`);
+    inMemoryStorage['practiceSessions'] = updatedSessions;
+    await hybridSync.onDestructiveChange();
   }
-  return false;
+  return true;
 };
 
-// ============= MONTHLY ACHIEVEMENTS - DEPRECATED =============
-// These functions are kept for backward compatibility and backup integrity,
-// but are NOT used in the active leaderboard system.
-// The new leaderboard engine (leaderboardEngine.ts) calculates all achievements in real-time.
-// Do NOT import or use these in active UI components.
-
-/** @deprecated Use leaderboardEngine.ts functions instead */
+// Monthly Achievements
 export const getMonthlyAchievements = (): MonthlyAchievement[] => {
   if (isDevMode()) return devData['monthlyAchievements'] || [];
   return inMemoryStorage['monthlyAchievements'] || [];
 };
 
-/** @deprecated Use leaderboardEngine.ts functions instead */
 export const getStudentMonthlyAchievements = (studentId: string): MonthlyAchievement[] => {
   const achievements = getMonthlyAchievements();
   return achievements.filter(a => a.studentId === studentId);
 };
 
-/** @deprecated Use leaderboardEngine.ts functions instead */
 export const getCurrentMonthAchievement = (studentId: string): MonthlyAchievement | null => {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const achievements = getMonthlyAchievements();
   return achievements.find(a => a.studentId === studentId && a.month === currentMonth) || null;
 };
 
-/** @deprecated Use leaderboardEngine.ts functions instead */
 export const updateMonthlyAchievement = (
   studentId: string,
   updates: { maxDailyAverage?: number; maxDailyMinutes?: number; maxStreak?: number }
@@ -1312,7 +1009,6 @@ export const updateMonthlyAchievement = (
   }
 };
 
-/** @deprecated Use leaderboardEngine.getAllLeaderboards() instead */
 export const getCurrentMonthLeaderboard = (): LeaderboardEntry[] => {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const achievements = getMonthlyAchievements().filter(a => a.month === currentMonth);
@@ -1335,7 +1031,6 @@ export const getCurrentMonthLeaderboard = (): LeaderboardEntry[] => {
     .sort((a, b) => b.dailyAverage - a.dailyAverage);
 };
 
-/** @deprecated Use leaderboardEngine.getAllLeaderboards() instead */
 export const getCurrentQuarterLeaderboard = (): LeaderboardEntry[] => {
   const now = new Date();
   const month = now.getMonth(); // 0-11
@@ -1607,32 +1302,16 @@ export const upsertStoreItem = (item: Partial<StoreItem> & { name: string; price
 
 export const deleteStoreItem = async (id: string): Promise<boolean> => {
   const items = getStoreItems();
-  if (!items.some(i => i.id === id)) return false;
-
-  // Dev mode: legacy path
+  const updatedItems = items.filter(i => i.id !== id);
+  if (updatedItems.length === items.length) return false;
+  
   if (isDevMode()) {
-    devData['storeItems'] = items.filter(i => i.id !== id);
-    return true;
-  }
-
-  // Production: use commitGateway
-  const result = await commitChange({
-    entity: 'storeItems',
-    action: 'delete',
-    id,
-  });
-
-  if (result.confirmed) {
-    inMemoryStorage['storeItems'] = items.filter(i => i.id !== id);
-    return true;
-  }
-
-  if (result.queued) {
-    logger.warn('⚠️ deleteStoreItem: Queued for sync - deletion pending');
+    devData['storeItems'] = updatedItems;
   } else {
-    logger.error(`❌ deleteStoreItem failed: ${result.error}`);
+    inMemoryStorage['storeItems'] = updatedItems;
+    await hybridSync.onDestructiveChange();
   }
-  return false;
+  return true;
 };
 
 // Store Purchases
