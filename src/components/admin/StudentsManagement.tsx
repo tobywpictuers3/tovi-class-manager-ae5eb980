@@ -6,8 +6,10 @@ import { Textarea } from '@/components/safe-ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/safe-ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/safe-ui/dialog';
 import { Label } from '@/components/safe-ui/label';
-import { Grid, List, UserPlus, Edit, Trash2, Users, History } from 'lucide-react';
-import { getStudents, addStudent, updateStudent, deleteStudentCascade } from '@/lib/storage';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/safe-ui/select';
+import { Badge } from '@/components/safe-ui/badge';
+import { Grid, List, UserPlus, Edit, Trash2, Users, History, Coins } from 'lucide-react';
+import { getStudents, addStudent, updateStudent, deleteStudentCascade, getCompletedLessonsCount } from '@/lib/storage';
 import { deleteMessagesForStudentCascade } from '@/lib/messages';
 import { Student } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
@@ -37,7 +39,9 @@ const StudentsManagement = () => {
     calculatedFormula: '',
     notes: '',
     additionalPhones: [] as string[],
-    additionalEmails: [] as string[]
+    additionalEmails: [] as string[],
+    paymentType: 'annual' as 'annual' | 'per_lesson',
+    lessonPrice: 150
   });
 
   useEffect(() => {
@@ -63,7 +67,9 @@ const StudentsManagement = () => {
       calculatedFormula: '',
       notes: '',
       additionalPhones: [],
-      additionalEmails: []
+      additionalEmails: [],
+      paymentType: 'annual',
+      lessonPrice: 150
     });
   };
 
@@ -89,7 +95,9 @@ const StudentsManagement = () => {
       calculatedFormula: '',
       notes: student.notes || '',
       additionalPhones: student.additionalPhones || [],
-      additionalEmails: student.additionalEmails || []
+      additionalEmails: student.additionalEmails || [],
+      paymentType: student.paymentType || 'annual',
+      lessonPrice: student.lessonPrice || 150
     });
     setShowDialog(true);
   };
@@ -131,7 +139,10 @@ const StudentsManagement = () => {
         monthlyAmount,
         notes: studentForm.notes,
         additionalPhones: studentForm.additionalPhones,
-        additionalEmails: studentForm.additionalEmails
+        additionalEmails: studentForm.additionalEmails,
+        paymentType: studentForm.paymentType,
+        lessonPrice: studentForm.paymentType === 'per_lesson' ? studentForm.lessonPrice : undefined,
+        paidLessonsCount: studentForm.paymentType === 'per_lesson' ? (editingStudent.paidLessonsCount || 0) : undefined
       });
       toast({
         title: 'הצלחה',
@@ -144,7 +155,7 @@ const StudentsManagement = () => {
         phone: studentForm.phone,
         email: studentForm.email,
         personalCode: studentForm.personalCode,
-        swapCode: Math.floor(1000 + Math.random() * 9000).toString(), // Generate random 4-digit swap code
+        swapCode: Math.floor(1000 + Math.random() * 9000).toString(),
         startDate: studentForm.startDate,
         startingLessonNumber: studentForm.startingLessonNumber,
         annualAmount: studentForm.annualAmount,
@@ -153,7 +164,10 @@ const StudentsManagement = () => {
         monthlyAmount,
         notes: studentForm.notes,
         additionalPhones: studentForm.additionalPhones,
-        additionalEmails: studentForm.additionalEmails
+        additionalEmails: studentForm.additionalEmails,
+        paymentType: studentForm.paymentType,
+        lessonPrice: studentForm.paymentType === 'per_lesson' ? studentForm.lessonPrice : undefined,
+        paidLessonsCount: studentForm.paymentType === 'per_lesson' ? 0 : undefined
       });
       toast({
         title: 'הצלחה',
@@ -224,16 +238,38 @@ const StudentsManagement = () => {
         <CardContent>
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {students.map((student) => (
+              {students.map((student) => {
+                const isPerLesson = student.paymentType === 'per_lesson';
+                const completedLessons = isPerLesson ? getCompletedLessonsCount(student.id) : 0;
+                const paidLessons = student.paidLessonsCount || 0;
+                const balanceLessons = completedLessons - paidLessons;
+                
+                return (
                 <Card key={student.id} className="hover:shadow-lg transition-shadow">
                   <CardContent className="p-4">
                     <div className="space-y-2">
-                      <h3 className="font-bold text-lg">
-                        {student.firstName} {student.lastName}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-lg">
+                          {student.firstName} {student.lastName}
+                        </h3>
+                        {isPerLesson && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Coins className="h-3 w-3 mr-1" />
+                            חד-פעמי
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-sm space-y-1 text-muted-foreground">
                         <p>🔑 קוד: {student.personalCode}</p>
                         <p>📞 {student.phone}</p>
+                        {isPerLesson && (
+                          <div className="mt-2 p-2 bg-secondary/30 rounded text-xs">
+                            <p>📚 שיעורים: {completedLessons} | 💰 שולם: {paidLessons}</p>
+                            {balanceLessons > 0 && (
+                              <p className="text-destructive font-medium">⏳ יתרה: {balanceLessons} (₪{balanceLessons * (student.lessonPrice || 0)})</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-2 pt-2">
                         <Button
@@ -264,7 +300,8 @@ const StudentsManagement = () => {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              );
+              })}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -485,6 +522,38 @@ const StudentsManagement = () => {
                 הוסף מייל נוסף
               </Button>
             </div>
+
+            {/* Payment Track Selection */}
+            <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+              <Label className="text-base font-semibold mb-3 block">מסלול תשלום</Label>
+              <Select
+                value={studentForm.paymentType}
+                onValueChange={(value: 'annual' | 'per_lesson') => 
+                  setStudentForm({...studentForm, paymentType: value})
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="annual">תשלום שנתי</SelectItem>
+                  <SelectItem value="per_lesson">שיעורים חד-פעמיים (מזומן)</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {studentForm.paymentType === 'per_lesson' && (
+                <div className="mt-3">
+                  <Label htmlFor="lessonPrice">מחיר לשיעור (₪)</Label>
+                  <Input
+                    id="lessonPrice"
+                    type="number"
+                    value={studentForm.lessonPrice}
+                    onChange={(e) => setStudentForm({...studentForm, lessonPrice: parseInt(e.target.value) || 0})}
+                    placeholder="150"
+                  />
+                </div>
+              )}
+            </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -507,6 +576,8 @@ const StudentsManagement = () => {
               </div>
             </div>
             
+            {/* Annual payment fields - only show for annual payment type */}
+            {studentForm.paymentType === 'annual' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="annualAmount">תשלום שנתי</Label>
@@ -527,7 +598,11 @@ const StudentsManagement = () => {
                 />
               </div>
             </div>
+            )}
 
+            {/* Calculator section - only show for annual payment type */}
+            {studentForm.paymentType === 'annual' && (
+            <>
             <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
               <Label htmlFor="calculatedFormula">מחשבון סכום יחסי (הקלד נוסחה המתחילה ב-=)</Label>
               <Input
@@ -572,6 +647,8 @@ const StudentsManagement = () => {
                 ₪{((studentForm.calculatedAmount || studentForm.annualAmount) / studentForm.paymentMonths).toFixed(1)}
               </div>
             </div>
+            </>
+            )}
             
             <div>
               <Label htmlFor="notes">הערות</Label>

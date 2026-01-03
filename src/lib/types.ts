@@ -21,6 +21,10 @@ export interface Student {
   notes?: string;
   credits?: number; // Store credits for purchasing items (default: 0)
   lastModified?: string; // Optimistic locking timestamp
+  // Per-lesson payment fields
+  paymentType?: 'annual' | 'per_lesson'; // Payment track (default: 'annual')
+  lessonPrice?: number; // Price per lesson (for per_lesson type)
+  paidLessonsCount?: number; // Number of lessons paid for (for per_lesson type)
 }
 
 export interface Lesson {

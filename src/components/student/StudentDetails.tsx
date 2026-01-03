@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { User, Phone, Mail, Calendar, CreditCard } from 'lucide-react';
+import { User, Phone, Mail, Calendar, CreditCard, Coins } from 'lucide-react';
 import { Student } from '@/lib/types';
-import { calculateLessonNumber, getPayments } from '@/lib/storage';
+import { calculateLessonNumber, getPayments, getCompletedLessonsCount } from '@/lib/storage';
 
 interface StudentDetailsProps {
   student: Student;
@@ -12,7 +12,15 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
   const currentDate = new Date().toISOString().split('T')[0];
   const currentLessonNumber = calculateLessonNumber(student.id, currentDate);
   
-  // Calculate payment status based on payments
+  const isPerLesson = student.paymentType === 'per_lesson';
+  
+  // For per-lesson students
+  const completedLessons = isPerLesson ? getCompletedLessonsCount(student.id) : 0;
+  const paidLessons = student.paidLessonsCount || 0;
+  const balanceLessons = completedLessons - paidLessons;
+  const balanceAmount = balanceLessons * (student.lessonPrice || 0);
+  
+  // For annual students - Calculate payment status based on payments
   const payments = getPayments().filter(p => p.studentId === student.id);
   const currentYear = new Date().getFullYear();
   const academicYearPayments = payments.filter(p => {
@@ -81,6 +89,12 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
         <CardTitle className="text-2xl flex items-center gap-2">
           <User className="h-6 w-6" />
           הפרטים שלי
+          {isPerLesson && (
+            <Badge variant="secondary" className="text-xs">
+              <Coins className="h-3 w-3 mr-1" />
+              שיעורים חד-פעמיים
+            </Badge>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -128,21 +142,63 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold mb-4">התקדמות בלימודים</h3>
             
-            <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-lg">
-              <CreditCard className="h-5 w-5 text-primary" />
-              <div className="flex-1">
-                <div className="font-medium">סטטוס תשלום</div>
-                <div className="mt-1 space-y-1">
-                  <Badge variant={paymentStatus.variant}>{paymentStatus.status}</Badge>
-                  <div className="text-sm text-muted-foreground">
-                    {paymentStatus.description}
+            {isPerLesson ? (
+              // Per-lesson payment display
+              <>
+                <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-lg">
+                  <Coins className="h-5 w-5 text-primary" />
+                  <div className="flex-1">
+                    <div className="font-medium">מעקב שיעורים</div>
+                    <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                      <div className="text-center p-2 bg-background rounded">
+                        <div className="text-2xl font-bold">{completedLessons}</div>
+                        <div className="text-xs text-muted-foreground">שיעורים שניתנו</div>
+                      </div>
+                      <div className="text-center p-2 bg-background rounded">
+                        <div className="text-2xl font-bold text-green-600">{paidLessons}</div>
+                        <div className="text-xs text-muted-foreground">שולם</div>
+                      </div>
+                      <div className="text-center p-2 bg-background rounded">
+                        <div className={`text-2xl font-bold ${balanceLessons > 0 ? 'text-destructive' : 'text-green-600'}`}>
+                          {balanceLessons > 0 ? balanceLessons : '✓'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">יתרה</div>
+                      </div>
+                    </div>
+                    {balanceLessons > 0 && (
+                      <div className="mt-2 text-sm text-destructive font-medium">
+                        סכום לתשלום: ₪{balanceAmount}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    אופן תשלום: {getPaymentMethodLabel(paymentMethod)}
+                </div>
+                
+                <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-lg">
+                  <CreditCard className="h-5 w-5 text-primary" />
+                  <div>
+                    <div className="font-medium">מחיר לשיעור</div>
+                    <div className="text-muted-foreground">₪{student.lessonPrice || 0}</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              // Annual payment display
+              <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-lg">
+                <CreditCard className="h-5 w-5 text-primary" />
+                <div className="flex-1">
+                  <div className="font-medium">סטטוס תשלום</div>
+                  <div className="mt-1 space-y-1">
+                    <Badge variant={paymentStatus.variant}>{paymentStatus.status}</Badge>
+                    <div className="text-sm text-muted-foreground">
+                      {paymentStatus.description}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      אופן תשלום: {getPaymentMethodLabel(paymentMethod)}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="flex items-center gap-3 p-3 bg-secondary/30 rounded-lg">
               <Calendar className="h-5 w-5 text-primary" />
@@ -160,6 +216,9 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
           <div className="text-sm text-muted-foreground space-y-1">
             <p>• כל שיעור נספר החל מתאריך ההתחלה שלך</p>
             <p>• ניתן לבקש החלפות שיעור דרך המערכת</p>
+            {isPerLesson && (
+              <p>• התשלום מתבצע לפי שיעורים שניתנו (במזומן)</p>
+            )}
           </div>
         </div>
       </CardContent>

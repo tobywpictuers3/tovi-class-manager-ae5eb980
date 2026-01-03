@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/safe-ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/safe-ui/dialog';
 import { Label } from '@/components/safe-ui/label';
-import { CreditCard, ChevronRight, ChevronLeft, Undo2, Download } from 'lucide-react';
-import { getStudents, getPayments, savePayments, updateStudent, getPerformances, getOneTimePayments, saveOneTimePayments, getTithePaid, saveTithePaid } from '@/lib/storage';
+import { CreditCard, ChevronRight, ChevronLeft, Undo2, Download, Coins, Plus } from 'lucide-react';
+import { getStudents, getPayments, savePayments, updateStudent, getPerformances, getOneTimePayments, saveOneTimePayments, getTithePaid, saveTithePaid, getCompletedLessonsCount, updatePaidLessonsCount } from '@/lib/storage';
 import { Payment, Student, OneTimePayment, Performance } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
+import { Badge } from '@/components/safe-ui/badge';
 import { format } from 'date-fns';
 
 const PaymentManagement = () => {
@@ -464,7 +465,13 @@ const PaymentManagement = () => {
     });
   };
 
-  const filteredStudents = students.filter(s => {
+  // Filter annual students (paymentType is 'annual' or undefined)
+  const annualStudents = students.filter(s => !s.paymentType || s.paymentType === 'annual');
+  
+  // Filter per-lesson students
+  const perLessonStudents = students.filter(s => s.paymentType === 'per_lesson');
+
+  const filteredStudents = annualStudents.filter(s => {
     // Payment method filtering
     if (filterMethod !== 'all') {
       const studentPaymentMethod = payments.find(p => p.studentId === s.id)?.paymentMethod;
@@ -481,6 +488,29 @@ const PaymentManagement = () => {
     }
     return true;
   });
+
+  // Per-lesson payment dialog state
+  const [showPerLessonPaymentDialog, setShowPerLessonPaymentDialog] = useState(false);
+  const [selectedPerLessonStudent, setSelectedPerLessonStudent] = useState<Student | null>(null);
+  const [perLessonPaymentCount, setPerLessonPaymentCount] = useState(1);
+
+  const handleRecordPerLessonPayment = () => {
+    if (!selectedPerLessonStudent) return;
+    
+    const currentPaid = selectedPerLessonStudent.paidLessonsCount || 0;
+    const newPaidCount = currentPaid + perLessonPaymentCount;
+    
+    updatePaidLessonsCount(selectedPerLessonStudent.id, newPaidCount);
+    loadData();
+    setShowPerLessonPaymentDialog(false);
+    setSelectedPerLessonStudent(null);
+    setPerLessonPaymentCount(1);
+    
+    toast({
+      title: 'הצלחה',
+      description: `נרשם תשלום עבור ${perLessonPaymentCount} שיעורים`
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -981,6 +1011,77 @@ const PaymentManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Per-Lesson Students Section */}
+      {perLessonStudents.length > 0 && (
+        <Card className="card-gradient card-shadow">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Coins className="h-5 w-5" />
+              שיעורים חד-פעמיים (מזומן)
+              <Badge variant="secondary" className="mr-2">{perLessonStudents.length} תלמידות</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-right">תלמידה</TableHead>
+                    <TableHead className="text-right">מחיר/שיעור</TableHead>
+                    <TableHead className="text-right">שיעורים שניתנו</TableHead>
+                    <TableHead className="text-right">שולם</TableHead>
+                    <TableHead className="text-right">יתרה</TableHead>
+                    <TableHead className="text-right">סכום לתשלום</TableHead>
+                    <TableHead className="text-right">פעולה</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {perLessonStudents.map(student => {
+                    const completedLessons = getCompletedLessonsCount(student.id);
+                    const paidLessons = student.paidLessonsCount || 0;
+                    const balanceLessons = completedLessons - paidLessons;
+                    const balanceAmount = balanceLessons * (student.lessonPrice || 0);
+                    
+                    return (
+                      <TableRow key={student.id}>
+                        <TableCell className="font-medium">
+                          {student.firstName} {student.lastName}
+                        </TableCell>
+                        <TableCell>₪{student.lessonPrice || 0}</TableCell>
+                        <TableCell>{completedLessons}</TableCell>
+                        <TableCell className="text-green-600 font-medium">{paidLessons}</TableCell>
+                        <TableCell className={balanceLessons > 0 ? 'text-destructive font-bold' : 'text-green-600'}>
+                          {balanceLessons > 0 ? balanceLessons : '✓'}
+                        </TableCell>
+                        <TableCell className={balanceAmount > 0 ? 'text-destructive font-bold' : ''}>
+                          {balanceAmount > 0 ? `₪${balanceAmount}` : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {balanceLessons > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedPerLessonStudent(student);
+                                setPerLessonPaymentCount(balanceLessons);
+                                setShowPerLessonPaymentDialog(true);
+                              }}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              רשום תשלום
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {/* דיאלוג תשלום חד פעמי */}
       <Dialog open={showOneTimeDialog} onOpenChange={setShowOneTimeDialog}>
@@ -1031,6 +1132,60 @@ const PaymentManagement = () => {
               <Button variant="outline" onClick={() => setShowOneTimeDialog(false)}>ביטול</Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Per-Lesson Payment Dialog */}
+      <Dialog open={showPerLessonPaymentDialog} onOpenChange={setShowPerLessonPaymentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>רישום תשלום - שיעורים חד-פעמיים</DialogTitle>
+          </DialogHeader>
+          {selectedPerLessonStudent && (
+            <div className="space-y-4">
+              <div className="p-4 bg-secondary/30 rounded-lg">
+                <p className="font-bold text-lg">{selectedPerLessonStudent.firstName} {selectedPerLessonStudent.lastName}</p>
+                <p className="text-sm text-muted-foreground">מחיר לשיעור: ₪{selectedPerLessonStudent.lessonPrice || 0}</p>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">שיעורים שניתנו:</span>
+                    <span className="font-bold mr-1">{getCompletedLessonsCount(selectedPerLessonStudent.id)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">שולם:</span>
+                    <span className="font-bold mr-1">{selectedPerLessonStudent.paidLessonsCount || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">יתרה:</span>
+                    <span className="font-bold text-destructive mr-1">
+                      {getCompletedLessonsCount(selectedPerLessonStudent.id) - (selectedPerLessonStudent.paidLessonsCount || 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="lesson-count">מספר שיעורים לרישום תשלום</Label>
+                <Input
+                  id="lesson-count"
+                  type="number"
+                  min={1}
+                  value={perLessonPaymentCount}
+                  onChange={(e) => setPerLessonPaymentCount(parseInt(e.target.value) || 1)}
+                />
+                <p className="text-sm text-muted-foreground">
+                  סה"כ: ₪{perLessonPaymentCount * (selectedPerLessonStudent.lessonPrice || 0)}
+                </p>
+              </div>
+              
+              <div className="flex gap-2">
+                <Button onClick={handleRecordPerLessonPayment} className="flex-1">
+                  רשום תשלום
+                </Button>
+                <Button variant="outline" onClick={() => setShowPerLessonPaymentDialog(false)}>ביטול</Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
