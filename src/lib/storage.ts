@@ -1540,3 +1540,16 @@ export const purchaseStoreItem = async (
   
   return { ok: true, copperSpent: priceCopper };
 };
+
+// ==================== PER-LESSON PAYMENT HELPERS ====================
+
+// Get count of completed lessons for a student
+export const getCompletedLessonsCount = (studentId: string): number => {
+  const lessons = getLessons();
+  return lessons.filter(l => l.studentId === studentId && l.status === 'completed').length;
+};
+
+// Update paid lessons count for a student
+export const updatePaidLessonsCount = (studentId: string, count: number): Student | undefined => {
+  return updateStudent(studentId, { paidLessonsCount: count });
+};
