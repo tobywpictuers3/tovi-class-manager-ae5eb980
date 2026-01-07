@@ -4,16 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { LogOut, Calendar, User, Phone, FileText } from 'lucide-react';
-import { getCurrentUser, setCurrentUser, getStudents, getLessons } from '@/lib/storage';
+import { getCurrentUser, setCurrentUser, getStudents } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
 import { Student, Lesson } from '@/lib/types';
 import { getAllLessonsIncludingTemplates } from '@/lib/lessonUtils';
 import { useAccessMode } from '@/contexts/AccessModeContext';
 import { clearClientCaches } from '@/lib/cacheManager';
+
 import GeneralWeeklySchedule from '@/components/student/GeneralWeeklySchedule';
-import SwapRequestForm from '@/components/student/SwapRequestForm';
-import SwapRequestsStatus from '@/components/student/SwapRequestsStatus';
-import EditableStudentDetails from '@/components/student/EditableStudentDetails';
 import ContactsList from '@/components/student/ContactsList';
 import StudentFiles from '@/components/student/StudentFiles';
 import PaymentAlert from '@/components/student/PaymentAlert';
@@ -23,7 +21,6 @@ import PracticeTracking from '@/components/student/PracticeTracking';
 import GmailStyleMessages from '@/components/student/GmailStyleMessages';
 import BroadcastMessageBanner from '@/components/student/BroadcastMessageBanner';
 import StarredMessagesBanner from '@/components/student/StarredMessagesBanner';
-import MessageAlert from '@/components/student/MessageAlert';
 import MedalCollection from '@/components/student/MedalCollection';
 import MedalStore from '@/components/student/MedalStore';
 import BackButton from '@/components/ui/back-button';
@@ -31,10 +28,18 @@ import { SaveButton } from '@/components/ui/save-button';
 import { UnreadMessagesBadge } from '@/components/ui/unread-messages-badge';
 import StudentSwapPanel, { StudentSwapPanelRef } from '@/components/student/lessonSwap/StudentSwapPanel';
 
+// ✅ המטרונום שלך כעמוד – נשתמש בו בתוך תת־טאב
+import Metronome from './Metronome';
+
 const StudentDashboard = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
+
   const [activeTab, setActiveTab] = useState('schedule');
+
+  // ✅ תת־טאבים בתוך "מעקב אימונים"
+  const [practiceSubTab, setPracticeSubTab] = useState<'tracking' | 'metronome'>('tracking');
+
   const [student, setStudent] = useState<Student | null>(null);
   const { isPublicMode, setAccessMode } = useAccessMode();
   const [swapPanelRef, setSwapPanelRef] = useState<StudentSwapPanelRef | null>(null);
@@ -62,7 +67,7 @@ const StudentDashboard = () => {
   useEffect(() => {
     const user = getCurrentUser();
     const devMode = sessionStorage.getItem('musicSystem_devMode') === 'true';
-    
+
     // Public mode - show empty view
     if (studentId === 'public') {
       if (!user || user.type !== 'public_view') {
@@ -92,18 +97,18 @@ const StudentDashboard = () => {
       });
       return;
     }
-    
+
     // Developer mode - allow access to mock students
     if (devMode && user && user.type === 'student') {
       const students = getStudents();
-      const currentStudent = students.find(s => s.id === studentId);
+      const currentStudent = students.find((s) => s.id === studentId);
       if (currentStudent) {
         setAccessMode('private');
         setStudent(currentStudent);
         return;
       }
     }
-    
+
     // Private mode - regular student
     if (!user || user.type !== 'student' || user.studentId !== studentId) {
       navigate('/');
@@ -116,7 +121,7 @@ const StudentDashboard = () => {
     }
 
     const students = getStudents();
-    const currentStudent = students.find(s => s.id === studentId);
+    const currentStudent = students.find((s) => s.id === studentId);
     if (currentStudent) {
       setAccessMode('private');
       setStudent(currentStudent);
@@ -147,9 +152,11 @@ const StudentDashboard = () => {
   };
 
   if (!student) {
-    return <div className="min-h-screen musical-gradient flex items-center justify-center">
-      <div className="text-primary text-xl">טוען...</div>
-    </div>;
+    return (
+      <div className="min-h-screen musical-gradient flex items-center justify-center">
+        <div className="text-primary text-xl">טוען...</div>
+      </div>
+    );
   }
 
   const allStudents = getStudents();
@@ -181,11 +188,7 @@ const StudentDashboard = () => {
                   <User className="h-6 w-6 md:h-8 md:w-8" />
                   {isPublicMode ? 'מצב תצוגה כללית' : `אזור אישי - ${student.firstName} ${student.lastName}`}
                 </CardTitle>
-                <Button 
-                  onClick={handleLogout}
-                  variant="outline"
-                  className="flex items-center gap-2 text-card-foreground"
-                >
+                <Button onClick={handleLogout} variant="outline" className="flex items-center gap-2 text-card-foreground">
                   <LogOut className="h-4 w-4" />
                   התנתק
                 </Button>
@@ -196,7 +199,6 @@ const StudentDashboard = () => {
       </div>
 
       <div className="container mx-auto p-4 space-y-6 pt-2">
-
         {/* Starred Messages Banner - Above everything */}
         {!isPublicMode && <StarredMessagesBanner studentId={studentId!} />}
 
@@ -207,40 +209,56 @@ const StudentDashboard = () => {
         {!isPublicMode && <PaymentAlert studentId={studentId!} />}
 
         {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => {
+            setActiveTab(v);
+            // נוח: כשנכנסים למעקב אימונים, להתחיל בתת־טאב "מעקב"
+            if (v === 'practice') setPracticeSubTab('tracking');
+          }}
+          className="space-y-6"
+        >
           <TabsList className="grid w-full grid-cols-8 bg-secondary/20 backdrop-blur">
             <TabsTrigger value="schedule" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary">
               <Calendar className="h-4 w-4" />
               מערכת שבועית
             </TabsTrigger>
+
             <TabsTrigger value="practice" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary">
               <Calendar className="h-4 w-4" />
               מעקב אימונים
             </TabsTrigger>
+
             <TabsTrigger value="medals" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary">
               <Calendar className="h-4 w-4" />
               🏆 המדליות שלי
             </TabsTrigger>
+
             <TabsTrigger value="store" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary">
               <Calendar className="h-4 w-4" />
               🛒 חנות
             </TabsTrigger>
+
             <TabsTrigger value="history" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary" disabled={isPublicMode}>
               <Calendar className="h-4 w-4" />
               היסטוריית שיעורים
             </TabsTrigger>
+
             <TabsTrigger value="messages" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary" disabled={isPublicMode}>
               <Calendar className="h-4 w-4" />
               תקשורת
             </TabsTrigger>
+
             <TabsTrigger value="details" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary" disabled={isPublicMode}>
               <User className="h-4 w-4" />
               הפרטים שלי
             </TabsTrigger>
+
             <TabsTrigger value="contacts" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary" disabled={isPublicMode}>
               <Phone className="h-4 w-4" />
               פרטי קשר
             </TabsTrigger>
+
             <TabsTrigger value="files" className="flex items-center gap-2 text-card-foreground data-[state=active]:text-primary" disabled={isPublicMode}>
               <FileText className="h-4 w-4" />
               קבצים אישיים
@@ -259,7 +277,7 @@ const StudentDashboard = () => {
               </Card>
             ) : (
               <>
-                <GeneralWeeklySchedule 
+                <GeneralWeeklySchedule
                   studentId={student.id}
                   lessons={lessons}
                   onLessonDoubleClick={handleLessonDoubleClick}
@@ -267,8 +285,8 @@ const StudentDashboard = () => {
                   currentSwapStep={currentSwapStep}
                 />
                 {student && (
-                  <StudentSwapPanel 
-                    student={student} 
+                  <StudentSwapPanel
+                    student={student}
                     lessons={lessons}
                     students={allStudents}
                     onMount={(ref) => setSwapPanelRef(ref)}
@@ -280,8 +298,37 @@ const StudentDashboard = () => {
             )}
           </TabsContent>
 
+          {/* ✅ כאן הוספנו תת־טאבים: מעקב / מטרונום */}
           <TabsContent value="practice" className="space-y-6">
-            <PracticeTracking studentId={studentId!} />
+            <Card className="card-gradient card-shadow">
+              <CardHeader className="py-3">
+                <CardTitle className="text-xl md:text-2xl flex items-center gap-3 text-primary crown-glow">
+                  <Calendar className="h-5 w-5 md:h-6 md:w-6" />
+                  מעקב אימונים
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-2">
+                <Tabs value={practiceSubTab} onValueChange={(v) => setPracticeSubTab(v as any)} className="space-y-4">
+                  <TabsList className="grid w-full grid-cols-2 bg-secondary/20 backdrop-blur">
+                    <TabsTrigger value="tracking" className="text-card-foreground data-[state=active]:text-primary">
+                      מעקב
+                    </TabsTrigger>
+                    <TabsTrigger value="metronome" className="text-card-foreground data-[state=active]:text-primary">
+                      מטרונום
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="tracking" className="space-y-6">
+                    <PracticeTracking studentId={studentId!} />
+                  </TabsContent>
+
+                  <TabsContent value="metronome" className="space-y-6">
+                    {/* זה מציג את העמוד Metronome בתוך הטאב */}
+                    <Metronome />
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="medals" className="space-y-6">
@@ -297,19 +344,19 @@ const StudentDashboard = () => {
           </TabsContent>
 
           <TabsContent value="messages" className="space-y-6">
-            <GmailStyleMessages 
-              studentId={studentId!} 
-              studentName={`${student?.firstName || ''} ${student?.lastName || ''}`}
-            />
+            <GmailStyleMessages studentId={studentId!} studentName={`${student?.firstName || ''} ${student?.lastName || ''}`} />
           </TabsContent>
 
           <TabsContent value="details" className="space-y-6">
             <PaymentSummary studentId={studentId!} />
-            <EditableStudentDetails student={student} onUpdate={() => {
-              const students = getStudents();
-              const updatedStudent = students.find(s => s.id === studentId);
-              if (updatedStudent) setStudent(updatedStudent);
-            }} />
+            <EditableStudentDetails
+              student={student}
+              onUpdate={() => {
+                const students = getStudents();
+                const updatedStudent = students.find((s) => s.id === studentId);
+                if (updatedStudent) setStudent(updatedStudent);
+              }}
+            />
           </TabsContent>
 
           <TabsContent value="contacts" className="space-y-6">
