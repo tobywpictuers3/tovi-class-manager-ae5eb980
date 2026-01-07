@@ -158,7 +158,7 @@ const StudentDashboard = () => {
           </TabsTrigger>
 
           <TabsTrigger value="practice">מעקב אימונים</TabsTrigger>
-          <TabsTrigger value="metronome">מטרונום</TabsTrigger>
+          <TabsTrigger value="metronome">מטרונום טיונר</TabsTrigger>
 
           <TabsTrigger value="medals">המדליות שלי</TabsTrigger>
           <TabsTrigger value="store">חנות</TabsTrigger>
