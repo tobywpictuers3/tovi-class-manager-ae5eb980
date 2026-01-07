@@ -14,6 +14,7 @@ import StudentDashboard from "./pages/StudentDashboard";
 import StudentsSystem from "./pages/StudentsSystem";
 import StudentsViewSystem from "./pages/StudentsViewSystem";
 import NotFound from "./pages/NotFound";
+import Metronome from "./pages/Metronome";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const AppContent = () => {
           <Route path="/student/:studentId" element={<StudentDashboard />} />
           <Route path="/students-system" element={<StudentsSystem />} />
           <Route path="/students-view" element={<StudentsViewSystem />} />
+          <Route path="/metronome" element={<Metronome />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
