@@ -2,7 +2,8 @@
 import { Toaster } from "@/components/safe-ui/toaster";
 import { Toaster as Sonner } from "@/components/safe-ui/sonner";
 import { TooltipProvider } from "@/components/safe-ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/query-core";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AccessModeProvider } from "@/contexts/AccessModeContext";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
