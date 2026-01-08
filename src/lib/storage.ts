@@ -1,92 +1,134 @@
-import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleItem, StoreItem, StorePurchase, YearlyLeaderboardEntry, Message, PracticeSession, MonthlyAchievement, LeaderboardEntry, MedalPurchase } from './types';
+import { Student, Lesson, Payment, SwapRequest, FileEntry, ScheduleItem, Message, PracticeSession, MonthlyAchievement, LeaderboardEntry, MedalPurchase, StoreItem, StorePurchase, YearlyLeaderboardEntry } from './types';
 import { hybridSync } from './hybridSync';
 import { logger } from './logger';
 import { isDevMode, setDevMode } from './devMode';
 import { calculateEarnedCopper, formatPriceCompact } from './storeCurrency';
 
-// In-memory storage for production mode
-const inMemoryStorage: Record<string, any[]> = {};
+// Re-export dev helpers for modules that import them from storage.ts
+export { isDevMode, setDevMode };
 
-// Simple ID generator
+// In-Memory Storage - No localStorage for sensitive data
+const inMemoryStorage: Record<string, any> = {};
+
+// Expose storage via window for lessonSwap module access
+if (typeof window !== 'undefined') {
+  (window as any).__musicSystemStorage = inMemoryStorage;
+}
+
+// Dev Mode: Completely isolated in-memory storage (no Worker, no sync)
+const devData: Record<string, any> = {
+  musicSystemData: {},
+  students: [],
+  lessons: [],
+  payments: [],
+  swapRequests: [],
+  files: [],
+  scheduleItems: [],
+  messages: [],
+  practiceSessions: [],
+  monthlyAchievements: [],
+  medalPurchases: [],
+  storeItems: [],
+  storePurchases: [],
+};
+
+// Utils
 const generateId = (): string => Math.random().toString(36).substr(2, 9);
 
-// Dev mode data storage
-const devData: Record<string, any[]> = {};
+const getNow = (): string => new Date().toISOString();
 
-// Set initial data from worker
-export const initializeStorage = (data: Record<string, any[]>) => {
-  Object.keys(data).forEach(key => {
-    inMemoryStorage[key] = data[key] || [];
-  });
+const clone = <T>(data: T): T => JSON.parse(JSON.stringify(data));
 
-  logger.info('[Storage] Initialized with:', Object.keys(data).map(k => `${k}: ${data[k]?.length || 0}`).join(', '));
+export const getAllDataKeys = (): string[] => {
+  return [
+    'students',
+    'lessons',
+    'payments',
+    'swapRequests',
+    'files',
+    'scheduleItems',
+    'messages',
+    'practiceSessions',
+    'monthlyAchievements',
+    'medalPurchases',
+    'storeItems',
+    'storePurchases',
+  ];
 };
 
-// Generic getter
-const getData = <T>(key: string): T[] => {
-  if (isDevMode()) return devData[key] || [];
-  return inMemoryStorage[key] || [];
-};
-
-// Generic setter
-const setData = <T>(key: string, data: T[], shouldSync: boolean = true): void => {
+// === IMPORTANT: hybridSync expects these exports ===
+export const exportAllData = (): Record<string, any> => {
   if (isDevMode()) {
-    devData[key] = data;
-  } else {
-    inMemoryStorage[key] = data;
-    if (shouldSync) hybridSync.onDataChange();
+    const out: Record<string, any> = {};
+    getAllDataKeys().forEach(k => out[k] = clone(devData[k] ?? []));
+    out.musicSystemData = clone(devData.musicSystemData ?? {});
+    return out;
   }
-};
 
-// ==================== EXPORT / IMPORT ALL (hybridSync depends on this) ====================
-
-export const exportAllData = (): Record<string, any[]> => {
-  const keys = Object.keys(inMemoryStorage);
-  const out: Record<string, any[]> = {};
-  keys.forEach(k => {
-    out[k] = inMemoryStorage[k] || [];
-  });
+  const out: Record<string, any> = {};
+  getAllDataKeys().forEach(k => out[k] = clone(inMemoryStorage[k] ?? []));
+  out.musicSystemData = clone(inMemoryStorage.musicSystemData ?? {});
   return out;
 };
 
-export const setAllData = (data: Record<string, any[]>): void => {
-  Object.keys(data).forEach(key => {
-    inMemoryStorage[key] = data[key] || [];
-  });
+export const importAllData = (data: Record<string, any>, allowEmpty = false): void => {
+  if (!data) return;
+
+  if (!allowEmpty) {
+    const hasStudents = Array.isArray(data.students) && data.students.length > 0;
+    if (!hasStudents) return;
+  }
+
+  if (isDevMode()) {
+    devData.musicSystemData = clone(data.musicSystemData ?? {});
+    getAllDataKeys().forEach(k => devData[k] = clone(data[k] ?? []));
+    return;
+  }
+
+  inMemoryStorage.musicSystemData = clone(data.musicSystemData ?? {});
+  getAllDataKeys().forEach(k => inMemoryStorage[k] = clone(data[k] ?? []));
 };
 
-// ==================== DEV HELPERS ====================
-
-export const setDevData = (data: Record<string, any[]>): void => {
-  Object.keys(data).forEach(key => {
-    devData[key] = data[key] || [];
-  });
+// Messages (local)
+export const getLocalMessages = (): any[] => {
+  if (isDevMode()) {
+    return devData.messages || [];
+  }
+  return inMemoryStorage['messages'] || [];
 };
 
-export const getDevData = (): Record<string, any[]> => {
-  return devData;
-};
-
-export const clearAllData = async (): Promise<void> => {
-  Object.keys(inMemoryStorage).forEach(key => {
-    inMemoryStorage[key] = [];
-  });
-  if (!isDevMode()) {
-    await hybridSync.onDestructiveChange();
+export const saveLocalMessages = (messages: any[]): void => {
+  if (isDevMode()) {
+    devData.messages = messages;
+  } else {
+    inMemoryStorage['messages'] = messages;
+    hybridSync.onDataChange();
   }
 };
 
-// ==================== STUDENTS ====================
+// Initialize data from Worker
+export const initializeStorage = (data: Record<string, any>): void => {
+  if (!data) return;
 
-export const getStudents = (): Student[] => getData<Student>('students');
+  if (isDevMode()) {
+    // In dev mode we don't initialize from worker
+    logger.info('[Storage] Dev mode enabled, skipping worker initialization.');
+    return;
+  }
 
-export const getStudent = (id: string): Student | undefined => {
-  return getStudents().find(s => s.id === id);
+  importAllData(data, true);
+  logger.info('[Storage] Initialized from worker', Object.keys(data));
+};
+
+// ===================== STUDENTS =====================
+export const getStudents = (): Student[] => {
+  if (isDevMode()) return devData.students || [];
+  return inMemoryStorage['students'] || [];
 };
 
 export const addStudent = (student: Omit<Student, 'id' | 'createdAt'>): Student => {
   const students = getStudents();
-  const now = new Date().toISOString();
+  const now = getNow();
   const newStudent: Student = {
     ...student,
     id: generateId(),
@@ -96,7 +138,7 @@ export const addStudent = (student: Omit<Student, 'id' | 'createdAt'>): Student 
   students.push(newStudent);
 
   if (isDevMode()) {
-    devData['students'] = students;
+    devData.students = students;
   } else {
     inMemoryStorage['students'] = students;
     hybridSync.onDataChange();
@@ -112,11 +154,11 @@ export const updateStudent = (id: string, updatedFields: Partial<Student>): Stud
   students[index] = {
     ...students[index],
     ...updatedFields,
-    lastModified: new Date().toISOString()
+    lastModified: getNow(),
   };
 
   if (isDevMode()) {
-    devData['students'] = students;
+    devData.students = students;
   } else {
     inMemoryStorage['students'] = students;
     hybridSync.onDataChange();
@@ -126,29 +168,27 @@ export const updateStudent = (id: string, updatedFields: Partial<Student>): Stud
 
 export const deleteStudent = async (id: string): Promise<boolean> => {
   const students = getStudents();
-  const updatedStudents = students.filter(s => s.id !== id);
-  if (updatedStudents.length === students.length) return false;
+  const updated = students.filter(s => s.id !== id);
+  if (updated.length === students.length) return false;
 
   if (isDevMode()) {
-    devData['students'] = updatedStudents;
+    devData.students = updated;
   } else {
-    inMemoryStorage['students'] = updatedStudents;
+    inMemoryStorage['students'] = updated;
     await hybridSync.onDestructiveChange();
   }
   return true;
 };
 
-// ==================== LESSONS ====================
-
-export const getLessons = (): Lesson[] => getData<Lesson>('lessons');
-
-export const getLesson = (id: string): Lesson | undefined => {
-  return getLessons().find(l => l.id === id);
+// ===================== LESSONS =====================
+export const getLessons = (): Lesson[] => {
+  if (isDevMode()) return devData.lessons || [];
+  return inMemoryStorage['lessons'] || [];
 };
 
 export const addLesson = (lesson: Omit<Lesson, 'id' | 'createdAt'>): Lesson => {
   const lessons = getLessons();
-  const now = new Date().toISOString();
+  const now = getNow();
   const newLesson: Lesson = {
     ...lesson,
     id: generateId(),
@@ -158,7 +198,7 @@ export const addLesson = (lesson: Omit<Lesson, 'id' | 'createdAt'>): Lesson => {
   lessons.push(newLesson);
 
   if (isDevMode()) {
-    devData['lessons'] = lessons;
+    devData.lessons = lessons;
   } else {
     inMemoryStorage['lessons'] = lessons;
     hybridSync.onDataChange();
@@ -174,11 +214,11 @@ export const updateLesson = (id: string, updatedFields: Partial<Lesson>): Lesson
   lessons[index] = {
     ...lessons[index],
     ...updatedFields,
-    lastModified: new Date().toISOString()
+    lastModified: getNow(),
   };
 
   if (isDevMode()) {
-    devData['lessons'] = lessons;
+    devData.lessons = lessons;
   } else {
     inMemoryStorage['lessons'] = lessons;
     hybridSync.onDataChange();
@@ -188,29 +228,27 @@ export const updateLesson = (id: string, updatedFields: Partial<Lesson>): Lesson
 
 export const deleteLesson = async (id: string): Promise<boolean> => {
   const lessons = getLessons();
-  const updatedLessons = lessons.filter(l => l.id !== id);
-  if (updatedLessons.length === lessons.length) return false;
+  const updated = lessons.filter(l => l.id !== id);
+  if (updated.length === lessons.length) return false;
 
   if (isDevMode()) {
-    devData['lessons'] = updatedLessons;
+    devData.lessons = updated;
   } else {
-    inMemoryStorage['lessons'] = updatedLessons;
+    inMemoryStorage['lessons'] = updated;
     await hybridSync.onDestructiveChange();
   }
   return true;
 };
 
-// ==================== PAYMENTS ====================
-
-export const getPayments = (): Payment[] => getData<Payment>('payments');
-
-export const getStudentPayments = (studentId: string): Payment[] => {
-  return getPayments().filter(p => p.studentId === studentId);
+// ===================== PAYMENTS =====================
+export const getPayments = (): Payment[] => {
+  if (isDevMode()) return devData.payments || [];
+  return inMemoryStorage['payments'] || [];
 };
 
 export const addPayment = (payment: Omit<Payment, 'id' | 'createdAt'>): Payment => {
   const payments = getPayments();
-  const now = new Date().toISOString();
+  const now = getNow();
   const newPayment: Payment = {
     ...payment,
     id: generateId(),
@@ -220,7 +258,7 @@ export const addPayment = (payment: Omit<Payment, 'id' | 'createdAt'>): Payment 
   payments.push(newPayment);
 
   if (isDevMode()) {
-    devData['payments'] = payments;
+    devData.payments = payments;
   } else {
     inMemoryStorage['payments'] = payments;
     hybridSync.onDataChange();
@@ -236,11 +274,11 @@ export const updatePayment = (id: string, updatedFields: Partial<Payment>): Paym
   payments[index] = {
     ...payments[index],
     ...updatedFields,
-    lastModified: new Date().toISOString()
+    lastModified: getNow(),
   };
 
   if (isDevMode()) {
-    devData['payments'] = payments;
+    devData.payments = payments;
   } else {
     inMemoryStorage['payments'] = payments;
     hybridSync.onDataChange();
@@ -250,29 +288,27 @@ export const updatePayment = (id: string, updatedFields: Partial<Payment>): Paym
 
 export const deletePayment = async (id: string): Promise<boolean> => {
   const payments = getPayments();
-  const updatedPayments = payments.filter(p => p.id !== id);
-  if (updatedPayments.length === payments.length) return false;
+  const updated = payments.filter(p => p.id !== id);
+  if (updated.length === payments.length) return false;
 
   if (isDevMode()) {
-    devData['payments'] = updatedPayments;
+    devData.payments = updated;
   } else {
-    inMemoryStorage['payments'] = updatedPayments;
+    inMemoryStorage['payments'] = updated;
     await hybridSync.onDestructiveChange();
   }
   return true;
 };
 
-// ==================== SWAP REQUESTS ====================
-
-export const getSwapRequests = (): SwapRequest[] => getData<SwapRequest>('swapRequests');
-
-export const getStudentSwapRequests = (studentId: string): SwapRequest[] => {
-  return getSwapRequests().filter(r => r.studentId === studentId);
+// ===================== SWAP REQUESTS =====================
+export const getSwapRequests = (): SwapRequest[] => {
+  if (isDevMode()) return devData.swapRequests || [];
+  return inMemoryStorage['swapRequests'] || [];
 };
 
 export const addSwapRequest = (request: Omit<SwapRequest, 'id' | 'createdAt'>): SwapRequest => {
   const requests = getSwapRequests();
-  const now = new Date().toISOString();
+  const now = getNow();
   const newRequest: SwapRequest = {
     ...request,
     id: generateId(),
@@ -282,7 +318,7 @@ export const addSwapRequest = (request: Omit<SwapRequest, 'id' | 'createdAt'>): 
   requests.push(newRequest);
 
   if (isDevMode()) {
-    devData['swapRequests'] = requests;
+    devData.swapRequests = requests;
   } else {
     inMemoryStorage['swapRequests'] = requests;
     hybridSync.onDataChange();
@@ -298,11 +334,11 @@ export const updateSwapRequest = (id: string, updatedFields: Partial<SwapRequest
   requests[index] = {
     ...requests[index],
     ...updatedFields,
-    lastModified: new Date().toISOString()
+    lastModified: getNow(),
   };
 
   if (isDevMode()) {
-    devData['swapRequests'] = requests;
+    devData.swapRequests = requests;
   } else {
     inMemoryStorage['swapRequests'] = requests;
     hybridSync.onDataChange();
@@ -312,25 +348,27 @@ export const updateSwapRequest = (id: string, updatedFields: Partial<SwapRequest
 
 export const deleteSwapRequest = async (id: string): Promise<boolean> => {
   const requests = getSwapRequests();
-  const updatedRequests = requests.filter(r => r.id !== id);
-  if (updatedRequests.length === requests.length) return false;
+  const updated = requests.filter(r => r.id !== id);
+  if (updated.length === requests.length) return false;
 
   if (isDevMode()) {
-    devData['swapRequests'] = updatedRequests;
+    devData.swapRequests = updated;
   } else {
-    inMemoryStorage['swapRequests'] = updatedRequests;
+    inMemoryStorage['swapRequests'] = updated;
     await hybridSync.onDestructiveChange();
   }
   return true;
 };
 
-// ==================== FILES ====================
-
-export const getFiles = (): FileEntry[] => getData<FileEntry>('files');
+// ===================== FILES =====================
+export const getFiles = (): FileEntry[] => {
+  if (isDevMode()) return devData.files || [];
+  return inMemoryStorage['files'] || [];
+};
 
 export const addFile = (file: Omit<FileEntry, 'id' | 'uploadedAt'>): FileEntry => {
   const files = getFiles();
-  const now = new Date().toISOString();
+  const now = getNow();
   const newFile: FileEntry = {
     ...file,
     id: generateId(),
@@ -340,7 +378,7 @@ export const addFile = (file: Omit<FileEntry, 'id' | 'uploadedAt'>): FileEntry =
   files.push(newFile);
 
   if (isDevMode()) {
-    devData['files'] = files;
+    devData.files = files;
   } else {
     inMemoryStorage['files'] = files;
     hybridSync.onDataChange();
@@ -350,152 +388,62 @@ export const addFile = (file: Omit<FileEntry, 'id' | 'uploadedAt'>): FileEntry =
 
 export const deleteFile = async (id: string): Promise<boolean> => {
   const files = getFiles();
-  const updatedFiles = files.filter(f => f.id !== id);
-  if (updatedFiles.length === files.length) return false;
+  const updated = files.filter(f => f.id !== id);
+  if (updated.length === files.length) return false;
 
   if (isDevMode()) {
-    devData['files'] = updatedFiles;
+    devData.files = updated;
   } else {
-    inMemoryStorage['files'] = updatedFiles;
+    inMemoryStorage['files'] = updated;
     await hybridSync.onDestructiveChange();
   }
   return true;
 };
 
-// ==================== MESSAGES ====================
-
-export const getMessages = (): Message[] => getData<Message>('messages');
-
-export const addMessage = (message: Omit<Message, 'id' | 'sentAt'>): Message => {
-  const messages = getMessages();
-  const now = new Date().toISOString();
-  const newMessage: Message = {
-    ...message,
-    id: generateId(),
-    sentAt: now,
-    lastModified: now,
-  };
-  messages.push(newMessage);
-
-  if (isDevMode()) {
-    devData['messages'] = messages;
-  } else {
-    inMemoryStorage['messages'] = messages;
-    hybridSync.onDataChange();
-  }
-  return newMessage;
+// ===================== SCHEDULE ITEMS =====================
+export const getScheduleItems = (): ScheduleItem[] => {
+  if (isDevMode()) return devData.scheduleItems || [];
+  return inMemoryStorage['scheduleItems'] || [];
 };
 
-// ==================== PRACTICE SESSIONS ====================
+export const saveScheduleItems = (items: ScheduleItem[]): void => {
+  if (isDevMode()) {
+    devData.scheduleItems = items;
+  } else {
+    inMemoryStorage['scheduleItems'] = items;
+    hybridSync.onDataChange();
+  }
+};
 
+// ===================== PRACTICE SESSIONS =====================
 export const getPracticeSessions = (): PracticeSession[] => {
-  if (isDevMode()) return devData['practiceSessions'] || [];
+  if (isDevMode()) return devData.practiceSessions || [];
   return inMemoryStorage['practiceSessions'] || [];
 };
 
 export const getStudentPracticeSessions = (studentId: string): PracticeSession[] => {
   const sessions = getPracticeSessions();
-  return sessions.filter(s => s.studentId === studentId);
-};
-
-// ===================== DERIVED MONTHLY ACHIEVEMENTS (RECALCULATED) =====================
-
-/**
- * Recalculate a student's monthly achievements from practice sessions (source of truth).
- * This fixes the "max only" bug where a mistaken high value could never go down after edits/deletes.
- */
-const recalcMonthlyAchievementFromSessions = (
-  studentId: string,
-  month: string, // YYYY-MM
-  shouldSync: boolean = false
-): void => {
-  const sessions = getPracticeSessions().filter(
-    (s) => s.studentId === studentId && s.date.startsWith(month)
-  );
-
-  const dailyTotals: Record<string, number> = {};
-  for (const s of sessions) {
-    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (s.durationMinutes || 0);
-  }
-
-  const maxDailyMinutes =
-    Object.keys(dailyTotals).length > 0 ? Math.max(...Object.values(dailyTotals)) : 0;
-
-  const totalMinutes = sessions.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
-  const practicedDays = Object.keys(dailyTotals).length;
-  const dailyAverage = practicedDays > 0 ? totalMinutes / practicedDays : 0;
-
-  const practicedDates = Object.keys(dailyTotals)
-    .filter((d) => dailyTotals[d] >= 1)
-    .sort();
-
-  let maxStreak = 0;
-  let currentStreak = 0;
-  let prevDate: Date | null = null;
-
-  for (const d of practicedDates) {
-    const cur = new Date(d);
-    if (!prevDate) {
-      currentStreak = 1;
-    } else {
-      const diffDays = Math.round((cur.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
-      currentStreak = diffDays === 1 ? currentStreak + 1 : 1;
-    }
-    maxStreak = Math.max(maxStreak, currentStreak);
-    prevDate = cur;
-  }
-
-  const achievements: MonthlyAchievement[] = isDevMode()
-    ? (devData['monthlyAchievements'] || [])
-    : (inMemoryStorage['monthlyAchievements'] || []);
-
-  const index = achievements.findIndex((a) => a.studentId === studentId && a.month === month);
-  const now = new Date().toISOString();
-
-  const next: MonthlyAchievement = {
-    id: index !== -1 ? achievements[index].id : generateId(),
-    studentId,
-    month,
-    maxDailyAverage: dailyAverage,
-    maxDailyMinutes: maxDailyMinutes,
-    maxStreak: maxStreak,
-    createdAt: index !== -1 ? achievements[index].createdAt : now,
-    updatedAt: now,
-    lastModified: now,
-  };
-
-  if (index !== -1) {
-    achievements[index] = next;
-  } else {
-    achievements.push(next);
-  }
-
-  if (isDevMode()) {
-    devData['monthlyAchievements'] = achievements;
-  } else {
-    inMemoryStorage['monthlyAchievements'] = achievements;
-    if (shouldSync) {
-      hybridSync.onDataChange();
-    }
-  }
+  return sessions
+    .filter(s => s.studentId === studentId)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
 export const addPracticeSession = (session: Omit<PracticeSession, 'id' | 'createdAt'>): PracticeSession => {
   const sessions = getPracticeSessions();
-  const now = new Date().toISOString();
+  const now = getNow();
   const newSession: PracticeSession = {
     ...session,
     id: generateId(),
     createdAt: now,
-    lastModified: now,
+    lastModified: now, // optimistic locking
   };
   sessions.push(newSession);
 
-  // derived monthly achievements (can go up or down)
+  // Keep MonthlyAchievements derived from sessions (can go up or down)
   recalcMonthlyAchievementFromSessions(newSession.studentId, newSession.date.slice(0, 7), false);
 
   if (isDevMode()) {
-    devData['practiceSessions'] = sessions;
+    devData.practiceSessions = sessions;
   } else {
     inMemoryStorage['practiceSessions'] = sessions;
     hybridSync.onDataChange();
@@ -514,20 +462,20 @@ export const updatePracticeSession = (id: string, updatedFields: Partial<Practic
   sessions[index] = {
     ...sessions[index],
     ...updatedFields,
-    lastModified: new Date().toISOString()
+    lastModified: getNow(),
   };
 
   const after = sessions[index];
   const afterMonth = after.date.slice(0, 7);
 
-  // recalc affected month(s)
+  // Recalc affected month(s) so achievements can decrease after edits
   recalcMonthlyAchievementFromSessions(after.studentId, afterMonth, false);
   if (beforeMonth !== afterMonth) {
     recalcMonthlyAchievementFromSessions(before.studentId, beforeMonth, false);
   }
 
   if (isDevMode()) {
-    devData['practiceSessions'] = sessions;
+    devData.practiceSessions = sessions;
   } else {
     inMemoryStorage['practiceSessions'] = sessions;
     hybridSync.onDataChange();
@@ -539,10 +487,13 @@ export const deletePracticeSession = async (id: string): Promise<boolean> => {
   const sessions = getPracticeSessions();
   const sessionToDelete = sessions.find(s => s.id === id);
   const updatedSessions = sessions.filter(s => s.id !== id);
-  if (updatedSessions.length === sessions.length) return false;
+
+  if (updatedSessions.length === sessions.length) {
+    return false;
+  }
 
   if (isDevMode()) {
-    devData['practiceSessions'] = updatedSessions;
+    devData.practiceSessions = updatedSessions;
     if (sessionToDelete) {
       recalcMonthlyAchievementFromSessions(sessionToDelete.studentId, sessionToDelete.date.slice(0, 7), false);
     }
@@ -551,16 +502,93 @@ export const deletePracticeSession = async (id: string): Promise<boolean> => {
     if (sessionToDelete) {
       recalcMonthlyAchievementFromSessions(sessionToDelete.studentId, sessionToDelete.date.slice(0, 7), false);
     }
+    // Destructive change so merge won't "restore" deleted sessions
     await hybridSync.onDestructiveChange();
   }
 
   return true;
 };
 
-// ==================== MONTHLY ACHIEVEMENTS ====================
+// ===================== DERIVED MONTHLY ACHIEVEMENTS (RECALCULATED) =====================
+/**
+ * Recalculate a student's monthly achievements from practice sessions (source of truth).
+ * Fixes the "max-only" bug where a mistaken high value could never go down after edits/deletes.
+ *
+ * By default this mutates storage only. Pass shouldSync=true if you want to sync immediately.
+ */
+const recalcMonthlyAchievementFromSessions = (
+  studentId: string,
+  month: string, // YYYY-MM
+  shouldSync: boolean = false
+): void => {
+  const sessions = getPracticeSessions()
+    .filter(s => s.studentId === studentId && s.date.startsWith(month));
 
+  // Daily totals (sum sessions per day)
+  const dailyTotals: Record<string, number> = {};
+  for (const s of sessions) {
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (s.durationMinutes || 0);
+  }
+
+  const maxDailyMinutes =
+    Object.keys(dailyTotals).length > 0 ? Math.max(...Object.values(dailyTotals)) : 0;
+
+  // Daily average across practiced days
+  const totalMinutes = sessions.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
+  const practicedDays = Object.keys(dailyTotals).length;
+  const dailyAverage = practicedDays > 0 ? totalMinutes / practicedDays : 0;
+
+  // Longest streak within the month (consecutive practiced dates)
+  const practicedDates = Object.keys(dailyTotals)
+    .filter(d => dailyTotals[d] >= 1)
+    .sort();
+
+  let maxStreak = 0;
+  let currentStreak = 0;
+  let prevDate: Date | null = null;
+
+  for (const d of practicedDates) {
+    const cur = new Date(d);
+    if (!prevDate) {
+      currentStreak = 1;
+    } else {
+      const diffDays = Math.round((cur.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+      currentStreak = diffDays === 1 ? currentStreak + 1 : 1;
+    }
+    maxStreak = Math.max(maxStreak, currentStreak);
+    prevDate = cur;
+  }
+
+  const achievements = getMonthlyAchievements();
+  const index = achievements.findIndex(a => a.studentId === studentId && a.month === month);
+  const now = getNow();
+
+  const next: MonthlyAchievement = {
+    id: index !== -1 ? achievements[index].id : generateId(),
+    studentId,
+    month,
+    maxDailyAverage: dailyAverage,
+    maxDailyMinutes,
+    maxStreak,
+    createdAt: index !== -1 ? achievements[index].createdAt : now,
+    updatedAt: now,
+    lastModified: now,
+  };
+
+  if (index !== -1) achievements[index] = next;
+  else achievements.push(next);
+
+  if (isDevMode()) {
+    devData['monthlyAchievements'] = achievements;
+  } else {
+    inMemoryStorage['monthlyAchievements'] = achievements;
+    if (shouldSync) hybridSync.onDataChange();
+  }
+};
+
+// Monthly Achievements
 export const getMonthlyAchievements = (): MonthlyAchievement[] => {
-  if (isDevMode()) return devData['monthlyAchievements'] || [];
+  if (isDevMode()) return devData.monthlyAchievements || [];
   return inMemoryStorage['monthlyAchievements'] || [];
 };
 
@@ -579,7 +607,7 @@ export const updateMonthlyAchievement = (
   studentId: string,
   _updates: { maxDailyAverage?: number; maxDailyMinutes?: number; maxStreak?: number }
 ): void => {
-  // Monthly achievements are derived from practice sessions (source of truth).
+  // Monthly achievements are derived from PracticeSessions (source of truth).
   // Recalculate so values can also go DOWN after edits/deletes.
   const currentMonth = new Date().toISOString().slice(0, 7);
   recalcMonthlyAchievementFromSessions(studentId, currentMonth, true);
@@ -605,13 +633,15 @@ export const getCurrentMonthLeaderboard = (): LeaderboardEntry[] => {
     .filter(Boolean) as LeaderboardEntry[];
 };
 
-// ==================== MEDAL PURCHASES ====================
-
-export const getMedalPurchases = (): MedalPurchase[] => getData<MedalPurchase>('medalPurchases');
+// ===================== MEDAL PURCHASES =====================
+export const getMedalPurchases = (): MedalPurchase[] => {
+  if (isDevMode()) return devData.medalPurchases || [];
+  return inMemoryStorage['medalPurchases'] || [];
+};
 
 export const addMedalPurchase = (purchase: Omit<MedalPurchase, 'id' | 'createdAt'>): MedalPurchase => {
   const purchases = getMedalPurchases();
-  const now = new Date().toISOString();
+  const now = getNow();
   const newPurchase: MedalPurchase = {
     ...purchase,
     id: generateId(),
@@ -621,7 +651,7 @@ export const addMedalPurchase = (purchase: Omit<MedalPurchase, 'id' | 'createdAt
   purchases.push(newPurchase);
 
   if (isDevMode()) {
-    devData['medalPurchases'] = purchases;
+    devData.medalPurchases = purchases;
   } else {
     inMemoryStorage['medalPurchases'] = purchases;
     hybridSync.onDataChange();
@@ -629,8 +659,47 @@ export const addMedalPurchase = (purchase: Omit<MedalPurchase, 'id' | 'createdAt
   return newPurchase;
 };
 
-// ==================== YEARLY LEADERBOARD ====================
+// ===================== STORE =====================
+export const getStoreItems = (): StoreItem[] => {
+  if (isDevMode()) return devData.storeItems || [];
+  return inMemoryStorage['storeItems'] || [];
+};
 
+export const getStorePurchases = (): StorePurchase[] => {
+  if (isDevMode()) return devData.storePurchases || [];
+  return inMemoryStorage['storePurchases'] || [];
+};
+
+export const saveStoreItems = (items: StoreItem[]): void => {
+  if (isDevMode()) {
+    devData.storeItems = items;
+  } else {
+    inMemoryStorage['storeItems'] = items;
+    hybridSync.onDataChange();
+  }
+};
+
+export const addStorePurchase = (purchase: Omit<StorePurchase, 'id' | 'createdAt'>): StorePurchase => {
+  const purchases = getStorePurchases();
+  const now = getNow();
+  const newPurchase: StorePurchase = {
+    ...purchase,
+    id: generateId(),
+    createdAt: now,
+    lastModified: now,
+  };
+  purchases.push(newPurchase);
+
+  if (isDevMode()) {
+    devData.storePurchases = purchases;
+  } else {
+    inMemoryStorage['storePurchases'] = purchases;
+    hybridSync.onDataChange();
+  }
+  return newPurchase;
+};
+
+// ===================== YEARLY LEADERBOARD =====================
 export const getYearlyLeaderboard = (): YearlyLeaderboardEntry[] => {
   const students = getStudents();
   const allSessions = getPracticeSessions();
