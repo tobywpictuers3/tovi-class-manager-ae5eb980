@@ -1144,44 +1144,83 @@ export const getCurrentMonthAchievement = (studentId: string): MonthlyAchievemen
   return achievements.find(a => a.studentId === studentId && a.month === currentMonth) || null;
 };
 
-export const updateMonthlyAchievement = (
+const recalcMonthlyAchievementFromSessions = (
   studentId: string,
-  updates: { maxDailyAverage?: number; maxDailyMinutes?: number; maxStreak?: number }
+  month: string // YYYY-MM
 ): void => {
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const achievements = getMonthlyAchievements();
-  const index = achievements.findIndex(a => a.studentId === studentId && a.month === currentMonth);
-  const now = new Date().toISOString();
-  
-  if (index !== -1) {
-    const current = achievements[index];
-    achievements[index] = {
-      ...current,
-      maxDailyAverage: Math.max(current.maxDailyAverage, updates.maxDailyAverage || 0),
-      maxDailyMinutes: Math.max(current.maxDailyMinutes, updates.maxDailyMinutes || 0),
-      maxStreak: Math.max(current.maxStreak, updates.maxStreak || 0),
-      updatedAt: now,
-      lastModified: now,
-    };
-  } else {
-    const newAchievement: MonthlyAchievement = {
-      id: generateId(),
-      studentId,
-      month: currentMonth,
-      maxDailyAverage: updates.maxDailyAverage || 0,
-      maxDailyMinutes: updates.maxDailyMinutes || 0,
-      maxStreak: updates.maxStreak || 0,
-      createdAt: now,
-      updatedAt: now,
-      lastModified: now,
-    };
-    achievements.push(newAchievement);
+  const sessions = getPracticeSessions().filter(
+    (s) => s.studentId === studentId && s.date.startsWith(month)
+  );
+
+  // Sum minutes per date
+  const dailyTotals: Record<string, number> = {};
+  for (const s of sessions) {
+    dailyTotals[s.date] = (dailyTotals[s.date] || 0) + (s.durationMinutes || 0);
   }
-  
+
+  const maxDailyMinutes =
+    Object.keys(dailyTotals).length > 0 ? Math.max(...Object.values(dailyTotals)) : 0;
+
+  const totalMinutes = sessions.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
+  const practicedDays = Object.keys(dailyTotals).length;
+  const dailyAverage = practicedDays > 0 ? totalMinutes / practicedDays : 0;
+
+  // Longest streak inside month
+  const practicedDates = Object.keys(dailyTotals)
+    .filter((d) => dailyTotals[d] >= 1)
+    .sort();
+
+  let maxStreak = 0;
+  let currentStreak = 0;
+  let prev: Date | null = null;
+
+  for (const d of practicedDates) {
+    const cur = new Date(d);
+    if (!prev) {
+      currentStreak = 1;
+    } else {
+      const diffDays = Math.round((cur.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24));
+      currentStreak = diffDays === 1 ? currentStreak + 1 : 1;
+    }
+    maxStreak = Math.max(maxStreak, currentStreak);
+    prev = cur;
+  }
+
+  const achievements = getMonthlyAchievements();
+  const index = achievements.findIndex(a => a.studentId === studentId && a.month === month);
+  const now = new Date().toISOString();
+
+  const next = {
+    id: index !== -1 ? achievements[index].id : generateId(),
+    studentId,
+    month,
+    maxDailyAverage: dailyAverage,
+    maxDailyMinutes,
+    maxStreak,
+    createdAt: index !== -1 ? achievements[index].createdAt : now,
+    updatedAt: now,
+    lastModified: now,
+  };
+
+  if (index !== -1) achievements[index] = next;
+  else achievements.push(next);
+
   if (isDevMode()) {
     devData['monthlyAchievements'] = achievements;
   } else {
     inMemoryStorage['monthlyAchievements'] = achievements;
+  }
+};
+
+export const updateMonthlyAchievement = (
+  studentId: string,
+  _updates: { maxDailyAverage?: number; maxDailyMinutes?: number; maxStreak?: number }
+): void => {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+
+  recalcMonthlyAchievementFromSessions(studentId, currentMonth);
+
+  if (!isDevMode()) {
     hybridSync.onDataChange();
   }
 };
