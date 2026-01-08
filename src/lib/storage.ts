@@ -66,6 +66,89 @@ export const getCurrentUser = (): CurrentUser => {
   }
 };
 
+// ===================== Student Statistics (used by practiceEngine) =====================
+
+export type StudentStatistics = {
+  studentId: string;
+  lastUpdated?: string;
+  [key: string]: any;
+};
+
+const getStudentStatisticsStore = (): StudentStatistics[] => {
+  if (isDevMode()) {
+    // @ts-ignore - devData exists in this module scope
+    return (devData.studentStatistics ?? []) as StudentStatistics[];
+  }
+  return (inMemoryStorage['studentStatistics'] ?? []) as StudentStatistics[];
+};
+
+const setStudentStatisticsStore = (arr: StudentStatistics[], shouldSync: boolean = true): void => {
+  if (isDevMode()) {
+    // @ts-ignore
+    devData.studentStatistics = arr;
+  } else {
+    inMemoryStorage['studentStatistics'] = arr;
+    if (shouldSync) hybridSync.onDataChange();
+  }
+};
+
+export const getStudentStatistics = (studentId: string): StudentStatistics | null => {
+  const arr = getStudentStatisticsStore();
+  return arr.find(s => s.studentId === studentId) || null;
+};
+
+/**
+ * Accepts either:
+ * 1) saveStudentStatistics(studentId, stats)
+ * 2) saveStudentStatistics({ studentId, ...stats })
+ */
+export const saveStudentStatistics = (...args: any[]): void => {
+  const now = new Date().toISOString();
+
+  let studentId: string | undefined;
+  let stats: Record<string, any> | undefined;
+
+  if (args.length === 1 && args[0] && typeof args[0] === 'object') {
+    stats = args[0];
+    studentId = args[0].studentId;
+  } else if (args.length >= 2) {
+    studentId = args[0];
+    stats = args[1];
+  }
+
+  if (!studentId) return;
+
+  const arr = getStudentStatisticsStore();
+  const idx = arr.findIndex(s => s.studentId === studentId);
+
+  const next: StudentStatistics = {
+    ...(idx >= 0 ? arr[idx] : { studentId }),
+    ...(stats || {}),
+    studentId,
+    lastUpdated: now,
+  };
+
+  if (idx >= 0) arr[idx] = next;
+  else arr.push(next);
+
+  setStudentStatisticsStore(arr, true);
+};
+
+export const deleteStudentStatistics = async (studentId: string): Promise<boolean> => {
+  const arr = getStudentStatisticsStore();
+  const next = arr.filter(s => s.studentId !== studentId);
+  if (next.length === arr.length) return false;
+
+  if (isDevMode()) {
+    // @ts-ignore
+    devData.studentStatistics = next;
+  } else {
+    inMemoryStorage['studentStatistics'] = next;
+    await hybridSync.onDestructiveChange();
+  }
+  return true;
+};
+
 // In-Memory Storage - No localStorage for sensitive data
 const inMemoryStorage: Record<string, any> = {};
 
