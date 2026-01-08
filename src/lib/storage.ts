@@ -7,6 +7,49 @@ import { calculateEarnedCopper, formatPriceCompact } from './storeCurrency';
 // Re-export dev helpers for modules that import them from storage.ts
 export { isDevMode, setDevMode };
 
+// ===================== Current User (Auth Session) =====================
+// NOTE: some pages expect these exports from storage.ts
+
+export type CurrentUser = {
+  type: string;        // "student" | "admin"
+  studentId?: string;
+  adminId?: string;
+  adminCode?: string;
+} | null;
+
+export const setCurrentUser = (user: CurrentUser): void => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.setItem(
+      'musicSystem_currentUser',
+      JSON.stringify(user)
+    );
+
+    if (user) {
+      window.localStorage.setItem(
+        'musicSystem_currentUser',
+        JSON.stringify(user)
+      );
+    } else {
+      window.localStorage.removeItem('musicSystem_currentUser');
+    }
+  } catch {
+    // fail silently
+  }
+};
+
+export const getCurrentUser = (): CurrentUser => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.sessionStorage.getItem('musicSystem_currentUser');
+    return raw ? (JSON.parse(raw) as CurrentUser) : null;
+  } catch {
+    return null;
+  }
+};
+
 // In-Memory Storage - No localStorage for sensitive data
 const inMemoryStorage: Record<string, any> = {};
 
