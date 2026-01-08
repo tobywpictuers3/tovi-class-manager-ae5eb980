@@ -7,6 +7,22 @@ import { calculateEarnedCopper, formatPriceCompact } from './storeCurrency';
 // Re-export dev helpers for modules that import them from storage.ts
 export { isDevMode, setDevMode };
 
+// ===================== Dev Store helper =====================
+// NOTE: some modules import getDevStore from storage.ts
+
+export const getDevStore = (): Record<string, any> => {
+  // In dev mode, prefer devData.musicSystemData as the "store"
+  try {
+    if (isDevMode()) {
+      // @ts-ignore - devData exists in this module scope
+      return (devData?.musicSystemData ?? devData ?? {}) as Record<string, any>;
+    }
+    return (inMemoryStorage?.musicSystemData ?? inMemoryStorage ?? {}) as Record<string, any>;
+  } catch {
+    return {};
+  }
+};
+
 // ===================== Current User (Auth Session) =====================
 // NOTE: some pages expect these exports from storage.ts
 
