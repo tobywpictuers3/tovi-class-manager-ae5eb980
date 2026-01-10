@@ -1,0 +1,732 @@
+// DocumentEditor.tsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
+export type EditorTemplate = "blank" | "lines" | "staff";
+export type EditorSourceKind = "blank" | "image" | "pdf";
+type ToolMode = "pen" | "marker" | "eraser" | "text";
+
+function formatA4Px(scale = 2) {
+  // A4 ratio ~ 1 : 1.414
+  return { w: Math.round(900 * scale), h: Math.round(1273 * scale) };
+}
+
+function drawTemplate(ctx: CanvasRenderingContext2D, w: number, h: number, template: EditorTemplate) {
+  ctx.save();
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+
+  // frame
+  ctx.strokeStyle = "rgba(0,0,0,0.10)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(20, 20, w - 40, h - 40);
+
+  // lines
+  ctx.strokeStyle = "rgba(0,0,0,0.12)";
+  ctx.lineWidth = 2;
+
+  if (template === "lines") {
+    const top = 90;
+    const gap = 64;
+    for (let y = top; y < h - 90; y += gap) {
+      ctx.beginPath();
+      ctx.moveTo(50, y);
+      ctx.lineTo(w - 50, y);
+      ctx.stroke();
+    }
+  }
+
+  if (template === "staff") {
+    const left = 70;
+    const right = w - 70;
+    const groupTopStart = 90;
+    const lineGap = 18;
+    const groupGap = 90;
+
+    for (let top = groupTopStart; top < h - 140; top += lineGap * 4 + groupGap) {
+      for (let i = 0; i < 5; i++) {
+        const y = top + i * lineGap;
+        ctx.beginPath();
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+// --- Minimal PDF generator that embeds a JPEG image (single page A4) ---
+async function canvasToPdfBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  const base64 = dataUrl.split(",")[1] || "";
+  const jpgBytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+
+  // A4 points
+  const pageW = 595.28;
+  const pageH = 841.89;
+
+  const imgWpx = canvas.width;
+  const imgHpx = canvas.height;
+
+  const imgAspect = imgWpx / imgHpx;
+  const pageAspect = pageW / pageH;
+
+  let drawW = pageW;
+  let drawH = pageH;
+  if (imgAspect > pageAspect) {
+    drawW = pageW;
+    drawH = pageW / imgAspect;
+  } else {
+    drawH = pageH;
+    drawW = pageH * imgAspect;
+  }
+
+  const x = (pageW - drawW) / 2;
+  const y = (pageH - drawH) / 2;
+
+  const enc = new TextEncoder();
+  const parts: (string | Uint8Array)[] = [];
+  const objOffsets: number[] = [];
+
+  const push = (p: string | Uint8Array) => parts.push(p);
+  const len = () =>
+    parts.reduce((s, p) => s + (typeof p === "string" ? enc.encode(p).length : p.length), 0);
+
+  push("%PDF-1.3\n");
+
+  const writeObj = (objNum: number, contentPart: string | Uint8Array) => {
+    objOffsets[objNum] = len();
+    push(contentPart);
+  };
+
+  // 1 Catalog
+  writeObj(1, "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+  // 2 Pages
+  writeObj(2, "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
+  // 3 Page
+  writeObj(
+    3,
+    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " +
+      pageW.toFixed(2) +
+      " " +
+      pageH.toFixed(2) +
+      "] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
+  );
+
+  // 4 Image
+  objOffsets[4] = len();
+  push(
+    `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imgWpx} /Height ${imgHpx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpgBytes.length} >>\nstream\n`
+  );
+  push(jpgBytes);
+  push("\nendstream\nendobj\n");
+
+  // 5 Content stream
+  const content =
+    `q\n${drawW.toFixed(2)} 0 0 ${drawH.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im0 Do\nQ\n`;
+  const contentBytes = enc.encode(content);
+  objOffsets[5] = len();
+  push(`5 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n${content}endstream\nendobj\n`);
+
+  // xref
+  const xrefStart = len();
+  const objCount = 6; // 0..5
+  let xref = `xref\n0 ${objCount}\n0000000000 65535 f \n`;
+  for (let i = 1; i < objCount; i++) {
+    const off = objOffsets[i] || 0;
+    xref += `${String(off).padStart(10, "0")} 00000 n \n`;
+  }
+  push(xref);
+
+  // trailer
+  push(`trailer\n<< /Size ${objCount} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
+
+  return new Blob(parts, { type: "application/pdf" });
+}
+
+async function renderPdfFirstPageToCanvas(pdfBlob: Blob, targetW: number, targetH: number): Promise<HTMLCanvasElement> {
+  // Requires pdfjs-dist in project
+  const pdfjs = await import("pdfjs-dist");
+  const workerSrc = await import("pdfjs-dist/build/pdf.worker?url").catch(() => null);
+  // @ts-ignore
+  if (workerSrc?.default) pdfjs.GlobalWorkerOptions.workerSrc = workerSrc.default;
+
+  const arrayBuffer = await pdfBlob.arrayBuffer();
+  // @ts-ignore
+  const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1);
+
+  const viewport = page.getViewport({ scale: 1.0 });
+  const scale = Math.min(targetW / viewport.width, targetH / viewport.height);
+
+  const vp = page.getViewport({ scale });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.floor(vp.width);
+  canvas.height = Math.floor(vp.height);
+  const ctx = canvas.getContext("2d")!;
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  return canvas;
+}
+
+function safeBaseName(name: string) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return "";
+  return trimmed.replace(/[\\/:*?"<>|]+/g, "-");
+}
+
+function guessKindFromFile(file: File): EditorSourceKind {
+  const t = (file.type || "").toLowerCase();
+  if (t.includes("pdf")) return "pdf";
+  if (t.startsWith("image/")) return "image";
+  const n = file.name.toLowerCase();
+  if (n.endsWith(".pdf")) return "pdf";
+  if (n.match(/\.(png|jpg|jpeg|webp|gif)$/)) return "image";
+  return "image";
+}
+
+export default function DocumentEditor(props: {
+  initialFileName: string;
+  mode: "new" | "edit";
+  initialTemplate?: EditorTemplate;
+  source?: { kind: Exclude<EditorSourceKind, "blank">; blob: Blob };
+  onCancel: () => void;
+  onSave: (result: { fileNameBase: string; png: Blob; pdf: Blob }) => Promise<void> | void;
+}) {
+  const { w, h } = useMemo(() => formatA4Px(2), []);
+  const baseRef = useRef<HTMLCanvasElement | null>(null);
+  const inkRef = useRef<HTMLCanvasElement | null>(null);
+
+  const [fileNameBase, setFileNameBase] = useState<string>(props.initialFileName || "");
+  const [template, setTemplate] = useState<EditorTemplate>(props.initialTemplate || "blank");
+
+  const [tool, setTool] = useState<ToolMode>("pen");
+  const [penSize, setPenSize] = useState<number>(6);
+  const [zoom, setZoom] = useState<number>(1);
+
+  const [isDrawing, setIsDrawing] = useState(false);
+  const last = useRef<{ x: number; y: number } | null>(null);
+
+  const [textEdit, setTextEdit] = useState<{ open: boolean; x: number; y: number; value: string }>({
+    open: false,
+    x: 0,
+    y: 0,
+    value: "",
+  });
+
+  const undoStack = useRef<ImageData[]>([]);
+  const redoStack = useRef<ImageData[]>([]);
+
+  const [loadingBase, setLoadingBase] = useState<boolean>(false);
+  const [pdfjsMissing, setPdfjsMissing] = useState<boolean>(false);
+
+  const snapshotInk = () => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+    undoStack.current.push(ctx.getImageData(0, 0, w, h));
+    redoStack.current = [];
+  };
+
+  const restoreInk = (img: ImageData) => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+    ctx.putImageData(img, 0, 0);
+  };
+
+  const undo = () => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+    if (undoStack.current.length === 0) return;
+
+    redoStack.current.push(ctx.getImageData(0, 0, w, h));
+    restoreInk(undoStack.current.pop()!);
+  };
+
+  const redo = () => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+    if (redoStack.current.length === 0) return;
+
+    undoStack.current.push(ctx.getImageData(0, 0, w, h));
+    restoreInk(redoStack.current.pop()!);
+  };
+
+  const clearInk = () => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+    snapshotInk();
+    ctx.clearRect(0, 0, w, h);
+  };
+
+  useEffect(() => {
+    const base = baseRef.current;
+    const ctx = base?.getContext("2d");
+    if (!base || !ctx) return;
+
+    const drawNewTemplate = () => drawTemplate(ctx, w, h, template);
+
+    const drawEditSource = async () => {
+      if (!props.source) return;
+      setLoadingBase(true);
+      setPdfjsMissing(false);
+
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+
+      try {
+        if (props.source.kind === "image") {
+          const url = URL.createObjectURL(props.source.blob);
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error("IMAGE_LOAD_FAILED"));
+            img.src = url;
+          });
+
+          const imgAspect = img.width / img.height;
+          const canvasAspect = w / h;
+
+          let drawW = w;
+          let drawH = h;
+          if (imgAspect > canvasAspect) {
+            drawW = w;
+            drawH = w / imgAspect;
+          } else {
+            drawH = h;
+            drawW = h * imgAspect;
+          }
+          const x = (w - drawW) / 2;
+          const y = (h - drawH) / 2;
+          ctx.drawImage(img, x, y, drawW, drawH);
+          URL.revokeObjectURL(url);
+        } else {
+          const pdfCanvas = await renderPdfFirstPageToCanvas(props.source.blob, w, h);
+          const imgAspect = pdfCanvas.width / pdfCanvas.height;
+          const canvasAspect = w / h;
+
+          let drawW = w;
+          let drawH = h;
+          if (imgAspect > canvasAspect) {
+            drawW = w;
+            drawH = w / imgAspect;
+          } else {
+            drawH = h;
+            drawW = h * imgAspect;
+          }
+          const x = (w - drawW) / 2;
+          const y = (h - drawH) / 2;
+          ctx.drawImage(pdfCanvas, x, y, drawW, drawH);
+        }
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        if (msg.includes("Cannot find module") || msg.includes("pdfjs-dist")) {
+          setPdfjsMissing(true);
+        }
+      } finally {
+        setLoadingBase(false);
+      }
+    };
+
+    if (props.mode === "new") drawNewTemplate();
+    else void drawEditSource();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.mode, props.source?.blob, props.source?.kind, template, w, h]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toLowerCase().includes("mac");
+      const ctrl = isMac ? e.metaKey : e.ctrlKey;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      const typing = tag === "input" || tag === "textarea";
+
+      if (ctrl && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void save();
+        return;
+      }
+      if (ctrl && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (ctrl && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
+      if (typing) return;
+
+      const k = e.key.toLowerCase();
+      if (k === "b") setTool("pen");
+      if (k === "m") setTool("marker");
+      if (k === "e") setTool("eraser");
+      if (k === "t") setTool("text");
+      if (k === "escape") props.onCancel();
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileNameBase, tool, penSize, zoom]);
+
+  const getPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (w / rect.width);
+    const y = (e.clientY - rect.top) * (h / rect.height);
+    return { x, y };
+  };
+
+  const beginStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    if (tool === "text") {
+      const p = getPos(e);
+      setTextEdit({ open: true, x: p.x, y: p.y, value: "" });
+      return;
+    }
+
+    snapshotInk();
+    setIsDrawing(true);
+    last.current = getPos(e);
+  };
+
+  const moveStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ctx || !last.current) return;
+
+    const p = getPos(e);
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    if (tool === "eraser") {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.strokeStyle = "rgba(0,0,0,1)";
+      ctx.lineWidth = penSize * 2;
+    } else if (tool === "marker") {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = "rgba(255, 205, 0, 0.35)";
+      ctx.lineWidth = penSize * 2.4;
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = "rgba(0,0,0,0.95)";
+      ctx.lineWidth = penSize;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(last.current.x, last.current.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+
+    last.current = p;
+  };
+
+  const endStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    setIsDrawing(false);
+    last.current = null;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const commitText = () => {
+    const val = textEdit.value.trimEnd();
+    if (!val) {
+      setTextEdit((s) => ({ ...s, open: false }));
+      return;
+    }
+
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) {
+      setTextEdit((s) => ({ ...s, open: false }));
+      return;
+    }
+
+    snapshotInk();
+
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "rgba(0,0,0,0.95)";
+    ctx.textBaseline = "top";
+
+    const fontSize = Math.max(18, Math.round(penSize * 3));
+    ctx.font = `${fontSize}px Arial`;
+
+    const lines = val.split("\n");
+    const lineH = Math.round(fontSize * 1.2);
+
+    let y = textEdit.y;
+    for (const line of lines) {
+      ctx.fillText(line, textEdit.x, y);
+      y += lineH;
+    }
+    ctx.restore();
+
+    setTextEdit({ open: false, x: 0, y: 0, value: "" });
+  };
+
+  const exportMergedCanvas = async (): Promise<HTMLCanvasElement> => {
+    const out = document.createElement("canvas");
+    out.width = w;
+    out.height = h;
+    const outCtx = out.getContext("2d");
+    if (!outCtx) return out;
+
+    outCtx.drawImage(baseRef.current!, 0, 0);
+    outCtx.drawImage(inkRef.current!, 0, 0);
+    return out;
+  };
+
+  const save = async () => {
+    const baseName = safeBaseName(fileNameBase);
+    if (!baseName) return;
+
+    const merged = await exportMergedCanvas();
+
+    const pngBlob: Blob | null = await new Promise((resolve) => merged.toBlob((b) => resolve(b), "image/png", 1));
+    if (!pngBlob) return;
+
+    const pdfBlob = await canvasToPdfBlob(merged);
+
+    await props.onSave({ fileNameBase: baseName, png: pngBlob, pdf: pdfBlob });
+  };
+
+  const zoomOut = () => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)));
+  const zoomIn = () => setZoom((z) => Math.min(2.0, +(z + 0.1).toFixed(2)));
+
+  const toolButtonStyle = (active: boolean) => ({
+    padding: "8px 10px",
+    borderRadius: 10,
+    border: active ? "1px solid rgba(255,255,255,0.35)" : "1px solid rgba(255,255,255,0.15)",
+    background: active ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)",
+    cursor: "pointer",
+    fontSize: 13,
+  });
+
+  return (
+    <div style={{ display: "grid", gridTemplateRows: "auto 1fr", gap: 12, height: "100%" }}>
+      <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <div style={{ display: "grid", gap: 4 }}>
+              <div style={{ fontSize: 12, opacity: 0.8 }}>שם הקובץ</div>
+              <input
+                value={fileNameBase}
+                onChange={(e) => setFileNameBase(e.target.value)}
+                placeholder="למשל: שיעור 5"
+                style={{
+                  minWidth: 240,
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "rgba(0,0,0,0.2)",
+                  color: "white",
+                }}
+              />
+            </div>
+
+            {props.mode === "new" ? (
+              <div style={{ display: "grid", gap: 4 }}>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>סוג דף</div>
+                <select
+                  value={template}
+                  onChange={(e) => setTemplate(e.target.value as EditorTemplate)}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "rgba(0,0,0,0.2)",
+                    color: "white",
+                  }}
+                >
+                  <option value="blank">דף ריק</option>
+                  <option value="lines">דף שורות</option>
+                  <option value="staff">דף חמשות</option>
+                </select>
+              </div>
+            ) : null}
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+              <button type="button" onClick={() => setTool("pen")} style={toolButtonStyle(tool === "pen")}>
+                עט (B)
+              </button>
+              <button type="button" onClick={() => setTool("marker")} style={toolButtonStyle(tool === "marker")}>
+                מרקר (M)
+              </button>
+              <button type="button" onClick={() => setTool("eraser")} style={toolButtonStyle(tool === "eraser")}>
+                מחק (E)
+              </button>
+              <button type="button" onClick={() => setTool("text")} style={toolButtonStyle(tool === "text")}>
+                טקסט (T)
+              </button>
+
+              <div style={{ display: "grid", gap: 4, minWidth: 160 }}>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>עובי</div>
+                <input type="range" min={2} max={18} value={penSize} onChange={(e) => setPenSize(Number(e.target.value))} />
+              </div>
+
+              <button type="button" onClick={undo} disabled={undoStack.current.length === 0} style={toolButtonStyle(false)}>
+                ביטול (Ctrl+Z)
+              </button>
+              <button type="button" onClick={redo} disabled={redoStack.current.length === 0} style={toolButtonStyle(false)}>
+                קדימה (Ctrl+Y)
+              </button>
+              <button type="button" onClick={clearInk} style={toolButtonStyle(false)}>
+                ניקוי
+              </button>
+
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <button type="button" onClick={zoomOut} style={toolButtonStyle(false)}>
+                  −
+                </button>
+                <div style={{ width: 70, textAlign: "center", fontSize: 12, opacity: 0.9 }}>
+                  {Math.round(zoom * 100)}%
+                </div>
+                <button type="button" onClick={zoomIn} style={toolButtonStyle(false)}>
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              type="button"
+              onClick={props.onCancel}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.15)",
+                background: "rgba(0,0,0,0.25)",
+                color: "white",
+              }}
+            >
+              השלכה (Esc)
+            </button>
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={!safeBaseName(fileNameBase)}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.15)",
+                background: safeBaseName(fileNameBase) ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.08)",
+                color: "white",
+                cursor: safeBaseName(fileNameBase) ? "pointer" : "not-allowed",
+              }}
+            >
+              שמירה (Ctrl+S)
+            </button>
+          </div>
+        </div>
+
+        {props.mode === "edit" && pdfjsMissing ? (
+          <div style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(255,200,0,0.35)", background: "rgba(255,200,0,0.10)" }}>
+            לא ניתן לערוך PDF כרגע כי חסרה הספרייה <b>pdfjs-dist</b>. אפשר לערוך תמונות. אם תרצי – אגיד לך בדיוק איך להוסיף.
+          </div>
+        ) : null}
+
+        {loadingBase ? (
+          <div style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)" }}>
+            טוען קובץ לעריכה...
+          </div>
+        ) : null}
+      </div>
+
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          overflow: "auto",
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,0.12)",
+          background: "rgba(0,0,0,0.15)",
+          touchAction: "none",
+        }}
+      >
+        <div style={{ padding: 12 }}>
+          <div style={{ transform: `scale(${zoom})`, transformOrigin: "top right", width: "fit-content" }}>
+            <div style={{ position: "relative" }}>
+              <canvas ref={baseRef} width={w} height={h} style={{ display: "block", width: w / 2, height: h / 2 }} />
+              <canvas
+                ref={inkRef}
+                width={w}
+                height={h}
+                style={{ position: "absolute", inset: 0, width: w / 2, height: h / 2 }}
+                onPointerDown={beginStroke}
+                onPointerMove={moveStroke}
+                onPointerUp={endStroke}
+                onPointerCancel={endStroke}
+              />
+
+              {textEdit.open ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: (textEdit.x / w) * (w / 2),
+                    top: (textEdit.y / h) * (h / 2),
+                    width: 320,
+                    zIndex: 50,
+                    background: "rgba(0,0,0,0.55)",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    borderRadius: 12,
+                    padding: 10,
+                  }}
+                >
+                  <div style={{ fontSize: 12, opacity: 0.9, marginBottom: 6 }}>הקלדת טקסט</div>
+                  <textarea
+                    autoFocus
+                    value={textEdit.value}
+                    onChange={(e) => setTextEdit((s) => ({ ...s, value: e.target.value }))}
+                    style={{
+                      width: "100%",
+                      height: 120,
+                      resize: "vertical",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: "rgba(0,0,0,0.35)",
+                      color: "white",
+                      padding: 8,
+                      outline: "none",
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
+                    <button type="button" onClick={() => setTextEdit({ open: false, x: 0, y: 0, value: "" })} style={toolButtonStyle(false)}>
+                      ביטול
+                    </button>
+                    <button type="button" onClick={commitText} style={toolButtonStyle(true)}>
+                      הוסף טקסט
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function editorSourceFromFile(file: File): { kind: "image" | "pdf"; blob: Blob } {
+  const kind = guessKindFromFile(file);
+  return { kind: kind === "pdf" ? "pdf" : "image", blob: file };
+}
