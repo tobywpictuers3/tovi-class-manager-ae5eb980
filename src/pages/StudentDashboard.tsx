@@ -32,6 +32,9 @@ import SyncStatusBadge from "@/components/ui/SyncStatusBadge";
 
 import Metronome from "./Metronome";
 
+// ✅ NEW: bring the tuner (with note-length list) into this tab
+import TunerCard from "@/components/student/TunerCard";
+
 const StudentDashboard = () => {
   const { studentId } = useParams();
   const navigate = useNavigate();
@@ -41,6 +44,7 @@ const StudentDashboard = () => {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [activeTab, setActiveTab] = useState("schedule");
 
+  // (kept as-is; not used in this snippet)
   const studentSwapPanelRef = useState<StudentSwapPanelRef | null>(null);
 
   useEffect(() => {
@@ -185,15 +189,23 @@ const StudentDashboard = () => {
           <PracticeTracking studentId={student.id} />
         </TabsContent>
 
+        {/* ✅ HERE: same tab contains BOTH Metronome and Tuner+Note Length */}
         <TabsContent value="metronome" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>המטרונום של טובי</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Metronome />
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>המטרונום של טובי</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Metronome />
+              </CardContent>
+            </Card>
+
+            <div>
+              {/* TunerCard already includes the note-length list */}
+              <TunerCard />
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="medals" className="space-y-6">
