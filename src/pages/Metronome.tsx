@@ -73,9 +73,9 @@ function PendulumVisual(props: {
   const pivotX = W / 2;
   const pivotY = 26;
 
-  // geometry: no walls, just extremes
+  // geometry
   const rodLen = 185;
-  const maxAngle = 0.95; // pleasant wide swing (radians)
+  const maxAngle = 0.95; // radians
 
   const beatMs = 60000 / clamp(bpm, 20, 400);
 
@@ -98,9 +98,10 @@ function PendulumVisual(props: {
     id: number;
   } | null>(null);
 
-  // subdivision blink on weight (must retrigger)
+  const burstKillTimerRef = useRef<number | null>(null);
+
+  // subdivision blink (force retrigger)
   const [subBlinkId, setSubBlinkId] = useState<number>(0);
-  const subBlinkTimerRef = useRef<number | null>(null);
 
   function bobPos(a: number) {
     return {
@@ -109,13 +110,28 @@ function PendulumVisual(props: {
     };
   }
 
-  function clearTrail() {
+  function hardClearTrail() {
     const c = canvasRef.current;
     if (!c) return;
     const ctx = c.getContext("2d");
     if (!ctx) return;
+
+    // HARD reset to avoid any leftover shadow/transform artifacts
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
     ctx.clearRect(0, 0, c.width, c.height);
+
     lastPointRef.current = null;
+  }
+
+  function scheduleBurstCleanup(burstId: number) {
+    if (burstKillTimerRef.current) window.clearTimeout(burstKillTimerRef.current);
+    // give the SVG animation time to finish, then remove the element
+    burstKillTimerRef.current = window.setTimeout(() => {
+      setBurst((cur) => (cur && cur.id === burstId ? null : cur));
+    }, 260);
   }
 
   // respond to tick events
@@ -128,26 +144,25 @@ function PendulumVisual(props: {
       angleRef.current = snap;
       setAngle(snap);
 
-      // trail resets exactly on each beat
-      clearTrail();
+      // reset trail on every main beat
+      hardClearTrail();
 
-      // big burst exactly where the weight is at impact
+      // make sure any previous burst is gone BEFORE creating the new one
+      setBurst(null);
+
+      // create new burst exactly at impact
       const p = bobPos(snap);
-
-      setBurst({
+      const newBurst = {
         x: p.x,
         y: p.y,
         isDownbeat: hit.isDownbeat,
         id: hit.id,
-      });
+      };
+      setBurst(newBurst);
+      scheduleBurstCleanup(hit.id);
     } else {
-      // subdivision: blink weight only (no burst, no trail reset)
+      // subdivision blink: weight only (no burst, no trail reset)
       setSubBlinkId((prev) => prev + 1);
-      if (subBlinkTimerRef.current) window.clearTimeout(subBlinkTimerRef.current);
-      subBlinkTimerRef.current = window.setTimeout(() => {
-        // allow class to drop so next blink re-triggers cleanly
-        // (this is important for rapid subdivisions)
-      }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hit]);
@@ -171,13 +186,17 @@ function PendulumVisual(props: {
       angleRef.current = a;
       setAngle(a);
 
-      // draw trail segment (only this beat)
+      // draw trail segment for THIS beat only (canvas already cleared on beat)
       const c = canvasRef.current;
       if (c) {
         const ctx = c.getContext("2d");
         if (ctx) {
           const pt = bobPos(a);
           const prev = lastPointRef.current;
+
+          // just in case: neutralize any previous shadow state
+          ctx.shadowBlur = 0;
+          ctx.shadowColor = "transparent";
 
           if (prev) {
             ctx.beginPath();
@@ -191,6 +210,7 @@ function PendulumVisual(props: {
             ctx.stroke();
             ctx.shadowBlur = 0;
           } else {
+            // first point of the beat: small “seed” dot
             ctx.beginPath();
             ctx.arc(pt.x, pt.y, 2.2, 0, Math.PI * 2);
             ctx.fillStyle = "rgba(244,189,86,0.55)";
@@ -209,12 +229,20 @@ function PendulumVisual(props: {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-  }, [running, beatMs, maxAngle]);
+  }, [running, beatMs]);
 
+  // when stopping: clear the canvas so nothing “sticks”
   useEffect(() => {
-    if (!running) clearTrail();
+    if (!running) hardClearTrail();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
+
+  // cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (burstKillTimerRef.current) window.clearTimeout(burstKillTimerRef.current);
+    };
+  }, []);
 
   const p = bobPos(angle);
 
@@ -242,9 +270,7 @@ function PendulumVisual(props: {
               />
             );
           })}
-          <div className="text-white/60 text-sm ml-3">
-            Beat: {clamp(beatInBar, 1, beatsPerBar)}
-          </div>
+          <div className="text-white/60 text-sm ml-3">Beat: {clamp(beatInBar, 1, beatsPerBar)}</div>
         </div>
       </div>
 
@@ -289,25 +315,13 @@ function PendulumVisual(props: {
               strokeLinecap="round"
             />
 
-            {/* weight group (KEYED) so blink animation retriggers reliably */}
+            {/* weight group (KEYED) so blink retriggers */}
             <g key={`${showSub ? subBlinkId : "no-sub"}`}>
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={13}
-                fill="url(#weightGrad)"
-                className={showSub ? "tobyWeightBlink" : ""}
-              />
-              <circle
-                cx={p.x - 4}
-                cy={p.y - 5}
-                r={4}
-                fill="rgba(255,255,255,0.18)"
-                className={showSub ? "tobyWeightBlink" : ""}
-              />
+              <circle cx={p.x} cy={p.y} r={13} fill="url(#weightGrad)" className={showSub ? "tobyWeightBlink" : ""} />
+              <circle cx={p.x - 4} cy={p.y - 5} r={4} fill="rgba(255,255,255,0.18)" className={showSub ? "tobyWeightBlink" : ""} />
             </g>
 
-            {/* BIG burst only on main beat */}
+            {/* BIG burst only on main beat (and it auto-clears) */}
             {burst && (
               <g key={burst.id}>
                 <circle
@@ -340,7 +354,6 @@ function PendulumVisual(props: {
               18% { opacity: 1; }
               100% { transform: scale(1.18); opacity: 0; }
             }
-            /* blink for subdivisions (weight only, no burst) */
             .tobyWeightBlink {
               animation: tobyBlink 120ms ease-out;
               filter: drop-shadow(0 0 18px rgba(244,189,86,0.65));
@@ -463,7 +476,7 @@ export default function Metronome() {
     setMSettings(m.getSettings());
   };
 
-  // ---------------- Tuner engine (shared for tuner + duration) ----------------
+  // ---------------- Tuner engine (shared) ----------------
   const t = useMemo(() => new TunerEngine(), []);
   const [tState, setTState] = useState<TunerState>({ status: "idle" });
   const [a4, setA4] = useState<number>(440);
