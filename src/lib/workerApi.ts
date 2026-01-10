@@ -26,6 +26,45 @@ const getJsonHeaders = () => ({
 /// 4. Setting Content-Type manually breaks multipart upload
 
 /* ===========================================================
+   NORMALIZERS (important for StudentFiles)
+   =========================================================== */
+
+type UploadAttachmentResultNormalized = {
+  path: string;
+  webViewLink: string;
+  name: string;
+  size?: number;
+  type?: string;
+};
+
+function normalizeUploadAttachmentResult(raw: any): UploadAttachmentResultNormalized {
+  // Worker may return either:
+  // 1) { ok: true, path, webViewLink, name, size, type }
+  // 2) { path, webViewLink, name, size, type }
+  // 3) { ok: true, data: { ... } } (rare)
+  const data = raw?.data && typeof raw.data === "object" ? raw.data : raw;
+
+  const path = data?.path;
+  const webViewLink = data?.webViewLink;
+  const name = data?.name;
+
+  if (!path || !webViewLink || !name) {
+    // Keep raw for debugging
+    throw new Error(
+      `upload_attachment: missing fields (path/webViewLink/name). Got: ${JSON.stringify(raw)}`
+    );
+  }
+
+  return {
+    path,
+    webViewLink,
+    name,
+    size: data?.size,
+    type: data?.type,
+  };
+}
+
+/* ===========================================================
    GMAIL API HELPERS
    =========================================================== */
 
@@ -44,9 +83,9 @@ async function callWorkerGmail<T>(
   const queryString = new URLSearchParams({
     action,
     managerCode,
-    ...(opts.query ? Object.fromEntries(
-      Object.entries(opts.query).map(([k, v]) => [k, String(v)])
-    ) : {}),
+    ...(opts.query
+      ? Object.fromEntries(Object.entries(opts.query).map(([k, v]) => [k, String(v)]))
+      : {}),
   }).toString();
 
   const url = `${WORKER_BASE_URL}/?${queryString}`;
@@ -66,9 +105,7 @@ async function callWorkerGmail<T>(
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok || data.ok === false) {
-    const msg =
-      data?.error ||
-      `Worker request failed: ${response.status} ${response.statusText}`;
+    const msg = data?.error || `Worker request failed: ${response.status} ${response.statusText}`;
     throw new Error(msg);
   }
 
@@ -141,8 +178,9 @@ export const workerApi = {
 
   /* -----------------------------------------------------------
      3. Upload Attachment (multipart/form-data)
+     IMPORTANT: normalized return shape for StudentFiles
      ----------------------------------------------------------- */
-  uploadAttachment: async (file: File): Promise<WorkerResponse> => {
+  uploadAttachment: async (file: File): Promise<WorkerResponse<UploadAttachmentResultNormalized>> => {
     if (isDevMode()) {
       logger.warn("DEV MODE: uploadAttachment blocked");
       return { success: false, error: "DEV_MODE_BLOCKED" };
@@ -158,19 +196,16 @@ export const workerApi = {
         type: file.type,
       });
 
-      const response = await fetch(
-        `${WORKER_BASE_URL}?action=upload_attachment`,
-        {
-          method: "POST",
-          // VERY IMPORTANT: DO NOT SET Content-Type or Accept
-          headers: {
-            "X-Sonata-Manager-Code": getManagerCode(),
-          },
-          body: formData,
-          mode: "cors",
-          cache: "no-store",
-        }
-      );
+      const response = await fetch(`${WORKER_BASE_URL}?action=upload_attachment`, {
+        method: "POST",
+        // VERY IMPORTANT: DO NOT SET Content-Type or Accept
+        headers: {
+          "X-Sonata-Manager-Code": getManagerCode(),
+        },
+        body: formData,
+        mode: "cors",
+        cache: "no-store",
+      });
 
       if (!response.ok) {
         const text = await response.text();
@@ -179,9 +214,13 @@ export const workerApi = {
       }
 
       const result = await response.json();
-      logger.info("Attachment uploaded:", result);
+      logger.info("Attachment uploaded (raw):", result);
 
-      return { success: true, data: result };
+      // Normalize to fixed shape for app usage
+      const normalized = normalizeUploadAttachmentResult(result);
+      logger.info("Attachment uploaded (normalized):", normalized);
+
+      return { success: true, data: normalized };
     } catch (error) {
       logger.error("uploadAttachment error:", error);
       return { success: false, error: (error as Error).message };
@@ -338,13 +377,10 @@ export const workerApi = {
     }
 
     try {
-      const result = await callWorkerGmail<{ ok: true; message: any }>(
-        "gmail_send_and_add",
-        {
-          method: "POST",
-          body: { message },
-        }
-      );
+      const result = await callWorkerGmail<{ ok: true; message: any }>("gmail_send_and_add", {
+        method: "POST",
+        body: { message },
+      });
 
       return { success: true, data: result };
     } catch (err) {
