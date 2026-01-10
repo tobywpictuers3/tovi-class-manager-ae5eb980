@@ -1,20 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 
 export type HandwriteTemplate = "blank" | "lines" | "staff";
 export type PenMode = "pen" | "marker" | "eraser";
 
 function formatA4Px(scale = 2) {
   // A4 ratio ~ 1 : 1.414
-  // base 900x1273 then scale
   return { w: Math.round(900 * scale), h: Math.round(1273 * scale) };
 }
 
 function drawTemplate(ctx: CanvasRenderingContext2D, w: number, h: number, template: HandwriteTemplate) {
   ctx.save();
   ctx.clearRect(0, 0, w, h);
+
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, w, h);
 
@@ -59,22 +56,19 @@ function drawTemplate(ctx: CanvasRenderingContext2D, w: number, h: number, templ
   ctx.restore();
 }
 
-// Minimal PDF generator embedding a JPEG (DCTDecode)
+// --- Minimal PDF generator that embeds a JPEG image ---
 async function canvasToPdfBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  // Convert to JPEG bytes (easier to embed into PDF than PNG)
   const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
   const base64 = dataUrl.split(",")[1] || "";
   const jpgBytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
-  // A4 size in points
+  // A4 points
   const pageW = 595.28;
   const pageH = 841.89;
 
-  // Image size in pixels -> assume 72dpi-ish mapping; scale to fit page
   const imgWpx = canvas.width;
   const imgHpx = canvas.height;
 
-  // Fit to A4 keeping aspect
   const imgAspect = imgWpx / imgHpx;
   const pageAspect = pageW / pageH;
 
@@ -91,79 +85,25 @@ async function canvasToPdfBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   const x = (pageW - drawW) / 2;
   const y = (pageH - drawH) / 2;
 
-  const objects: string[] = [];
-  const offsets: number[] = [];
-
-  const addObj = (s: string) => {
-    offsets.push(currentLength());
-    objects.push(s);
-  };
-
-  const chunks: (string | Uint8Array)[] = [];
-  const currentLength = () =>
-    chunks.reduce((sum, c) => sum + (typeof c === "string" ? new TextEncoder().encode(c).length : c.length), 0);
-
-  const write = (c: string | Uint8Array) => chunks.push(c);
-
-  // PDF Header
-  write("%PDF-1.3\n");
-
-  // 1) Catalog
-  addObj("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-
-  // 2) Pages
-  addObj("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
-
-  // 3) Page
-  addObj(
-    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " +
-      pageW.toFixed(2) +
-      " " +
-      pageH.toFixed(2) +
-      "] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
-  );
-
-  // 4) Image XObject
-  addObj(
-    `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imgWpx} /Height ${imgHpx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpgBytes.length} >>\nstream\n`
-  );
-  // stream bytes for object 4 will be written after objects strings; we must close it later
-  // We'll handle this by writing objects sequentially.
-
-  // 5) Content stream: draw image
-  const content =
-    `q\n${drawW.toFixed(2)} 0 0 ${drawH.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im0 Do\nQ\n`;
-  const contentBytes = new TextEncoder().encode(content);
-  addObj(`5 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n${content}endstream\nendobj\n`);
-
-  // Now write objects with special handling for image object 4 (binary stream)
-  // Rebuild: header already in chunks, but offsets based on currentLength must match actual write order.
-  // We'll do a second pass simpler: construct whole PDF in one go.
-
-  // Second pass (stable offsets)
   const enc = new TextEncoder();
   const parts: (string | Uint8Array)[] = [];
-  const objOffsets: number[] = [0];
+  const objOffsets: number[] = [];
+
   const push = (p: string | Uint8Array) => parts.push(p);
   const len = () => parts.reduce((s, p) => s + (typeof p === "string" ? enc.encode(p).length : p.length), 0);
 
   push("%PDF-1.3\n");
 
-  const writeObj = (objNum: number, contentPart: string | Uint8Array, tail?: string) => {
+  const writeObj = (objNum: number, contentPart: string | Uint8Array) => {
     objOffsets[objNum] = len();
-    if (typeof contentPart === "string") {
-      push(contentPart);
-    } else {
-      push(contentPart);
-    }
-    if (tail) push(tail);
+    push(contentPart);
   };
 
-  // 1
+  // 1 Catalog
   writeObj(1, "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
-  // 2
+  // 2 Pages
   writeObj(2, "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n");
-  // 3
+  // 3 Page
   writeObj(
     3,
     "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " +
@@ -172,21 +112,21 @@ async function canvasToPdfBlob(canvas: HTMLCanvasElement): Promise<Blob> {
       pageH.toFixed(2) +
       "] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n"
   );
-  // 4 (image)
-  const imgHeader = `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imgWpx} /Height ${imgHpx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpgBytes.length} >>\nstream\n`;
-  const imgTail = "\nendstream\nendobj\n";
-  objOffsets[4] = len();
-  push(imgHeader);
-  push(jpgBytes);
-  push(imgTail);
 
-  // 5 (content)
-  const cHeader = `5 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n`;
-  const cTail = "endstream\nendobj\n";
+  // 4 Image
+  objOffsets[4] = len();
+  push(
+    `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imgWpx} /Height ${imgHpx} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpgBytes.length} >>\nstream\n`
+  );
+  push(jpgBytes);
+  push("\nendstream\nendobj\n");
+
+  // 5 Content stream
+  const content =
+    `q\n${drawW.toFixed(2)} 0 0 ${drawH.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im0 Do\nQ\n`;
+  const contentBytes = enc.encode(content);
   objOffsets[5] = len();
-  push(cHeader);
-  push(content);
-  push(cTail);
+  push(`5 0 obj\n<< /Length ${contentBytes.length} >>\nstream\n${content}endstream\nendobj\n`);
 
   // xref
   const xrefStart = len();
@@ -201,8 +141,7 @@ async function canvasToPdfBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   // trailer
   push(`trailer\n<< /Size ${objCount} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
 
-  const blob = new Blob(parts, { type: "application/pdf" });
-  return blob;
+  return new Blob(parts, { type: "application/pdf" });
 }
 
 export default function HandwriteCanvas(props: {
@@ -223,12 +162,73 @@ export default function HandwriteCanvas(props: {
   const [isDrawing, setIsDrawing] = useState(false);
   const last = useRef<{ x: number; y: number } | null>(null);
 
+  // Undo/Redo stacks (store snapshots of ink layer)
+  const undoStack = useRef<ImageData[]>([]);
+  const redoStack = useRef<ImageData[]>([]);
+
   useEffect(() => {
     const c = baseRef.current;
     const ctx = c?.getContext("2d");
     if (!c || !ctx) return;
     drawTemplate(ctx, w, h, template);
   }, [template, w, h]);
+
+  const snapshotInk = () => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+    const img = ctx.getImageData(0, 0, w, h);
+    undoStack.current.push(img);
+    // once new action starts, redo is cleared
+    redoStack.current = [];
+  };
+
+  const restoreInk = (img: ImageData) => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+    ctx.putImageData(img, 0, 0);
+  };
+
+  const undo = () => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+
+    if (undoStack.current.length === 0) return;
+
+    // Current state -> redo
+    const current = ctx.getImageData(0, 0, w, h);
+    redoStack.current.push(current);
+
+    // Pop last undo
+    const prev = undoStack.current.pop()!;
+    restoreInk(prev);
+  };
+
+  const redo = () => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+
+    if (redoStack.current.length === 0) return;
+
+    // Current -> undo
+    const current = ctx.getImageData(0, 0, w, h);
+    undoStack.current.push(current);
+
+    const next = redoStack.current.pop()!;
+    restoreInk(next);
+  };
+
+  const clearInk = () => {
+    const ink = inkRef.current;
+    const ctx = ink?.getContext("2d");
+    if (!ink || !ctx) return;
+
+    snapshotInk();
+    ctx.clearRect(0, 0, w, h);
+  };
 
   const getPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -239,12 +239,17 @@ export default function HandwriteCanvas(props: {
 
   const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
+
+    // snapshot BEFORE drawing this stroke
+    snapshotInk();
+
     setIsDrawing(true);
     last.current = getPos(e);
   };
 
   const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
+
     const ink = inkRef.current;
     const ctx = ink?.getContext("2d");
     if (!ctx || !last.current) return;
@@ -284,13 +289,6 @@ export default function HandwriteCanvas(props: {
     } catch {}
   };
 
-  const clearInk = () => {
-    const ink = inkRef.current;
-    const ctx = ink?.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, w, h);
-  };
-
   const exportMergedCanvas = async (): Promise<HTMLCanvasElement> => {
     const out = document.createElement("canvas");
     out.width = w;
@@ -319,67 +317,89 @@ export default function HandwriteCanvas(props: {
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="min-w-[170px]">
-          <Label>תבנית</Label>
-          <Select value={template} onValueChange={(v) => setTemplate(v as HandwriteTemplate)}>
-            <SelectTrigger>
-              <SelectValue placeholder="בחרי תבנית" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="blank">דף ריק</SelectItem>
-              <SelectItem value="lines">דף שורות</SelectItem>
-              <SelectItem value="staff">דף חמשות</SelectItem>
-            </SelectContent>
-          </Select>
+    <div style={{ display: "grid", gap: 12 }}>
+      {/* Toolbar */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>סוג דף</div>
+            <select value={template} onChange={(e) => setTemplate(e.target.value as HandwriteTemplate)}>
+              <option value="blank">דף ריק</option>
+              <option value="lines">דף שורות</option>
+              <option value="staff">דף חמשות</option>
+            </select>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>כלי</div>
+            <select value={mode} onChange={(e) => setMode(e.target.value as PenMode)}>
+              <option value="pen">עט</option>
+              <option value="marker">מרקר</option>
+              <option value="eraser">מחק</option>
+            </select>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 160 }}>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>עובי</div>
+            <input
+              type="range"
+              min={2}
+              max={18}
+              value={penSize}
+              onChange={(e) => setPenSize(Number(e.target.value))}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button type="button" onClick={undo} disabled={undoStack.current.length === 0}>
+              ביטול
+            </button>
+            <button type="button" onClick={redo} disabled={redoStack.current.length === 0}>
+              קדימה
+            </button>
+            <button type="button" onClick={clearInk}>ניקוי</button>
+          </div>
+
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button type="button" onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))}>-</button>
+            <div style={{ width: 60, textAlign: "center", fontSize: 12 }}>{Math.round(zoom * 100)}%</div>
+            <button type="button" onClick={() => setZoom((z) => Math.min(2.0, +(z + 0.1).toFixed(2)))}>+</button>
+          </div>
         </div>
 
-        <div className="min-w-[170px]">
-          <Label>כלי</Label>
-          <Select value={mode} onValueChange={(v) => setMode(v as PenMode)}>
-            <SelectTrigger>
-              <SelectValue placeholder="בחרי כלי" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pen">עט</SelectItem>
-              <SelectItem value="marker">מרקר</SelectItem>
-              <SelectItem value="eraser">מחק</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="min-w-[200px]">
-          <Label>עובי</Label>
-          <input
-            className="w-full"
-            type="range"
-            min={2}
-            max={18}
-            value={penSize}
-            onChange={(e) => setPenSize(Number(e.target.value))}
-          />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.1).toFixed(2)))}>-</Button>
-          <div className="text-sm w-16 text-center">{Math.round(zoom * 100)}%</div>
-          <Button variant="outline" onClick={() => setZoom((z) => Math.min(2.0, +(z + 0.1).toFixed(2)))}>+</Button>
-        </div>
-
-        <div className="flex gap-2 ms-auto">
-          <Button variant="outline" onClick={clearInk}>ניקוי</Button>
-          <Button variant="outline" onClick={props.onCancel}>ביטול</Button>
-          <Button onClick={save}>שמירה (PNG + PDF)</Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" onClick={props.onCancel}>
+            השלכה
+          </button>
+          <button type="button" onClick={save}>
+            שמירה (PNG + PDF)
+          </button>
         </div>
       </div>
 
+      {/* Canvas Area */}
       <div
-        className="relative w-full overflow-auto rounded-lg border"
-        style={{ touchAction: "none", background: "rgba(0,0,0,0.02)" }}
+        style={{
+          position: "relative",
+          width: "100%",
+          maxHeight: "70vh",
+          overflow: "auto",
+          border: "1px solid rgba(0,0,0,0.12)",
+          borderRadius: 10,
+          background: "rgba(0,0,0,0.02)",
+          touchAction: "none",
+        }}
       >
-        <div style={{ transform: `scale(${zoom})`, transformOrigin: "top right" }}>
-          <div className="relative">
+        <div style={{ transform: `scale(${zoom})`, transformOrigin: "top right", width: "fit-content" }}>
+          <div style={{ position: "relative" }}>
             <canvas ref={baseRef} width={w} height={h} style={{ display: "block", width: w / 2, height: h / 2 }} />
             <canvas
               ref={inkRef}
