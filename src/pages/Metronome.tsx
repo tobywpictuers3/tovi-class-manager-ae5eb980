@@ -179,7 +179,7 @@ function PendulumVisual(props: {
       const a = side * Math.cos(Math.PI * p01) * maxAngle;
       setAngle(a);
 
-      // ---- TRAIL (only accumulates within beat; cleared on main beat) ----
+      // ---- TRAIL ----
       const tc = trailCanvasRef.current;
       if (tc) {
         const tctx = tc.getContext("2d");
@@ -187,7 +187,6 @@ function PendulumVisual(props: {
           const pt = bobPos(a);
           const prev = lastPointRef.current;
 
-          // neutralize any previous shadow state
           tctx.shadowBlur = 0;
           tctx.shadowColor = "transparent";
 
@@ -203,7 +202,6 @@ function PendulumVisual(props: {
             tctx.stroke();
             tctx.shadowBlur = 0;
           } else {
-            // first point of the beat
             tctx.beginPath();
             tctx.arc(pt.x, pt.y, 2.2, 0, Math.PI * 2);
             tctx.fillStyle = "rgba(244,189,86,0.55)";
@@ -214,12 +212,11 @@ function PendulumVisual(props: {
         }
       }
 
-      // ---- BURST (drawn in separate canvas, cleared every frame) ----
+      // ---- BURST ----
       const bc = burstCanvasRef.current;
       if (bc) {
         const bctx = bc.getContext("2d");
         if (bctx) {
-          // clear burst layer every frame to avoid leftovers
           bctx.setTransform(1, 0, 0, 1, 0, 0);
           bctx.globalCompositeOperation = "source-over";
           bctx.shadowBlur = 0;
@@ -228,13 +225,12 @@ function PendulumVisual(props: {
 
           const br = burstRef.current;
           if (br && br.active) {
-            const dur = 220; // ms
+            const dur = 220;
             const t = clamp((now - br.startedAt) / dur, 0, 1);
 
             if (t >= 1) {
               br.active = false;
             } else {
-              // ease-out
               const ease = 1 - Math.pow(1 - t, 3);
               const r = 20 + ease * 95;
               const alpha = 1 - ease;
@@ -242,7 +238,6 @@ function PendulumVisual(props: {
               const core = br.isDownbeat ? "rgba(255,45,75,0.95)" : "rgba(244,189,86,0.95)";
               const glow = br.isDownbeat ? "rgba(255,45,75,0.55)" : "rgba(244,189,86,0.55)";
 
-              // gradient “explosion”
               const g = bctx.createRadialGradient(br.x, br.y, 0, br.x, br.y, r);
               g.addColorStop(0, core);
               g.addColorStop(0.55, br.isDownbeat ? "rgba(255,45,75,0.25)" : "rgba(244,189,86,0.25)");
@@ -254,7 +249,6 @@ function PendulumVisual(props: {
               bctx.arc(br.x, br.y, r, 0, Math.PI * 2);
               bctx.fill();
 
-              // ring + glow
               bctx.globalAlpha = alpha * 0.75;
               bctx.strokeStyle = core;
               bctx.lineWidth = 2;
@@ -264,7 +258,6 @@ function PendulumVisual(props: {
               bctx.arc(br.x, br.y, r * 0.52, 0, Math.PI * 2);
               bctx.stroke();
 
-              // reset
               bctx.shadowBlur = 0;
               bctx.globalAlpha = 1;
             }
@@ -282,7 +275,6 @@ function PendulumVisual(props: {
     };
   }, [running, beatMs]);
 
-  // when stopping: clear layers so nothing “sticks”
   useEffect(() => {
     if (!running) {
       hardClearTrail();
@@ -320,12 +312,9 @@ function PendulumVisual(props: {
 
       <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
         <div className="relative h-[260px] rounded-2xl border border-white/10 bg-black/10 overflow-hidden">
-          {/* Trail */}
           <canvas ref={trailCanvasRef} width={W} height={H} className="absolute inset-0 w-full h-full" />
-          {/* Burst (separate canvas => no leftovers, no React lag) */}
           <canvas ref={burstCanvasRef} width={W} height={H} className="absolute inset-0 w-full h-full" />
 
-          {/* SVG overlay (rod + weight only) */}
           <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
             <defs>
               <radialGradient id="weightGrad" cx="30%" cy="30%" r="70%">
@@ -335,10 +324,8 @@ function PendulumVisual(props: {
               </radialGradient>
             </defs>
 
-            {/* pivot */}
             <circle cx={pivotX} cy={pivotY} r={5} fill="rgba(255,255,255,0.22)" />
 
-            {/* rod */}
             <line
               x1={pivotX}
               y1={pivotY}
@@ -349,7 +336,6 @@ function PendulumVisual(props: {
               strokeLinecap="round"
             />
 
-            {/* weight group (KEYED) so blink retriggers */}
             <g key={`${showSub ? subBlinkId : "no-sub"}`}>
               <circle cx={p.x} cy={p.y} r={13} fill="url(#weightGrad)" className={showSub ? "tobyWeightBlink" : ""} />
               <circle cx={p.x - 4} cy={p.y - 5} r={4} fill="rgba(255,255,255,0.18)" className={showSub ? "tobyWeightBlink" : ""} />
@@ -407,7 +393,7 @@ export default function Metronome() {
         setBeatInBar(b);
         subTickRef.current = 0;
 
-        const isDownbeat = b === 1; // heavy beat follows meter
+        const isDownbeat = b === 1;
         const side = hitSideRef.current;
         hitSideRef.current = hitSideRef.current === 1 ? -1 : 1;
 
@@ -509,9 +495,6 @@ export default function Metronome() {
       attackMs: 40,
       releaseMs: 150,
       minNoteMs: 90,
-
-      durationTarget: "A4_A5",
-      durationTargetCents: 150,
     });
   };
 
@@ -520,243 +503,354 @@ export default function Metronome() {
     t.stop();
   };
 
+  // Auto mic: on in tuner/duration, off in metronome
   useEffect(() => {
-    // Auto stop mic when leaving the duration tab
-    if (subTab !== "duration") return;
-    // start mic automatically when entering duration tab
-    if (tState.status === "idle" || tState.status === "no_signal" || tState.status === "error") {
-      void startMic();
-    }
-    return () => {
-      // stop when leaving tab
-      if (subTab !== "duration") return;
-      stopMic();
-    };
+    const wantsMic = subTab === "tuner" || subTab === "duration";
+    if (wantsMic) startMic().catch(() => {});
+    else stopMic();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subTab]);
 
+  // Restart mic when A4 changes (if mic is intended to run)
+  useEffect(() => {
+    if (!micShouldRunRef.current) return;
+    if (tState.status !== "running" && tState.status !== "no_signal") return;
+
+    (async () => {
+      stopMic();
+      await startMic();
+    })().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a4]);
+
+  const tunerRunning = tState.status === "running";
+  const cents = tunerRunning ? tState.cents : 0;
+  const centsClamped = clamp(cents, -50, 50);
+  const TOL = 5;
+  const inTol = Math.abs(centsClamped) <= TOL;
+  const markerLeft = 50 + centsClamped;
+
+  const tunerStatusText = (() => {
+    if (tState.status === "idle") return "מוכן";
+    if (tState.status === "starting") return "מבקש הרשאת מיקרופון…";
+    if (tState.status === "running") return "מזהה תו";
+    if (tState.status === "no_signal") return "אין אות מספיק חזק/יציב";
+    if (tState.status === "permission_denied") return "אין הרשאה למיקרופון";
+    if (tState.status === "error") return `שגיאה: ${tState.message}`;
+    return "";
+  })();
+
+  const showMicRetry =
+    tState.status === "permission_denied" || tState.status === "error" || tState.status === "idle";
+
   return (
-    <Card className="border-white/10 bg-black/20">
-      <CardHeader>
-        <CardTitle className="text-white">העזרים של טובי</CardTitle>
-      </CardHeader>
+    <div className="space-y-6">
+      <Card className="border-white/10 bg-black/20">
+        <CardHeader>
+          <CardTitle className="text-right">עזרים</CardTitle>
+        </CardHeader>
 
-      <CardContent className="space-y-6">
-        <Tabs value={subTab} onValueChange={(v) => setSubTab(v as any)} dir="rtl">
-          <TabsList className="bg-black/20 border border-white/10">
-            <TabsTrigger value="metronome">מטרונום</TabsTrigger>
-            <TabsTrigger value="tuner">טיונר</TabsTrigger>
-            <TabsTrigger value="duration">מדידת אורך צליל</TabsTrigger>
-          </TabsList>
+        <CardContent>
+          <Tabs value={subTab} onValueChange={(v) => setSubTab(v as any)} className="space-y-6" dir="rtl">
+            <TabsList className="gap-2 bg-black/20 border border-white/10">
+              <TabsTrigger value="metronome">מטרונום</TabsTrigger>
+              <TabsTrigger value="tuner">טיונר</TabsTrigger>
+              <TabsTrigger value="duration">מדידת אורך צליל</TabsTrigger>
+            </TabsList>
 
-          {/* ---------- METRONOME ---------- */}
-          <TabsContent value="metronome" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-white text-xl font-semibold">שליטה</div>
-                    <div className="text-white/60 text-sm">סטטוס: {mRunning ? "פועל" : "מוכן"}</div>
-                  </div>
+            {/* ===================== METRONOME ===================== */}
+            <TabsContent value="metronome" className="space-y-6 mt-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="border-white/10 bg-black/20">
+                  <CardHeader>
+                    <CardTitle className="text-right">שליטה</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-right">
+                        <div className="text-sm text-white/70">סטטוס</div>
+                        <div className="text-white">{mRunning ? "פועל" : "מוכן"}</div>
+                      </div>
 
-                  <div className="flex gap-2">
-                    {!mRunning ? (
-                      <Button onClick={startMetronome} className="bg-red-700 hover:bg-red-600">
-                        התחל
-                      </Button>
-                    ) : (
-                      <Button onClick={stopMetronome} variant="secondary">
-                        עצור
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                      <div className="flex gap-2">
+                        <Button onClick={startMetronome} disabled={mRunning}>
+                          התחל
+                        </Button>
+                        <Button variant="secondary" onClick={stopMetronome} disabled={!mRunning}>
+                          עצור
+                        </Button>
+                      </div>
+                    </div>
 
-                <div className="mt-6 space-y-5">
-                  {/* BPM */}
-                  <div>
-                    <div className="flex items-center justify-between text-white/80 text-sm mb-2">
-                      <span>BPM</span>
-                      <span>{mSettings.bpm}</span>
+                    <div className="text-right">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-white/70">BPM</div>
+                        <div className="text-white tabular-nums">{mSettings.bpm}</div>
+                      </div>
+                      <input
+                        type="range"
+                        min={40}
+                        max={220}
+                        value={mSettings.bpm}
+                        onChange={(e) => setBpm(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="text-right">
+                        <div className="text-sm text-white/70">מספר פעימות בתיבה</div>
+                        <select
+                          className="w-full bg-black/30 border border-white/10 rounded-md p-2 text-white"
+                          value={mSettings.beatsPerBar}
+                          onChange={(e) => setBeatsPerBar(Number(e.target.value))}
+                        >
+                          {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-sm text-white/70">הדגשת פעימה כבדה (לאוזן)</div>
+                        <Button
+                          type="button"
+                          variant={accentDownbeat ? "default" : "secondary"}
+                          className="w-full justify-center"
+                          onClick={toggleAccentDownbeat}
+                        >
+                          {accentDownbeat ? "מופעל" : "כבוי"}
+                        </Button>
+                        <div className="text-white/50 text-xs mt-1">
+                          הויזואליה תמיד תדגיש פעימה 1 לפי המשקל.
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-sm text-white/70">חלוקה פנימית</div>
+                        <select
+                          className="w-full bg-black/30 border border-white/10 rounded-md p-2 text-white"
+                          value={mSettings.subdivision}
+                          onChange={(e) => setSubdivision(e.target.value as SubdivisionMode)}
+                        >
+                          {Object.keys(SUB_LABELS).map((k) => (
+                            <option key={k} value={k}>
+                              {SUB_LABELS[k as SubdivisionMode]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-sm text-white/70">סאונד</div>
+                        <select
+                          className="w-full bg-black/30 border border-white/10 rounded-md p-2 text-white"
+                          value={mSettings.sound}
+                          onChange={(e) => setSound(e.target.value as MetronomeSound)}
+                        >
+                          {Object.keys(SOUND_LABELS).map((k) => (
+                            <option key={k} value={k}>
+                              {SOUND_LABELS[k as MetronomeSound]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-white/70">עוצמה</div>
+                        <div className="text-white tabular-nums">{Math.round(mSettings.volume * 100)}%</div>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={Math.round(mSettings.volume * 100)}
+                        onChange={(e) => setVolume(Number(e.target.value) / 100)}
+                        className="w-full"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-white/10 bg-black/20">
+                  <CardHeader>
+                    <CardTitle className="text-right">מראה ויזואלי</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <PendulumVisual
+                      running={mRunning}
+                      bpm={mSettings.bpm}
+                      beatsPerBar={mSettings.beatsPerBar}
+                      beatInBar={beatInBar}
+                      subdivision={mSettings.subdivision}
+                      hit={hit}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* ===================== TUNER (RESTORED) ===================== */}
+            <TabsContent value="tuner" className="space-y-6 mt-6">
+              <Card className="border-white/10 bg-black/20">
+                <CardHeader>
+                  <CardTitle className="text-right">טיונר</CardTitle>
+                </CardHeader>
+
+                <CardContent className="space-y-5">
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="text-white/70 text-sm text-right">כיוון מאסטר (A4)</div>
+                      <div className="text-white tabular-nums">{a4}Hz</div>
                     </div>
                     <input
                       type="range"
-                      min={20}
-                      max={240}
-                      value={mSettings.bpm}
-                      onChange={(e) => setBpm(Number(e.target.value))}
+                      min={430}
+                      max={450}
+                      value={a4}
+                      onChange={(e) => setA4(Number(e.target.value))}
                       className="w-full"
                     />
+                    <div className="text-right text-xs text-white/50">430–450Hz</div>
                   </div>
 
-                  {/* beats per bar */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-white/80 text-sm mb-2">מספר פעימות בתיבה</div>
-                      <select
-                        value={mSettings.beatsPerBar}
-                        onChange={(e) => setBeatsPerBar(Number(e.target.value))}
-                        className="w-full rounded-md bg-black/30 border border-white/10 text-white px-3 py-2"
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        ))}
-                      </select>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-right">
+                      <div className="text-sm text-white/70">סטטוס</div>
+                      <div className="text-white">{tunerStatusText}</div>
                     </div>
 
-                    {/* accent toggle (ear only) */}
-                    <div>
-                      <div className="text-white/80 text-sm mb-2">הדגשת פעימה כבדה (לאוזן)</div>
-                      <Button
-                        onClick={toggleAccentDownbeat}
-                        className={`w-full ${accentDownbeat ? "bg-red-700 hover:bg-red-600" : "bg-white/10 hover:bg-white/20"}`}
-                      >
-                        {accentDownbeat ? "מופעל" : "כבוי"}
+                    <div className="flex gap-2">
+                      <Button onClick={startMic} disabled={tState.status === "starting" || tState.status === "running"}>
+                        הפעל מיקרופון
                       </Button>
-                      <div className="text-white/50 text-xs mt-1">
-                        הויזואליה תמיד תדגיש פעימה כבדה לפי משקל (פעימה 1 בכל תיבה).
+                      <Button variant="secondary" onClick={stopMic} disabled={tState.status === "idle"}>
+                        סגור מיקרופון
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="rounded-lg bg-black/25 border border-white/10 p-3 text-right">
+                      <div className="text-sm text-white/70">תו</div>
+                      <div className="text-3xl text-white font-semibold">{tunerRunning ? tState.note : "--"}</div>
+                    </div>
+
+                    <div className="rounded-lg bg-black/25 border border-white/10 p-3 text-right">
+                      <div className="text-sm text-white/70">תדירות</div>
+                      <div className="text-3xl text-white font-semibold">{tunerRunning ? `${tState.hz.toFixed(1)} Hz` : "--"}</div>
+                    </div>
+
+                    <div className="rounded-lg bg-black/25 border border-white/10 p-3 text-right">
+                      <div className="text-sm text-white/70">סטייה (cents)</div>
+                      <div className={`text-3xl font-semibold ${tunerRunning ? (inTol ? "text-emerald-400" : "text-red-400") : "text-white"}`}>
+                        {tunerRunning ? (tState.cents > 0 ? `+${tState.cents}` : `${tState.cents}`) : "--"}
                       </div>
                     </div>
                   </div>
 
-                  {/* subdivision + sound */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-white/80 text-sm mb-2">חלוקה פנימית</div>
-                      <select
-                        value={mSettings.subdivision}
-                        onChange={(e) => setSubdivision(e.target.value as SubdivisionMode)}
-                        className="w-full rounded-md bg-black/30 border border-white/10 text-white px-3 py-2"
-                      >
-                        {Object.entries(SUB_LABELS).map(([k, label]) => (
-                          <option key={k} value={k}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
+                  <div className="rounded-lg border border-white/10 bg-black/20 p-4 space-y-2">
+                    <div className="flex justify-between text-xs text-white/60">
+                      <span>-50</span>
+                      <span>-25</span>
+                      <span>0</span>
+                      <span>+25</span>
+                      <span>+50</span>
                     </div>
 
-                    <div>
-                      <div className="text-white/80 text-sm mb-2">סאונד</div>
-                      <select
-                        value={mSettings.sound}
-                        onChange={(e) => setSound(e.target.value as MetronomeSound)}
-                        className="w-full rounded-md bg-black/30 border border-white/10 text-white px-3 py-2"
-                      >
-                        {Object.entries(SOUND_LABELS).map(([k, label]) => (
-                          <option key={k} value={k}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="relative h-4 rounded bg-white/10 overflow-hidden">
+                      <div
+                        className="absolute top-0 h-4"
+                        style={{
+                          left: `${50 - 5}%`,
+                          width: `${10}%`,
+                          background: inTol && tunerRunning ? "rgba(16,185,129,0.42)" : "rgba(16,185,129,0.20)",
+                          boxShadow: inTol && tunerRunning ? "0 0 22px rgba(16,185,129,0.55)" : "none",
+                          transition: "background 120ms ease, box-shadow 120ms ease",
+                        }}
+                      />
+                      <div className="absolute top-0 h-4 w-[2px] bg-white/70 left-1/2 -translate-x-1/2" />
+                      <div
+                        className={`absolute top-[-6px] h-7 w-[3px] rounded ${tunerRunning ? (inTol ? "bg-emerald-400" : "bg-red-400") : "bg-white/50"}`}
+                        style={{
+                          left: `${markerLeft}%`,
+                          transform: "translateX(-50%)",
+                          transition: "left 80ms linear",
+                        }}
+                      />
                     </div>
                   </div>
 
-                  {/* volume */}
-                  <div>
-                    <div className="flex items-center justify-between text-white/80 text-sm mb-2">
-                      <span>עוצמה</span>
-                      <span>{Math.round(mSettings.volume * 100)}%</span>
+                  {showMicRetry && (
+                    <div className="text-right text-xs text-white/50">
+                      אם לא מופיע תו: לחצי “הפעל מיקרופון” שוב, או בדקי הרשאות מיקרופון בדפדפן.
                     </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.01}
-                      value={mSettings.volume}
-                      onChange={(e) => setVolume(Number(e.target.value))}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-              </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-              {/* VISUAL */}
-              <div className="rounded-2xl border border-white/10 bg-black/20 p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="text-white text-xl font-semibold">מראה ויזואלי</div>
-                    <div className="text-white/60 text-sm">הפעמה קבועה; חלוקה פנימית רק הבהוב משקולת.</div>
-                  </div>
-                </div>
+            {/* ===================== NOTE DURATION ===================== */}
+            <TabsContent value="duration" className="space-y-6 mt-6">
+              <Card className="border-white/10 bg-black/20">
+                <CardHeader>
+                  <CardTitle className="text-right">מדידת אורך צליל</CardTitle>
+                </CardHeader>
 
-                <PendulumVisual
-                  running={mRunning}
-                  bpm={mSettings.bpm}
-                  beatsPerBar={mSettings.beatsPerBar}
-                  beatInBar={beatInBar}
-                  subdivision={mSettings.subdivision}
-                  hit={hit}
-                />
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* ---------- TUNER (kept as-is in this file) ---------- */}
-          <TabsContent value="tuner" className="mt-6">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-6 text-white/80">
-              <div className="text-white text-xl font-semibold mb-2">טיונר</div>
-              <div className="text-white/60 text-sm">
-                (הטיונר מנוהל ב־TunerCard/TunerEngine בקבצים אחרים – לא שינינו כאן)
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* ---------- NOTE DURATION ---------- */}
-          <TabsContent value="duration" className="mt-6">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-6 text-white/80 space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-white text-xl font-semibold">מדידת אורך צליל</div>
-                  <div className="text-white/60 text-sm">המיקרופון מופעל אוטומטית בטאב זה ונסגר ביציאה.</div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button onClick={startMic} className="bg-red-700 hover:bg-red-600">
-                    הפעל מיקרופון
-                  </Button>
-                  <Button onClick={stopMic} variant="secondary">
-                    סגור מיקרופון
-                  </Button>
-                </div>
-              </div>
-
-              <div className="text-white/70 text-sm">
-                סטטוס: <span className="text-white">{tState.status}</span> · A4:{" "}
-                <input
-                  className="ml-2 w-20 rounded bg-black/30 border border-white/10 px-2 py-1 text-white"
-                  type="number"
-                  value={a4}
-                  onChange={(e) => setA4(Number(e.target.value))}
-                />
-                Hz
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <div className="text-white font-semibold mb-2">תוצאות</div>
-                {durations.length === 0 ? (
-                  <div className="text-white/50 text-sm">עדיין אין תוצאות.</div>
-                ) : (
-                  <div className="space-y-2 max-h-[320px] overflow-auto">
-                    {durations.map((d) => (
-                      <div key={d.id} className="flex items-center justify-between text-sm border-b border-white/10 pb-2">
-                        <div className="text-white/80">
-                          {d.note} · {d.hz.toFixed(1)}Hz · {d.cents >= 0 ? "+" : ""}
-                          {d.cents.toFixed(0)}c
-                        </div>
-                        <div className="text-white">
-                          {d.durationMs != null ? `${(d.durationMs / 1000).toFixed(2)}s` : "—"}
-                        </div>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-right">
+                      <div className="text-sm text-white/70">מצב</div>
+                      <div className="text-white">
+                        {tState.status === "starting" && "מבקש הרשאת מיקרופון…"}
+                        {tState.status === "running" && "מקשיב ומודד אוטומטית"}
+                        {tState.status === "no_signal" && "ממתין לצליל יציב"}
+                        {tState.status === "idle" && "מוכן למדידה"}
+                        {tState.status === "permission_denied" && "אין הרשאה למיקרופון"}
+                        {tState.status === "error" && `שגיאה: ${tState.message}`}
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="flex gap-2">
+                      {showMicRetry && <Button onClick={startMic}>הפעל מיקרופון</Button>}
+                      <Button variant="secondary" onClick={() => setDurations([])} disabled={durations.length === 0}>
+                        נקה רשימה
+                      </Button>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+
+                  {durations.length === 0 ? (
+                    <div className="text-right text-white/60 text-sm">עדיין אין תוצאות.</div>
+                  ) : (
+                    <div className="space-y-2 max-h-[360px] overflow-auto pr-1">
+                      {durations.slice(0, 30).map((n, idx) => (
+                        <div
+                          key={n.id}
+                          className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/20 px-3 py-2"
+                        >
+                          <div className="text-white/70 text-sm">#{durations.length - idx}</div>
+                          <div className="text-white font-semibold tabular-nums">{n.durationSec.toFixed(2)} שנ׳</div>
+                          <div className="text-white/60 text-sm tabular-nums">
+                            {typeof n.lastHz === "number" ? `${Math.round(n.lastHz)} Hz` : ""}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="text-right text-xs text-white/50">
+                    המיקרופון מופעל אוטומטית בטאבים “טיונר” ו“מדידת אורך צליל”, ונסגר כשחוזרים למטרונום.
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
