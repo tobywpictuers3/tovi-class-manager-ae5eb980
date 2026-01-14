@@ -28,7 +28,7 @@ import SyncStatusBadge from "@/components/ui/SyncStatusBadge";
 
 import Metronome from "./Metronome";
 
-// ✅ הלוגיקה העדכנית של החלפות (קודים + בחירת שיעורים + אישור אוטומטי)
+// ✅ הלוגיקה החדשה של החלפות (קודים + בחירת 2 שיעורים + אישור אוטומטי)
 import StudentSwapPanel, {
   StudentSwapPanelRef,
 } from "@/components/student/lessonSwap/StudentSwapPanel";
@@ -41,18 +41,28 @@ const StudentDashboard = () => {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [activeTab, setActiveTab] = useState("schedule");
 
-  // Swap wiring (latest logic)
+  // ✅ חיבור בין המערכת השבועית לבין פאנל ההחלפות
   const [swapPanelRef, setSwapPanelRef] = useState<StudentSwapPanelRef | null>(
     null
   );
   const [currentSwapStep, setCurrentSwapStep] = useState<1 | 2 | 3 | 4>(1);
   const [isSwapSelectionActive, setIsSwapSelectionActive] = useState(false);
 
-  // keep schedule highlight in sync with swap step (2-3 = selection)
+  // טען שיעורים כולל תבניות
+  useEffect(() => {
+    setLessons(getAllLessonsIncludingTemplates());
+  }, []);
+
+  const refreshLessons = () => {
+    setLessons(getAllLessonsIncludingTemplates());
+  };
+
+  // מצב “בחירה” במערכת השבועית בזמן שלב 2/3
   useEffect(() => {
     setIsSwapSelectionActive(currentSwapStep === 2 || currentSwapStep === 3);
   }, [currentSwapStep]);
 
+  // טעינת תלמידה + הרשאה
   useEffect(() => {
     const load = async () => {
       try {
@@ -81,8 +91,6 @@ const StudentDashboard = () => {
         }
 
         setStudent(found);
-
-        // load lessons (including templates)
         setLessons(getAllLessonsIncludingTemplates());
       } catch (e) {
         console.error(e);
@@ -98,6 +106,24 @@ const StudentDashboard = () => {
     load();
   }, [studentId, navigate]);
 
+  const handleLogout = () => {
+    setCurrentUser(null);
+    clearClientCaches();
+    toast({ title: "התנתקת בהצלחה" });
+    navigate("/", { replace: true });
+  };
+
+  const handleStudentUpdate = () => {
+    const students = getStudents();
+    const found = students.find((s) => s?.id === student?.id);
+    if (found) setStudent(found);
+  };
+
+  const handleLessonDoubleClick = (lesson: Lesson) => {
+    // מעביר את הבחירה לפאנל ההחלפות (שלב 2/3)
+    swapPanelRef?.handleLessonDoubleClick(lesson);
+  };
+
   if (!student) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -108,29 +134,6 @@ const StudentDashboard = () => {
       </div>
     );
   }
-
-  const refreshLessons = () => {
-    setLessons(getAllLessonsIncludingTemplates());
-  };
-
-  const handleLessonDoubleClick = (lesson: Lesson) => {
-    if (swapPanelRef) {
-      swapPanelRef.handleLessonDoubleClick(lesson);
-    }
-  };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    clearClientCaches();
-    toast({ title: "התנתקת בהצלחה" });
-    navigate("/", { replace: true });
-  };
-
-  const handleStudentUpdate = () => {
-    const students = getStudents();
-    const found = students.find((s) => s?.id === student.id);
-    if (found) setStudent(found);
-  };
 
   const allStudents = getStudents();
 
@@ -195,7 +198,7 @@ const StudentDashboard = () => {
           <TabsTrigger value="files">קבצים</TabsTrigger>
         </TabsList>
 
-        {/* ✅ מערכת שבועית + החלפות (הלוגיקה החדשה) */}
+        {/* ✅ כאן נמצאת ההחלפה החדשה – לא הטופס הישן */}
         <TabsContent value="schedule" className="space-y-6">
           <GeneralWeeklySchedule
             studentId={student.id}
@@ -211,7 +214,7 @@ const StudentDashboard = () => {
             students={allStudents}
             onMount={(ref) => setSwapPanelRef(ref)}
             onStepChange={(step) => setCurrentSwapStep(step)}
-            onSwapCompleted={refreshLessons}
+            onSwapCompleted={() => refreshLessons()}
           />
         </TabsContent>
 
