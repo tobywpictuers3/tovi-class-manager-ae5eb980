@@ -36,7 +36,7 @@ const PaymentManagement = () => {
   const [editAmount, setEditAmount] = useState<string>('');
   const [oneTimePayments, setOneTimePayments] = useState<OneTimePayment[]>([]);
   const [showOneTimeDialog, setShowOneTimeDialog] = useState(false);
-  const [newOneTimePayment, setNewOneTimePayment] = useState({ description: '', amount: '', month: '' });
+  const [newOneTimePayment, setNewOneTimePayment] = useState({ description: '', amount: '', monthNum: '', baseYear: selectedYear });
   const [history, setHistory] = useState<Array<{ payments: Payment[]; oneTimePayments: OneTimePayment[] }>>([]);
   const [tithePaid, setTithePaid] = useState<Record<string, boolean>>(() => getTithePaid());
   const tableRef = useRef<HTMLDivElement>(null);
@@ -81,6 +81,10 @@ const PaymentManagement = () => {
     { key: '07', name: 'יולי', fullName: 'יולי' },
     { key: '08', name: 'אוג', fullName: 'אוגוסט' }
   ];
+
+  // טווח שנים לבחירה לתשלום חד-פעמי (שנת לימודים: ספטמבר–אוגוסט)
+  // ניתן לשנות את הטווח לפי הצורך.
+  const academicYearOptions = Array.from({ length: 11 }, (_, i) => selectedYear - 5 + i);
 
   useEffect(() => {
     loadData();
@@ -461,7 +465,12 @@ const PaymentManagement = () => {
   };
 
   const handleAddOneTimePayment = () => {
-    if (!newOneTimePayment.description.trim() || !newOneTimePayment.amount || !newOneTimePayment.month) {
+    if (
+      !newOneTimePayment.description.trim() ||
+      !newOneTimePayment.amount ||
+      !newOneTimePayment.monthNum ||
+      !newOneTimePayment.baseYear
+    ) {
       toast({
         title: 'שגיאה',
         description: 'יש למלא את כל השדות',
@@ -469,18 +478,25 @@ const PaymentManagement = () => {
       });
       return;
     }
+
+    const monthNum = newOneTimePayment.monthNum;
+    const baseYear = Number(newOneTimePayment.baseYear);
+    const year = parseInt(monthNum, 10) >= 9 ? baseYear : baseYear + 1;
+    const monthKey = getMonthKey(monthNum, year);
+
     const payment: OneTimePayment = {
       id: Date.now().toString(),
-      month: newOneTimePayment.month,
+      month: monthKey,
       amount: parseFloat(newOneTimePayment.amount),
       description: newOneTimePayment.description,
       paidDate: new Date().toISOString()
     };
+
     const updatedPayments = [...oneTimePayments, payment];
     saveOneTimePayments(updatedPayments);
     setOneTimePayments(updatedPayments);
     setShowOneTimeDialog(false);
-    setNewOneTimePayment({ description: '', amount: '', month: '' });
+    setNewOneTimePayment({ description: '', amount: '', monthNum: '', baseYear: selectedYear });
     toast({
       title: 'הצלחה',
       description: 'תשלום חד פעמי נוסף בהצלחה'
@@ -626,6 +642,24 @@ const PaymentManagement = () => {
     return payments.reduce((sum, p) => sum + p.amount, 0);
   };
 
+
+
+  const openOneTimePaymentDialog = () => {
+    // ברירת מחדל נוחה: אם נמצאים בתצוגה חודשית – בוחרים את החודש שנבחר,
+    // אחרת – החודש הנוכחי.
+    const now = new Date();
+    const currentMonth = (now.getMonth() + 1).toString().padStart(2, '0');
+    const defaultMonthNum = currentView === 'monthly' && selectedMonth ? selectedMonth : currentMonth;
+
+    setNewOneTimePayment({
+      description: '',
+      amount: '',
+      monthNum: defaultMonthNum,
+      baseYear: selectedYear
+    });
+
+    setShowOneTimeDialog(true);
+  };
   return (
     <div className="space-y-6">
       <Card className="card-gradient card-shadow">
@@ -693,7 +727,7 @@ const PaymentManagement = () => {
               </SelectContent>
             </Select>
             
-            <Button onClick={() => setShowOneTimeDialog(true)} variant="outline">
+            <Button onClick={openOneTimePaymentDialog} variant="outline">
               + תשלום חד פעמי
             </Button>
           </div>
@@ -1277,17 +1311,7 @@ const PaymentManagement = () => {
                             </Button>
                           </div>
                         </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* דיאלוג תשלום חד פעמי */}
+                          {/* דיאלוג תשלום חד פעמי */}
       <Dialog open={showOneTimeDialog} onOpenChange={setShowOneTimeDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1303,6 +1327,7 @@ const PaymentManagement = () => {
                 placeholder="לדוגמה: השלמה לחודש ינואר"
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="payment-amount">סכום</Label>
               <Input
@@ -1313,26 +1338,55 @@ const PaymentManagement = () => {
                 placeholder="0"
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="payment-month">חודש</Label>
+              <Label htmlFor="payment-year">שנה</Label>
               <Select
-                value={newOneTimePayment.month}
-                onValueChange={(value) => setNewOneTimePayment({ ...newOneTimePayment, month: value })}
+                value={String(newOneTimePayment.baseYear)}
+                onValueChange={(value) => setNewOneTimePayment({ ...newOneTimePayment, baseYear: Number(value) })}
               >
-                <SelectTrigger id="payment-month">
-                  <SelectValue placeholder="בחר חודש" />
+                <SelectTrigger id="payment-year">
+                  <SelectValue placeholder="בחר שנה" />
                 </SelectTrigger>
                 <SelectContent>
-                  {academicMonths.map((month) => (
-                    <SelectItem key={month.key} value={`${selectedYear}-${month.key}`}>
-                      {month.fullName} {selectedYear}
+                  {academicYearOptions.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}–{y + 1}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment-month">חודש</Label>
+              <Select
+                value={newOneTimePayment.monthNum}
+                onValueChange={(value) => setNewOneTimePayment({ ...newOneTimePayment, monthNum: value })}
+              >
+                <SelectTrigger id="payment-month">
+                  <SelectValue placeholder="בחר חודש" />
+                </SelectTrigger>
+                <SelectContent>
+                  {academicMonths.map((month) => {
+                    const year = parseInt(month.key, 10) >= 9 ? Number(newOneTimePayment.baseYear) : Number(newOneTimePayment.baseYear) + 1;
+                    return (
+                      <SelectItem key={month.key} value={month.key}>
+                        {month.fullName} {year}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex gap-2">
               <Button onClick={handleAddOneTimePayment} className="flex-1">הוסף</Button>
+              <Button variant="outline" onClick={() => setShowOneTimeDialog(false)}>ביטול</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>ame="flex-1">הוסף</Button>
               <Button variant="outline" onClick={() => setShowOneTimeDialog(false)}>ביטול</Button>
             </div>
           </div>
