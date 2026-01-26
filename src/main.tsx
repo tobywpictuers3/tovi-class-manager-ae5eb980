@@ -1,6 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { BrandProvider } from "./brand/BrandProvider";
+import { ThemeProvider } from "./brand/ThemeProvider";
 import { hybridSync } from "./lib/hybridSync";
 import { logger } from "./lib/logger";
 import { setDevMode } from "./lib/storage";
@@ -9,11 +11,7 @@ import { setDevMode } from "./lib/storage";
 const root = document.getElementById("root")!;
 
 /**
- * Minimal boot screens that follow TOBY MUSIC design language:
- * - Background: #0B0B0B
- * - Accent: #E6B65C
- * - No emoji
- * - No non-brand gradients
+ * Minimal boot screens that follow TOBY MUSIC design language
  */
 const renderBootScreen = (opts: {
   title: string;
@@ -28,15 +26,15 @@ const renderBootScreen = (opts: {
       display:flex;
       align-items:center;
       justify-content:center;
-      background:#0B0B0B;
-      color:#FFFFFF;
+      background: var(--background, #0B0B0B);
+      color: var(--foreground, #FFFFFF);
       padding:24px;
     ">
       <div style="
         width:min(520px, 100%);
-        border:1px solid rgba(230,182,92,0.35);
+        border:1px solid var(--border, rgba(230,182,92,0.35));
         border-radius:6px;
-        background:#161616;
+        background: var(--card, #161616);
         padding:28px 24px;
         box-shadow: 0 12px 36px rgba(0,0,0,0.60);
         text-align:center;
@@ -45,20 +43,20 @@ const renderBootScreen = (opts: {
           font-size:22px;
           font-weight:600;
           letter-spacing:0.2px;
-          color:#E6B65C;
+          color: var(--primary, #E6B65C);
           margin-bottom:10px;
         ">Toby Music</div>
 
         <div style="
           font-size:18px;
           font-weight:600;
-          color:#FFFFFF;
+          color: var(--foreground, #FFFFFF);
           margin-bottom:10px;
         ">${title}</div>
 
         ${
           subtitle
-            ? `<div style="font-size:14px; line-height:1.6; color:rgba(255,255,255,0.78); margin-bottom:${showRetry ? "18px" : "0"};">
+            ? `<div style="font-size:14px; line-height:1.6; color: var(--muted-foreground, rgba(255,255,255,0.78)); margin-bottom:${showRetry ? "18px" : "0"};">
                 ${subtitle}
                </div>`
             : ""
@@ -69,8 +67,8 @@ const renderBootScreen = (opts: {
             ? `<button
                 onclick="window.location.reload()"
                 style="
-                  border:1px solid #E6B65C;
-                  color:#E6B65C;
+                  border:1px solid var(--primary, #E6B65C);
+                  color: var(--primary, #E6B65C);
                   background:transparent;
                   padding:12px 18px;
                   border-radius:6px;
@@ -153,7 +151,15 @@ async function initializeApp() {
     await hybridSync.loadDataOnInit();
     logger.info("Data loaded successfully");
 
-    createRoot(root).render(<App />);
+    // Render app with providers
+    createRoot(root).render(
+      <>
+        <BrandProvider />
+        <ThemeProvider defaultTheme="system">
+          <App />
+        </ThemeProvider>
+      </>
+    );
   } catch (error) {
     logger.error("Failed to initialize app:", error);
 
