@@ -2,50 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-/* TOBY MUSIC – Global Design Tokens (Tailwind consumes these via tailwind.config) */
+/*
+ * TOBY MUSIC – Local styles only
+ * All design tokens (colors, fonts, etc.) come from external CDN via BrandProvider
+ * This file contains only: Tailwind directives, body reset, and essential animations
+ */
 
 @layer base {
-  :root {
-    /* Base */
-    --background: 0 0% 4%;   /* #0B0B0B */
-    --foreground: 0 0% 98%;  /* near-white */
-
-    /* Surfaces */
-    --card: 0 0% 9%;         /* #161616 */
-    --card-foreground: 0 0% 96%;
-
-    --popover: 0 0% 9%;
-    --popover-foreground: 0 0% 96%;
-
-    /* Brand */
-    --primary: 41 74% 63%;           /* gold main ~ #E6B65C */
-    --primary-foreground: 0 0% 5%;
-
-    --secondary: 0 0% 14%;           /* soft black / surface */
-    --secondary-foreground: 0 0% 98%;
-
-    /* Accents */
-    --accent: 41 74% 63%;            /* gold */
-    --accent-foreground: 0 0% 5%;
-
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 70%;
-
-    --destructive: 2 70% 45%;        /* wine-red-ish */
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 41 74% 63%;
-    --input: 0 0% 12%;
-    --ring: 41 74% 63%;
-
-    --radius: 6px;
-  }
-
   body {
     @apply bg-background text-foreground;
     direction: rtl;
     margin: 0;
-    font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   }
 
   * {
@@ -53,32 +20,18 @@
   }
 }
 
-/* Optional: “brand buttons” you asked for earlier (transparent + gold border) */
-@layer components {
-  .btn-primary {
-    @apply inline-flex items-center justify-center;
-    border: 1px solid #E6B65C;
-    color: #E6B65C;
-    background: transparent;
-    border-radius: 6px;
-    padding: 14px 28px;
-    font-weight: 500;
-    transition: background-color 200ms ease-out, color 200ms ease-out, border-color 200ms ease-out;
+/* Sparkle animation for בסיעתא דשמיא overlay */
+@keyframes sparkle-text {
+  0%, 100% {
+    opacity: 0.7;
+    text-shadow: 0 0 4px currentColor;
   }
-  .btn-primary:hover {
-    background: rgba(230,182,92,0.12);
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 12px currentColor, 0 0 20px currentColor;
   }
+}
 
-  .btn-secondary {
-    @apply inline-flex items-center justify-center;
-    color: #ffffff;
-    background: transparent;
-    border: none;
-    padding: 14px 28px;
-    font-weight: 500;
-    border-radius: 6px;
-  }
-  .btn-secondary:hover {
-    text-decoration: underline;
-  }
+.sparkle-text {
+  animation: sparkle-text 2s ease-in-out infinite;
 }

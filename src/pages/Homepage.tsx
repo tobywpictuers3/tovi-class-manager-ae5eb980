@@ -1,59 +1,61 @@
-
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Shield, GraduationCap, ArrowRight, Mail, Phone, MessageCircle } from 'lucide-react';
-import { getStudents, setCurrentUser, setDevMode } from '@/lib/storage';
-import { toast } from '@/hooks/use-toast';
-import { useAccessMode } from '@/contexts/AccessModeContext';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ArrowRight, Mail, Phone, MessageCircle } from "lucide-react";
+import { getStudents, setCurrentUser, setDevMode } from "@/lib/storage";
+import { toast } from "@/hooks/use-toast";
+import { useAccessMode } from "@/contexts/AccessModeContext";
+import { ThemeToggle } from "@/brand/ThemeToggle";
+import { TOBY_LOGO_3D_URL, TOBY_BG_RED_URL } from "@/brand/tobyBrand";
+import BsiataDishmaya from "@/components/ui/BsiataDishmaya";
 
 const Homepage = () => {
-  const [adminCode, setAdminCode] = useState('');
-  const [studentCode, setStudentCode] = useState('');
+  const [adminCode, setAdminCode] = useState("");
+  const [studentCode, setStudentCode] = useState("");
   const navigate = useNavigate();
   const { setAccessMode } = useAccessMode();
 
   const handleAdminLogin = async () => {
-    if (adminCode === 'toby2026') {
+    if (adminCode === "toby2026") {
       setDevMode(false);
-      sessionStorage.removeItem('musicSystem_devMode');
-      
-      setCurrentUser({ type: 'admin', adminCode });
-      navigate('/admin');
-      
+      sessionStorage.removeItem("musicSystem_devMode");
+
+      setCurrentUser({ type: "admin", adminCode });
+      navigate("/admin");
+
       toast({
-        title: 'ברוך הבא!',
-        description: 'התחברת כמנהל מערכת',
+        title: "ברוך הבא!",
+        description: "התחברת כמנהל מערכת",
       });
     } else {
       toast({
-        title: 'שגיאה',
-        description: 'קוד מנהל שגוי',
-        variant: 'destructive',
+        title: "שגיאה",
+        description: "קוד מנהל שגוי",
+        variant: "destructive",
       });
     }
   };
 
   const handleDevAdminLogin = async () => {
-    if (adminCode === '1234E') {
+    if (adminCode === "1234E") {
       setDevMode(true);
-      sessionStorage.setItem('musicSystem_devMode', 'true');
-      
-      setCurrentUser({ type: 'admin', adminCode });
-      navigate('/dev-admin');
-      
+      sessionStorage.setItem("musicSystem_devMode", "true");
+
+      setCurrentUser({ type: "admin", adminCode });
+      navigate("/dev-admin");
+
       toast({
-        title: '🔧 מצב מפתחים',
-        description: 'נכנסת למצב מפתחים מבודד (ללא Worker)',
+        title: "🔧 מצב מפתחים",
+        description: "נכנסת למצב מפתחים מבודד (ללא Worker)",
       });
     } else {
       toast({
-        title: 'שגיאה',
-        description: 'קוד מפתחים שגוי',
-        variant: 'destructive',
+        title: "שגיאה",
+        description: "קוד מפתחים שגוי",
+        variant: "destructive",
       });
     }
   };
@@ -61,223 +63,230 @@ const Homepage = () => {
   const handleStudentLogin = () => {
     if (!studentCode.trim()) {
       toast({
-        title: 'שגיאה',
-        description: 'אנא הקישי את הקוד האישי שלך',
-        variant: 'destructive',
+        title: "שגיאה",
+        description: "אנא הקישי את הקוד האישי שלך",
+        variant: "destructive",
       });
       return;
     }
 
     // Check for public mode code
-    if (studentCode.trim().toUpperCase() === 'STUDENTS2026') {
-      setAccessMode('public');
-      setCurrentUser({ type: 'public_view' });
-      navigate('/student/public');
+    if (studentCode.trim().toUpperCase() === "STUDENTS2026") {
+      setAccessMode("public");
+      setCurrentUser({ type: "public_view" });
+      navigate("/student/public");
       toast({
-        title: 'מצב תצוגה כללית',
-        description: 'נכנסת למצב צפייה בלבד',
+        title: "מצב תצוגה כללית",
+        description: "נכנסת למצב צפייה בלבד",
       });
       return;
     }
 
     const students = getStudents();
-    
+
     // Try to find by personalCode first
-    let student = students.find(s => s.personalCode === studentCode.trim());
-    
+    let student = students.find((s) => s.personalCode === studentCode.trim());
+
     // Fallback: if personalCode is empty or not found, try phone (backward compatibility)
     if (!student) {
-      student = students.find(s => s.phone === studentCode.trim());
+      student = students.find((s) => s.phone === studentCode.trim());
     }
-    
+
     if (student) {
-      setAccessMode('private');
-      setCurrentUser({ type: 'student', studentId: student.id });
+      setAccessMode("private");
+      setCurrentUser({ type: "student", studentId: student.id });
       navigate(`/student/${student.id}`);
       toast({
-        title: 'ברוכה הבאה לאזור האישי!',
+        title: "ברוכה הבאה לאזור האישי!",
         description: `שלום ${student.firstName} ${student.lastName}`,
       });
     } else {
       toast({
-        title: 'שגיאה',
-        description: 'קוד אישי שגוי. אנא פני למנהלת לקבלת הקוד הנכון',
-        variant: 'destructive',
+        title: "שגיאה",
+        description: "קוד אישי שגוי. אנא פני למנהלת לקבלת הקוד הנכון",
+        variant: "destructive",
       });
     }
   };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Royal Static Background */}
-      <div className="fixed inset-0 z-0 royal-background">
-        <div className="absolute inset-0 bg-gradient-to-br from-background via-primary/20 to-secondary/30"></div>
-        <div className="absolute inset-0 shimmer-overlay"></div>
-        <div className="absolute inset-0 logo-pattern"></div>
+      {/* בסיעתא דשמיא Overlay */}
+      <BsiataDishmaya />
+
+      {/* Full-screen background from CDN */}
+      <div
+        className="fixed inset-0 z-0"
+        style={{
+          backgroundImage: `url(${TOBY_BG_RED_URL})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      />
+
+      {/* Dark overlay for readability */}
+      <div className="fixed inset-0 bg-background/60 z-[1]" />
+
+      {/* Theme Toggle - Top Right */}
+      <div className="fixed top-4 left-4 z-50">
+        <ThemeToggle />
       </div>
-      
-      {/* Dark Overlay for Better Contrast */}
-      <div className="fixed inset-0 bg-black/30 z-[1]"></div>
-      
-      {/* Banner Section with Overlapping Elements */}
-      <div className="relative z-10">
-        {/* Full Width Banner */}
-        <div className="relative w-full">
-          <img 
-            src="/toby-music-banner.png" 
-            alt="Toby Music Banner" 
-            className="w-full h-auto object-contain"
+
+      {/* Main Content */}
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-4">
+        {/* Logo from CDN */}
+        <div className="mb-8">
+          <img
+            src={TOBY_LOGO_3D_URL}
+            alt="Toby Music Logo"
+            className="w-32 h-32 md:w-48 md:h-48 object-contain drop-shadow-2xl"
           />
-          
-          {/* Welcome Card - At the TOP of banner, 80% width */}
-          <div className="absolute top-4 md:top-8 left-1/2 -translate-x-1/2 w-[80%] px-4">
-            <div className="bg-black/80 backdrop-blur-md rounded-2xl border-2 border-accent/30 p-4 md:p-6 shadow-gold">
-              <h1 className="text-xl md:text-3xl font-bold text-accent mb-2 md:mb-4 drop-shadow-[0_0_20px_rgba(234,179,8,0.5)] text-center">
+        </div>
+
+        {/* Welcome Card */}
+        <div className="w-full max-w-2xl mb-8">
+          <Card className="bg-card/90 backdrop-blur-md border-border">
+            <CardContent className="p-6 text-center">
+              <h1 className="text-2xl md:text-3xl font-bold text-primary mb-4">
                 ברוכות הבאות למערכת המוסיקלית של טובי וינברג
               </h1>
-              <div className="text-sm md:text-base text-foreground leading-relaxed space-y-1 text-center">
+              <div className="text-sm md:text-base text-foreground leading-relaxed space-y-1">
                 <p>דרך מערכת זו תוכלי לנהל ולהתנהל עם כל הנושאים הטכניים של השיעורים-</p>
                 <p>מערכת השיעורים, החלפות, נתוני תשלומים ועוד.</p>
               </div>
-            </div>
-          </div>
-          
-          {/* Login Cards - At the BOTTOM of banner, inside it */}
-          <div className="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 w-full max-w-4xl px-4">
-            <div className="grid md:grid-cols-2 gap-4 md:gap-6">
-              {/* Admin Login */}
-              <Card className="relative overflow-hidden backdrop-blur-md border-2 border-accent/40 hover:border-accent/60 transition-all duration-300 shadow-gold hover:shadow-hover">
-                <div className="absolute inset-0" style={{ backgroundImage: 'url(/login-card-bg.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}></div>
-                <div className="absolute inset-0 bg-black/60"></div>
-                <CardHeader className="text-center relative z-10 pb-2">
-                  <CardTitle className="text-lg md:text-xl text-foreground font-bold">כניסת מנהל</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 relative z-10 pt-2">
-                  <div>
-                    <Label htmlFor="admin-code" className="text-sm font-medium text-foreground">
-                      קוד מנהל
-                    </Label>
-                    <Input
-                      id="admin-code"
-                      type="password"
-                      value={adminCode}
-                      onChange={(e) => setAdminCode(e.target.value)}
-                      placeholder="הקש קוד מנהל"
-                      className="mt-1 bg-black/50 border-accent/30 text-foreground placeholder:text-muted-foreground"
-                      onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
-                    />
-                  </div>
-                  <Button 
-                    onClick={handleAdminLogin}
-                    className="w-full gold-gradient hover:scale-105 transition-musical text-accent-foreground font-semibold py-2 md:py-3 shadow-gold border border-accent/20"
-                  >
-                    כניסה
-                    <ArrowRight className="h-4 w-4 mr-2" />
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Student Personal Login */}
-              <Card className="relative overflow-hidden backdrop-blur-md border-2 border-accent/40 hover:border-accent/60 transition-all duration-300 shadow-gold hover:shadow-hover">
-                <div className="absolute inset-0" style={{ backgroundImage: 'url(/login-card-bg.png)', backgroundSize: 'cover', backgroundPosition: 'center' }}></div>
-                <div className="absolute inset-0 bg-black/60"></div>
-                <CardHeader className="text-center relative z-10 pb-2">
-                  <CardTitle className="text-lg md:text-xl text-foreground font-bold">אזור אישי</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 relative z-10 pt-2">
-                  <div>
-                    <Label htmlFor="student-code" className="text-sm font-medium text-foreground">
-                      קוד אישי
-                    </Label>
-                    <Input
-                      id="student-code"
-                      type="text"
-                      value={studentCode}
-                      onChange={(e) => setStudentCode(e.target.value)}
-                      placeholder="הקישי קוד אישי"
-                      className="mt-1 bg-black/50 border-accent/30 text-foreground placeholder:text-muted-foreground"
-                      onKeyPress={(e) => e.key === 'Enter' && handleStudentLogin()}
-                    />
-                  </div>
-                  <Button 
-                    onClick={handleStudentLogin}
-                    className="w-full gold-gradient hover:scale-105 transition-musical text-accent-foreground font-semibold py-2 md:py-3 shadow-gold border border-accent/20"
-                  >
-                    כניסה לאזור אישי
-                    <ArrowRight className="h-4 w-4 mr-2" />
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Bottom Section - Contact, Signature, Developer Login */}
-      <div className="relative z-10 container mx-auto p-4 space-y-8 mt-8">
-        {/* Contact Details */}
-        <div className="bg-black/60 backdrop-blur-md rounded-2xl border-2 border-secondary/30 max-w-3xl mx-auto p-6 shadow-gold">
-          <div className="space-y-3">
-            <p className="font-semibold text-secondary text-lg drop-shadow-[0_0_10px_rgba(234,179,8,0.3)]">פרטי קשר:</p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
-              <Mail className="h-4 w-4 text-accent" />
-              <span>תוכלי ליצור קשר גם במייל:</span>
-              <a href="mailto:toby.musicartist@gmail.com" className="hover:text-accent transition-colors font-medium">
-                toby.musicartist@gmail.com
-              </a>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
-              <Phone className="h-4 w-4 text-accent" />
-              <span>או בנייד:</span>
-              <a href="tel:0504124161" className="hover:text-accent transition-colors font-medium">
-                0504124161
-              </a>
-            </div>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
-              <MessageCircle className="h-4 w-4 text-accent" />
-              <span>כמו כן נשלחות הודעות עידכון גם לווטסאפ הטלפוני:</span>
-              <a href="tel:0733837098" className="hover:text-accent transition-colors font-medium">
-                0733837098
-              </a>
-            </div>
-          </div>
-        </div>
-          
-        {/* Signature */}
-        <div className="bg-black/60 backdrop-blur-md rounded-2xl border-2 border-accent/30 max-w-2xl mx-auto p-6 shadow-gold">
-          <div className="space-y-2 text-center">
-            <p className="text-2xl font-semibold text-accent drop-shadow-[0_0_15px_rgba(234,179,8,0.4)]">להשתמע!</p>
-            <p className="text-xl font-bold text-secondary drop-shadow-[0_0_10px_rgba(234,179,8,0.3)]">טובי וינברג</p>
-            <p className="italic text-foreground text-lg">איתך, כל הדרך אל המוסיקה</p>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Developer Login - Bottom of Page */}
-        <div className="mt-12 max-w-md mx-auto">
-          <Card className="relative overflow-hidden bg-black/60 backdrop-blur-md border border-muted/40 hover:border-muted/60 transition-all duration-300">
-            <div className="absolute inset-0 bg-gradient-to-br from-muted/5 to-transparent"></div>
-            <CardContent className="pt-6 space-y-3 relative z-10">
-              <p className="text-xs text-muted-foreground text-center mb-2">כניסת מפתחים</p>
+        {/* Login Cards */}
+        <div className="w-full max-w-4xl grid md:grid-cols-2 gap-6 mb-8">
+          {/* Admin Login */}
+          <Card className="bg-card/90 backdrop-blur-md border-border hover:border-primary/50 transition-all duration-300">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="text-lg md:text-xl text-foreground font-bold">
+                כניסת מנהל
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-2">
               <div>
+                <Label htmlFor="admin-code" className="text-sm font-medium text-foreground">
+                  קוד מנהל
+                </Label>
                 <Input
+                  id="admin-code"
                   type="password"
                   value={adminCode}
                   onChange={(e) => setAdminCode(e.target.value)}
-                  placeholder="קוד מפתחים"
-                  className="bg-black/50 border-muted/30 text-foreground text-sm"
-                  onKeyPress={(e) => e.key === 'Enter' && handleDevAdminLogin()}
+                  placeholder="הקש קוד מנהל"
+                  className="mt-1 bg-input border-border text-foreground placeholder:text-muted-foreground"
+                  onKeyPress={(e) => e.key === "Enter" && handleAdminLogin()}
                 />
               </div>
-              <Button 
-                onClick={handleDevAdminLogin}
-                variant="outline"
-                className="w-full text-sm border-muted/40 hover:bg-muted/10"
+              <Button
+                onClick={handleAdminLogin}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3"
               >
-                כניסה למצב מפתחים
+                כניסה
+                <ArrowRight className="h-4 w-4 mr-2" />
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Student Personal Login */}
+          <Card className="bg-card/90 backdrop-blur-md border-border hover:border-primary/50 transition-all duration-300">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="text-lg md:text-xl text-foreground font-bold">
+                אזור אישי
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-2">
+              <div>
+                <Label htmlFor="student-code" className="text-sm font-medium text-foreground">
+                  קוד אישי
+                </Label>
+                <Input
+                  id="student-code"
+                  type="text"
+                  value={studentCode}
+                  onChange={(e) => setStudentCode(e.target.value)}
+                  placeholder="הקישי קוד אישי"
+                  className="mt-1 bg-input border-border text-foreground placeholder:text-muted-foreground"
+                  onKeyPress={(e) => e.key === "Enter" && handleStudentLogin()}
+                />
+              </div>
+              <Button
+                onClick={handleStudentLogin}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3"
+              >
+                כניסה לאזור אישי
+                <ArrowRight className="h-4 w-4 mr-2" />
               </Button>
             </CardContent>
           </Card>
         </div>
+
+        {/* Contact Details */}
+        <Card className="w-full max-w-3xl bg-card/80 backdrop-blur-md border-border mb-8">
+          <CardContent className="p-6 space-y-3">
+            <p className="font-semibold text-primary text-lg text-center">פרטי קשר:</p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
+              <Mail className="h-4 w-4 text-primary" />
+              <span>תוכלי ליצור קשר גם במייל:</span>
+              <a
+                href="mailto:toby.musicartist@gmail.com"
+                className="hover:text-primary transition-colors font-medium"
+              >
+                toby.musicartist@gmail.com
+              </a>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
+              <Phone className="h-4 w-4 text-primary" />
+              <span>או בנייד:</span>
+              <a href="tel:0504124161" className="hover:text-primary transition-colors font-medium">
+                0504124161
+              </a>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
+              <MessageCircle className="h-4 w-4 text-primary" />
+              <span>כמו כן נשלחות הודעות עידכון גם לווטסאפ הטלפוני:</span>
+              <a href="tel:0733837098" className="hover:text-primary transition-colors font-medium">
+                0733837098
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Signature */}
+        <Card className="w-full max-w-2xl bg-card/80 backdrop-blur-md border-border mb-8">
+          <CardContent className="p-6 text-center space-y-2">
+            <p className="text-2xl font-semibold text-primary">להשתמע!</p>
+            <p className="text-xl font-bold text-foreground">טובי וינברג</p>
+            <p className="italic text-muted-foreground text-lg">איתך, כל הדרך אל המוסיקה</p>
+          </CardContent>
+        </Card>
+
+        {/* Developer Login */}
+        <Card className="w-full max-w-md bg-card/60 backdrop-blur-md border-muted">
+          <CardContent className="pt-6 space-y-3">
+            <p className="text-xs text-muted-foreground text-center mb-2">כניסת מפתחים</p>
+            <Input
+              type="password"
+              value={adminCode}
+              onChange={(e) => setAdminCode(e.target.value)}
+              placeholder="קוד מפתחים"
+              className="bg-input border-muted text-foreground text-sm"
+              onKeyPress={(e) => e.key === "Enter" && handleDevAdminLogin()}
+            />
+            <Button
+              onClick={handleDevAdminLogin}
+              variant="outline"
+              className="w-full text-sm border-muted hover:bg-muted/20"
+            >
+              כניסה למצב מפתחים
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
