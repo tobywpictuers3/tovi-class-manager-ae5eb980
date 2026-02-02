@@ -100,37 +100,50 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen royal-gradient overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground overflow-hidden">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-50 bg-gradient-to-b from-background via-background to-background/95 backdrop-blur-sm border-b border-primary/20 shadow-lg">
+      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border shadow-sm">
         <div className="container mx-auto p-4">
-          <div className="royal-card royal-shadow p-4">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl md:text-3xl font-bold text-royal-gold royal-glow">
-                דשבורד ניהול - מערכת שיעורי נגינה
-              </h1>
-              <div className="flex gap-2 items-center">
-                <UnreadMessagesBadge userId="admin" />
-                <SyncStatusBadge />
-                <div className="relative">
-                  <SaveButton />
-                  <div className="absolute -top-1 -right-1 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+          {/* HERO header */}
+          <div className="toby-hero toby-frame-glitter rounded-2xl p-4">
+            <div className="toby-surface rounded-2xl p-4">
+              <div className="flex justify-between items-center gap-4 flex-wrap">
+                <div className="min-w-[240px]">
+                  <h1 className="toby-title-glitter text-2xl md:text-3xl font-bold">
+                    דשבורד ניהול - מערכת שיעורי נגינה
+                  </h1>
+                  <div className="toby-subtitle-glitter text-sm mt-1">
+                    ניהול תלמידות, תכנים, תשלומים והודעות
                   </div>
                 </div>
-                <PrintPDFButton contentId="main-content" tabName={getTabName(activeTab)} />
-                <Button
-                  onClick={handleLogout}
-                  variant="outline"
-                  className="border-royal-burgundy text-royal-burgundy hover:bg-royal-burgundy hover:text-royal-white"
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  התנתק
-                </Button>
+
+                <div className="flex gap-2 items-center flex-wrap justify-end">
+                  <UnreadMessagesBadge userId="admin" />
+                  <SyncStatusBadge />
+
+                  <div className="relative">
+                    <SaveButton />
+                    <div className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                    </div>
+                  </div>
+
+                  <PrintPDFButton contentId="main-content" tabName={getTabName(activeTab)} />
+
+                  <Button
+                    onClick={handleLogout}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    התנתק
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
@@ -139,40 +152,40 @@ const AdminDashboard = () => {
 
           {/* Main Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-10 royal-card royal-shadow">
-              <TabsTrigger value="students" className="flex items-center gap-2 royal-tab">
+            <TabsList className="toby-surface toby-frame-glitter grid w-full grid-cols-10">
+              <TabsTrigger value="students" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 תלמידות
               </TabsTrigger>
-              <TabsTrigger value="journal" className="flex items-center gap-2 royal-tab">
+              <TabsTrigger value="journal" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 יומן שיעורים
               </TabsTrigger>
-              <TabsTrigger value="fixed-schedule" className="flex items-center gap-2 royal-tab">
+              <TabsTrigger value="fixed-schedule" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
                 מערכת קבועה
               </TabsTrigger>
-              <TabsTrigger value="payments" className="flex items-center gap-2 royal-tab">
+              <TabsTrigger value="payments" className="flex items-center gap-2">
                 <CreditCard className="h-4 w-4" />
                 תשלומים
               </TabsTrigger>
-              <TabsTrigger value="performances" className="flex items-center gap-2 royal-tab">
+              <TabsTrigger value="performances" className="flex items-center gap-2">
                 <Music className="h-4 w-4" />
                 הופעות
               </TabsTrigger>
-              <TabsTrigger value="practice" className="flex items-center gap-2 royal-tab">
+              <TabsTrigger value="practice" className="flex items-center gap-2">
                 <Trophy className="h-4 w-4" />
                 נתוני אימונים
               </TabsTrigger>
-              <TabsTrigger value="messages" className="flex items-center gap-2 royal-tab">
+              <TabsTrigger value="messages" className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" />
                 תקשורת
               </TabsTrigger>
-              <TabsTrigger value="backup" className="flex items-center gap-2 royal-tab">
+              <TabsTrigger value="backup" className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 גיבוי
               </TabsTrigger>
-              <TabsTrigger value="history" className="flex items-center gap-2 royal-tab">
+              <TabsTrigger value="history" className="flex items-center gap-2">
                 <History className="h-4 w-4" />
                 היסטוריה
               </TabsTrigger>
@@ -208,9 +221,11 @@ const AdminDashboard = () => {
 
             <TabsContent value="backup">
               <div className="space-y-6">
-                <div className="royal-card royal-shadow p-6">
-                  <h2 className="text-xl font-bold text-royal-gold mb-4">ניקוי נתוני אימונים ומדליות</h2>
-                  <p className="text-sm text-royal-text mb-4">
+                <div className="toby-surface toby-frame-glitter rounded-2xl p-6">
+                  <h2 className="toby-title-glitter text-xl font-bold mb-4">
+                    ניקוי נתוני אימונים ומדליות
+                  </h2>
+                  <p className="toby-text text-sm mb-4">
                     לחצי על הכפתור למטה כדי למחוק את כל נתוני האימונים, ההישגים החודשיים והמדליות.
                     פעולה זו תאפשר להתחיל מחדש מנקודת שוויון.
                   </p>
