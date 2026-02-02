@@ -1,8 +1,11 @@
+// src/main.tsx
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
-import { BrandProvider } from "./brand/BrandProvider";
+
 import { ThemeProvider } from "./brand/ThemeProvider";
+import { ensureBrandStylesheets } from "./brand/BrandProvider";
+
 import { hybridSync } from "./lib/hybridSync";
 import { logger } from "./lib/logger";
 import { setDevMode } from "./lib/storage";
@@ -11,7 +14,15 @@ import { setDevMode } from "./lib/storage";
 const root = document.getElementById("root")!;
 
 /**
+ * ✅ IMPORTANT:
+ * Load brand CSS immediately (before first paint + before boot screen)
+ * to guarantee tokens exist for Tailwind (bg-background, text-primary, etc).
+ */
+ensureBrandStylesheets();
+
+/**
  * Minimal boot screens that follow TOBY MUSIC design language
+ * Uses HSL tokens (Tailwind/shadcn style): hsl(var(--token))
  */
 const renderBootScreen = (opts: {
   title: string;
@@ -26,39 +37,44 @@ const renderBootScreen = (opts: {
       display:flex;
       align-items:center;
       justify-content:center;
-      background: var(--background, #0B0B0B);
-      color: var(--foreground, #FFFFFF);
+      background: hsl(var(--background, 0 0% 4%));
+      color: hsl(var(--foreground, 0 0% 98%));
       padding:24px;
     ">
       <div style="
         width:min(520px, 100%);
-        border:1px solid var(--border, rgba(230,182,92,0.35));
-        border-radius:6px;
-        background: var(--card, #161616);
+        border:1px solid hsl(var(--border, 45 30% 92%) / 0.35);
+        border-radius:10px;
+        background: hsl(var(--card, 0 0% 10%));
         padding:28px 24px;
         box-shadow: 0 12px 36px rgba(0,0,0,0.60);
         text-align:center;
       ">
         <div style="
           font-size:22px;
-          font-weight:600;
+          font-weight:700;
           letter-spacing:0.2px;
-          color: var(--primary, #E6B65C);
+          color: hsl(var(--primary, 39 76% 63%));
           margin-bottom:10px;
         ">Toby Music</div>
 
         <div style="
           font-size:18px;
-          font-weight:600;
-          color: var(--foreground, #FFFFFF);
+          font-weight:700;
+          color: hsl(var(--foreground, 0 0% 98%));
           margin-bottom:10px;
         ">${title}</div>
 
         ${
           subtitle
-            ? `<div style="font-size:14px; line-height:1.6; color: var(--muted-foreground, rgba(255,255,255,0.78)); margin-bottom:${showRetry ? "18px" : "0"};">
+            ? `<div style="
+                font-size:14px;
+                line-height:1.6;
+                color: hsl(var(--muted-foreground, 40 12% 72%));
+                margin-bottom:${showRetry ? "18px" : "0"};
+              ">
                 ${subtitle}
-               </div>`
+              </div>`
             : ""
         }
 
@@ -67,13 +83,13 @@ const renderBootScreen = (opts: {
             ? `<button
                 onclick="window.location.reload()"
                 style="
-                  border:1px solid var(--primary, #E6B65C);
-                  color: var(--primary, #E6B65C);
+                  border:1px solid hsl(var(--primary, 39 76% 63%));
+                  color: hsl(var(--primary, 39 76% 63%));
                   background:transparent;
                   padding:12px 18px;
-                  border-radius:6px;
+                  border-radius:10px;
                   font-size:14px;
-                  font-weight:600;
+                  font-weight:700;
                   cursor:pointer;
                 "
                 onmouseover="this.style.background='rgba(230,182,92,0.12)';"
@@ -142,7 +158,8 @@ async function initializeApp() {
       logger.info("🔧 Dev mode forced by route - NO data will be loaded from Worker");
     }
 
-    const isDevModeActive = sessionStorage.getItem("musicSystem_devMode") === "true";
+    const isDevModeActive =
+      sessionStorage.getItem("musicSystem_devMode") === "true";
     if (isDevModeActive) {
       setDevMode(true);
       logger.info("🔧 Dev mode active - NO data will be loaded from Worker");
@@ -151,21 +168,19 @@ async function initializeApp() {
     await hybridSync.loadDataOnInit();
     logger.info("Data loaded successfully");
 
-    // Render app with providers
+    // ✅ Render app with ThemeProvider only (no BrandProvider -> no duplicates)
     createRoot(root).render(
-      <>
-        <BrandProvider />
-        <ThemeProvider defaultTheme="system">
-          <App />
-        </ThemeProvider>
-      </>
+      <ThemeProvider defaultTheme="system">
+        <App />
+      </ThemeProvider>
     );
   } catch (error) {
     logger.error("Failed to initialize app:", error);
 
     renderBootScreen({
       title: "שגיאה בטעינת הנתונים",
-      subtitle: "לא הצלחנו לטעון את הנתונים מהשרת. אנא בדקי את החיבור לאינטרנט ונסי שוב.",
+      subtitle:
+        "לא הצלחנו לטעון את הנתונים מהשרת. אנא בדקי את החיבור לאינטרנט ונסי שוב.",
       showRetry: true,
     });
   }
