@@ -32,9 +32,9 @@ const DevAdminDashboard = () => {
   return (
     <div className="space-y-6">
       {/* Developer Mode Personal Area Access */}
-      <Card className="card-gradient card-shadow">
+      <Card className="toby-surface toby-frame-glitter rounded-2xl">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 toby-title-glitter">
             <User className="w-5 h-5" />
             גישה לאזור אישי - מצב מפתחים
           </CardTitle>
