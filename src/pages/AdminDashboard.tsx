@@ -21,12 +21,27 @@ import BackupImport from '@/components/admin/BackupImport';
 import BackupHistory from '@/components/admin/BackupHistory';
 import AdminPracticeStats from '@/components/admin/AdminPracticeStats';
 import MessagingTab from '@/components/admin/MessagingTab';
-
 import FixedScheduleTab from '@/components/admin/FixedScheduleTab';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+
+  const isStorybook =
+    typeof window !== 'undefined' && window.location?.port === '6006';
+
   const [activeTab, setActiveTab] = useState('students');
+
+  // ✅ ננהל user כ-state כדי שכשנזריק mock ב-Storybook יהיה re-render
+  const [user, setUser] = useState<any>(() => {
+    const existing = getCurrentUser();
+    if (existing) return existing;
+
+    // ב-Storybook נתחיל עם user מדומה כדי שהמסך לא יהיה ריק
+    if (typeof window !== 'undefined' && window.location?.port === '6006') {
+      return { id: 'storybook-admin', type: 'admin', name: 'Storybook Admin' } as any;
+    }
+    return null;
+  });
 
   // 🔒 CRITICAL: Check and restore dev mode on every mount
   useEffect(() => {
@@ -35,6 +50,25 @@ const AdminDashboard = () => {
       setDevMode(true);
     }
   }, []);
+
+  // ✅ ב-Storybook: נוודא שה-user המדומה באמת נשמר ב-storage (כדי שקוד פנימי לא ייפול)
+  useEffect(() => {
+    if (!isStorybook) return;
+
+    const existing = getCurrentUser();
+    if (existing && existing.type === 'admin') {
+      setUser(existing);
+      return;
+    }
+
+    const mockAdmin = { id: 'storybook-admin', type: 'admin', name: 'Storybook Admin' } as any;
+    setCurrentUser(mockAdmin);
+    setUser(mockAdmin);
+
+    // אופציונלי: להפוך devMode לזמין בזמן עיצוב
+    sessionStorage.setItem('musicSystem_devMode', 'true');
+    setDevMode(true);
+  }, [isStorybook]);
 
   const getTabName = (tab: string) => {
     const tabNames: Record<string, string> = {
@@ -51,10 +85,16 @@ const AdminDashboard = () => {
     return tabNames[tab] || 'תצוגה';
   };
 
-  // Check admin access
-  const user = getCurrentUser();
+  // ✅ redirect רק באפקט (לא בזמן render)
+  useEffect(() => {
+    if (!user || user.type !== 'admin') {
+      if (isStorybook) return;
+      navigate('/');
+    }
+  }, [user, isStorybook, navigate]);
+
+  // בזמן שהאתר האמיתי מפנה — נחזיר null (כמו קודם), אבל בלי לקרוא navigate בזמן render
   if (!user || user.type !== 'admin') {
-    navigate('/');
     return null;
   }
 
@@ -64,6 +104,7 @@ const AdminDashboard = () => {
     sessionStorage.removeItem('musicSystem_devMode');
     setDevMode(false);
     setCurrentUser(null);
+    setUser(null);
     navigate('/');
     toast({
       title: 'התנתקות מוצלחת',
