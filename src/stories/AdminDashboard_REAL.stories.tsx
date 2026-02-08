@@ -1,11 +1,26 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import React from "react";
-import AdminDashboard from "@/pages/AdminDashboard";
+import AdminDashboard from "../pages/AdminDashboard";
+import { getCurrentUser, setCurrentUser, setDevMode } from "../lib/storage";
 
-import { createMemoryRouter, RouterProvider } from "react-router-dom";
+const isStorybook =
+  typeof window !== "undefined" && window.location?.port === "6006";
+
+// ✅ חשוב: זה רץ לפני render, לכן ה-guard לא יפיל אותך ל-"/"
+if (isStorybook) {
+  try {
+    const u: any = getCurrentUser();
+    if (!u || u.type !== "admin") {
+      setCurrentUser({ id: "storybook-admin", type: "admin", name: "Storybook Admin" } as any);
+    }
+    sessionStorage.setItem("musicSystem_devMode", "true");
+    setDevMode(true);
+    // אם יש לך guards לפי URL:
+    window.history.replaceState({}, "", "/admin/default");
+  } catch {}
+}
 
 const meta: Meta = {
-  title: "PAGES/Admin/AdminDashboard (REAL)",
+  title: "Pages/Admin",
   parameters: { layout: "fullscreen" },
 };
 
@@ -14,18 +29,9 @@ export default meta;
 type Story = StoryObj;
 
 export const Default: Story = {
-  render: () => {
-    const router = createMemoryRouter(
-      [{ path: "/", element: <AdminDashboard /> }],
-      {
-        initialEntries: ["/"],
-        future: {
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        },
-      }
-    );
-
-    return <RouterProvider router={router} />;
-  },
+  render: () => (
+    <div style={{ minHeight: "100vh" }}>
+      <AdminDashboard />
+    </div>
+  ),
 };
