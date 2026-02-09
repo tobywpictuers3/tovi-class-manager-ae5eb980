@@ -1,144 +1,82 @@
 
 
-## תוכנית: עדכון עיצוב מקיף -- דף בית + דשבורדים
+## תוכנית: תיקון טעינה + יישום עיצוב מלא
 
-### סיכום
-11 שינויים מרכזיים: החלפת לוגו, רקעים צבעוניים לקומפוננטות, אפקט זוהר זהוב, רקע pianoflute בתחתית כל הדפים, סדר לשוניות חדש בדשבורד, הודעות מצומצמות, ורקעי תמונה לקומפוננטות בדשבורדים.
+### שלב 0: תיקון חסימת הבנייה (קריטי)
+
+**הבעיה:** `src/index.css` שורה 17 מייבאת `@import "./styles/site.css"` -- קובץ שלא קיים. זה מונע את בניית הפרויקט לחלוטין.
+
+**פתרון:** מחיקת שורת ה-import. כל הטוקנים מגיעים מ-`toby.css` החיצוני (נטען דרך BrandProvider), ואין צורך בקובץ מקומי.
 
 ---
 
-### שלב 1: החלפת לוגו ל-logonoreka (סעיף 1)
+### שלב 1: דף הבית (Homepage.tsx)
 
-**קובץ:** `src/pages/Homepage.tsx`
+1. **לוגו:** החלפת `TOBY_LOGO_3D_URL` ב-`ASSETS.logos.noBackground` (logonoreka), ממורכז ב-50% רוחב
+2. **כרטיסי כניסה (מנהל + אזור אישי):** רקע `ASSETS.backgrounds.red`, פונט זהוב (`text-gold`), אפקט `.glow-gold`
+3. **פרטי קשר:** רקע `ASSETS.backgrounds.gold`, פונט בורדו (`text-wine`)
+4. **כניסת מפתחים:** הסרת `bg-card/60 backdrop-blur-md`, החלפה ב-`bg-background`
+5. **חתימה (להשתמע):** שימור כ-Card רגיל עם ערכת נושא
 
-- החלפת `TOBY_LOGO_3D_URL` ב-`ASSETS.logos.noBackground` (מ-`@/brand/assets`)
-- עדכון גם ב-`BrandSlots.logoHeader` (כבר מוגדר כ-`logonoreka`)
+---
 
-### שלב 2: לוגו ממורכז 50% רוחב בראש הפרישה (סעיף 2)
+### שלב 2: רקע pianoflute גלובלי (PageBackground.tsx -- קומפוננטה חדשה)
 
-**קובץ:** `src/pages/Homepage.tsx`
+- קומפוננטה `fixed` ב-`z-0` מאחורי כל התוכן
+- חלק תחתון: `ASSETS.hero.pianoFlute` עם `mask-image` fade מלמעלה
+- חלק עליון: gradient עם נטיה לבורדו-יין
+- משולב ב-`App.tsx`
 
-- שינוי ה-`<img>` של הלוגו מ-`w-28 h-28 md:w-40 md:h-40` ל-`w-[50%]` עם `object-contain`
-- הסרת גובה קבוע, הלוגו יתאים את הגובה לפי הרוחב
+---
 
-### שלב 3: כרטיסי כניסה -- רקע red + פונט זהב (סעיף 3)
+### שלב 3: CSS חדש (index.css)
 
-**קובץ:** `src/pages/Homepage.tsx`
-
-- הוספת `style={{ backgroundImage: url(${ASSETS.backgrounds.red}) }}` לשני כרטיסי הכניסה (מנהל + אזור אישי)
-- `background-size: cover; background-position: center`
-- שכבת-על חצי שקופה כהה (`bg-black/50`) לקריאות
-- כל הטקסטים בכרטיסים: `text-gold` (צבע זהב מותג)
-- כפתורים: מסגרת זהובה, טקסט זהוב
-
-### שלב 4: קומפוננטת פרטי קשר -- רקע gold + פונט בורדו (סעיף 4)
-
-**קובץ:** `src/pages/Homepage.tsx`
-
-- רקע: `ASSETS.backgrounds.gold` כ-background-image
-- שכבת-על בהירה לקריאות
-- פונט: `text-wine` (בורדו מותג) לכל הטקסטים בקומפוננטה
-
-### שלב 5: כניסת מפתחים -- ללא רקע חצי שקוף (סעיף 5)
-
-**קובץ:** `src/pages/Homepage.tsx`
-
-- הסרת `bg-card/60 backdrop-blur-md` מקומפוננטת כניסת מפתחים
-- החלפה ב-`bg-background border-border` (מגיב לערכת נושא אוטומטית)
-
-### שלב 6: אפקט זוהר זהוב סביב קומפוננטות כניסה (סעיף 6)
-
-**קובץ:** `src/index.css`
-
-- הוספת מחלקת `.glow-gold` עם `box-shadow` זהוב מנצנץ:
-  ```
-  .glow-gold {
-    box-shadow: 0 0 15px rgba(230, 182, 92, 0.4),
-                0 0 30px rgba(230, 182, 92, 0.2),
-                0 0 45px rgba(230, 182, 92, 0.1);
-  }
-  ```
-- החלת המחלקה על כרטיסי כניסת מנהל, אזור אישי ופרטי קשר
-
-### שלב 7: pianoflute בחצי התחתון + מעבר בורדו למעלה (סעיף 7)
-
-**קובץ:** `src/index.css` + קומפוננטה חדשה `src/components/ui/PageBackground.tsx`
-
-יצירת קומפוננטת רקע גלובלית שמציגה:
-- חלק עליון: רקע ערכת נושא עם נטיה לבורדו-יין (gradient)
-- חלק תחתון: תמונת `pianoflute` עם fade-in מלמעלה (mask-image linear-gradient)
-- הקומפוננטה תהיה `fixed` מאחורי התוכן (`z-0`)
-- תשולב ב-`App.tsx` כך שתופיע בכל הדפים
+הוספת מחלקות:
 
 ```text
-+----------------------------------+
-|  רקע רגיל + שיפוע בורדו קל       |
-|                                  |
-|  ~~~ fade חלק ~~~                |
-|                                  |
-|  pianoflute.png (cover, bottom)  |
-+----------------------------------+
+.glow-gold      -- box-shadow זהוב מסביב לקומפוננטות
+.title-glow     -- text-shadow זהוב לכותרות דפים
+.fade-slide-in  -- אנימציית כניסה לתוכן לשוניות
 ```
-
-### שלב 8: הודעות -- שורה אחת + לחצן הרחב (סעיף 7 מהמשתמשת)
-
-**קובץ:** `src/pages/StudentDashboard.tsx`
-
-- הודעות broadcast/starred: הצגת רק ההודעה הראשונה (slice(0,1))
-- הוספת כפתור "הצג עוד" שמרחיב את כל ההודעות
-- אותו שינוי גם ב-`AdminDashboard.tsx` אם רלוונטי
-
-### שלב 9: סדר לשוניות חדש בדשבורד תלמידות (סעיף 8)
-
-**קובץ:** `src/pages/StudentDashboard.tsx`
-
-- שינוי `defaultValue` / `activeTab` ל-`"practice"` (מעקב אימונים ראשון)
-- סידור לשוניות: מעקב אימונים -> מערכת שבועית -> שאר בסדר הנוכחי
-
-### שלב 10: רקעי תמונה לקומפוננטות בדשבורד (סעיף 9)
-
-**קבצים:** `src/pages/StudentDashboard.tsx`, `src/pages/AdminDashboard.tsx`
-
-- קומפוננטה ראשונה (header/top): רקע `ASSETS.backgrounds.red`
-- קומפוננטה שניה: רקע `ASSETS.backgrounds.gold`
-- קומפוננטה שלישית: רקע `ASSETS.backgrounds.ard`
-- קומפוננטה רביעית: רקע `ASSETS.backgrounds.lightGold`
-- במצב כהה: 100% רוויה (opacity מלא)
-- במצב בהיר: 40% רוויה (שכבת-על לבנה 60%)
-
-מימוש: wrapper div עם inline style + שכבת-על מותנית theme
-
-### שלב 11: הארה סביב כותרת דף + אפקטי מעבר (סעיפים 10-11)
-
-**קבצים:** `src/index.css`, `src/pages/StudentDashboard.tsx`, `src/pages/AdminDashboard.tsx`
-
-**הארת כותרת:**
-- מחלקת `.title-glow` עם `text-shadow` זהוב
-- החלה על כותרות הדפים הראשיים
-
-**אפקטי מעבר בין עמודים:**
-- הוספת אנימציית `fade-slide-in` ב-CSS
-- עטיפת תוכן כל `TabsContent` באנימציה
 
 ---
 
-### פרטים טכניים
+### שלב 4: דשבורד תלמידות (StudentDashboard.tsx)
 
-#### קבצים חדשים:
-1. `src/components/ui/PageBackground.tsx` -- רקע pianoflute גלובלי
+1. **סדר לשוניות:** `practice` ראשונה (defaultValue), אח"כ `schedule`, ואז השאר
+2. **הודעות:** `BroadcastMessageBanner` + `StarredMessagesBanner` בשורה אחת עם כפתור "הרחב"
+3. **רקעי סקציות:** wrapper `BrandSection` עם רקעים לפי סדר: red -> gold -> ard -> lightGold
+4. **כותרת:** הוספת `.title-glow`
+5. **ThemeToggle:** הוספה לכותרת
 
-#### קבצים לעדכון:
-1. `src/index.css` -- מחלקות חדשות: `.glow-gold`, `.title-glow`, `.fade-slide-in`, רקע pianoflute
-2. `src/pages/Homepage.tsx` -- לוגו, רקעים, צבעים, זוהר
-3. `src/pages/StudentDashboard.tsx` -- סדר לשוניות, רקעים, כותרת, הודעות
-4. `src/pages/AdminDashboard.tsx` -- רקעים, כותרת, החלפת royal-* classes
-5. `src/App.tsx` -- שילוב PageBackground
-6. `src/brand/assets.ts` -- ללא שינוי (כבר מוגדר נכון)
+---
 
-#### תלויות:
-- אין תלויות חדשות (npm)
-- כל התמונות מגיעות מ-ASSETS (brand/assets.ts)
+### שלב 5: דשבורד מנהל (AdminDashboard.tsx)
 
-#### בניית storybook error:
-- קובץ `src/stories/AdminDashboard_REAL.stories.tsx` מייבא `@storybook/react` שלא מותקן -- שגיאה קיימת, לא קשורה לשינויים הנדרשים, ניתן להתעלם
+1. **החלפת מחלקות `royal-*`** (שאינן קיימות) במחלקות מותג פעילות:
+   - `royal-gradient` -> `musical-gradient`
+   - `royal-card` -> `card-gradient card-shadow`
+   - `royal-shadow` -> `card-shadow`
+   - `text-royal-gold` -> `text-gold`
+   - `royal-glow` -> `crown-glow`
+   - `text-royal-text` -> `text-foreground`
+   - `royal-tab` -> (הסרה, שימוש ב-default)
+   - `border-royal-burgundy` / `text-royal-burgundy` -> `border-gold` / `text-wine`
+   - `text-royal-white` / `hover:bg-royal-burgundy` -> `text-primary-foreground` / `hover:bg-destructive`
+2. **רקעי סקציות:** אותו דפוס כמו דשבורד תלמידות (red -> gold -> ard -> lightGold)
+3. **כותרת:** הוספת `.title-glow` + `ThemeToggle`
+4. **מעברים:** `.fade-slide-in` על כל `TabsContent`
+
+---
+
+### קבצים
+
+| פעולה | קובץ |
+|-------|------|
+| עריכה | `src/index.css` -- מחיקת import שבור + הוספת glow-gold, title-glow, fade-slide-in |
+| עריכה | `src/pages/Homepage.tsx` -- לוגו, רקעים, צבעים |
+| יצירה | `src/components/ui/PageBackground.tsx` -- רקע pianoflute גלובלי |
+| עריכה | `src/App.tsx` -- שילוב PageBackground |
+| עריכה | `src/pages/StudentDashboard.tsx` -- סדר לשוניות, הודעות, רקעים, כותרת |
+| עריכה | `src/pages/AdminDashboard.tsx` -- החלפת royal-* classes, רקעים, כותרת |
 
