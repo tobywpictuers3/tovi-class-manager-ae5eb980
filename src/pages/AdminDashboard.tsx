@@ -3,11 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import {
-  LogOut, Users, Calendar, CreditCard, MessageSquare,
-  FileText, Settings, Music, History, Trophy
+  LogOut,
+  Users,
+  Calendar,
+  CreditCard,
+  MessageSquare,
+  FileText,
+  Settings,
+  Music,
+  History,
+  Trophy
 } from 'lucide-react';
 import {
-  setCurrentUser, getCurrentUser, clearPracticeAndMedalData, setDevMode
+  setCurrentUser,
+  getCurrentUser,
+  clearPracticeAndMedalData,
+  setDevMode
 } from '@/lib/storage';
 import { toast } from '@/hooks/use-toast';
 import { hybridSync } from '@/lib/hybridSync';
@@ -16,9 +27,8 @@ import { SaveButton } from '@/components/ui/save-button';
 import { UnreadMessagesBadge } from '@/components/ui/unread-messages-badge';
 import SyncStatusBadge from '@/components/ui/SyncStatusBadge';
 import { clearClientCaches } from '@/lib/cacheManager';
-import { ASSETS } from '@/brand/assets';
-import BrandSection from '@/components/ui/BrandSection';
 
+// Import components
 import StudentsManagement from '@/components/admin/StudentsManagement';
 import LessonJournal from '@/components/admin/LessonJournal';
 import PaymentManagement from '@/components/admin/PaymentManagement';
@@ -37,7 +47,7 @@ const AdminDashboard = () => {
 
   const [activeTab, setActiveTab] = useState('students');
 
-  // ✅ user ב-state (כדי לא "להיתקע" על null)
+  // ✅ user ב-state (כדי לא “להיתקע” על null)
   const [user, setUser] = useState<any>(() => {
     const existing = getCurrentUser();
     if (existing) return existing;
@@ -152,13 +162,13 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen overflow-hidden relative z-10">
-      {/* Sticky Header with title glow */}
+    <div className="min-h-screen royal-gradient overflow-hidden">
+      {/* Sticky Header */}
       <div className="sticky top-0 z-50 bg-gradient-to-b from-background via-background to-background/95 backdrop-blur-sm border-b border-primary/20 shadow-lg">
         <div className="container mx-auto p-4">
-          <BrandSection backgroundUrl={ASSETS.backgrounds.red} className="p-4">
+          <div className="royal-card royal-shadow p-4">
             <div className="flex justify-between items-center">
-              <h1 className="text-2xl md:text-3xl font-bold text-gold title-glow">
+              <h1 className="text-2xl md:text-3xl font-bold text-royal-gold royal-glow">
                 דשבורד ניהול - מערכת שיעורי נגינה
               </h1>
               <div className="flex gap-2 items-center">
@@ -175,100 +185,92 @@ const AdminDashboard = () => {
                 <Button
                   onClick={handleLogout}
                   variant="outline"
-                  className="border-gold text-gold hover:bg-gold/10"
+                  className="border-royal-burgundy text-royal-burgundy hover:bg-royal-burgundy hover:text-royal-white"
                 >
                   <LogOut className="h-4 w-4 mr-2" />
                   התנתק
                 </Button>
               </div>
             </div>
-          </BrandSection>
+          </div>
         </div>
       </div>
 
       <div className="max-h-screen overflow-y-auto">
         <div id="main-content" className="container mx-auto p-4 space-y-6 pt-2">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-10">
-              <TabsTrigger value="students" className="flex items-center gap-2">
+            <TabsList className="grid w-full grid-cols-10 royal-card royal-shadow">
+              <TabsTrigger value="students" className="flex items-center gap-2 royal-tab">
                 <Users className="h-4 w-4" />
                 תלמידות
               </TabsTrigger>
-              <TabsTrigger value="journal" className="flex items-center gap-2">
+              <TabsTrigger value="journal" className="flex items-center gap-2 royal-tab">
                 <Calendar className="h-4 w-4" />
                 יומן שיעורים
               </TabsTrigger>
-              <TabsTrigger value="fixed-schedule" className="flex items-center gap-2">
+              <TabsTrigger value="fixed-schedule" className="flex items-center gap-2 royal-tab">
                 <Settings className="h-4 w-4" />
                 מערכת קבועה
               </TabsTrigger>
-              <TabsTrigger value="payments" className="flex items-center gap-2">
+              <TabsTrigger value="payments" className="flex items-center gap-2 royal-tab">
                 <CreditCard className="h-4 w-4" />
                 תשלומים
               </TabsTrigger>
-              <TabsTrigger value="performances" className="flex items-center gap-2">
+              <TabsTrigger value="performances" className="flex items-center gap-2 royal-tab">
                 <Music className="h-4 w-4" />
                 הופעות
               </TabsTrigger>
-              <TabsTrigger value="practice" className="flex items-center gap-2">
+              <TabsTrigger value="practice" className="flex items-center gap-2 royal-tab">
                 <Trophy className="h-4 w-4" />
                 נתוני אימונים
               </TabsTrigger>
-              <TabsTrigger value="messages" className="flex items-center gap-2">
+              <TabsTrigger value="messages" className="flex items-center gap-2 royal-tab">
                 <MessageSquare className="h-4 w-4" />
                 תקשורת
               </TabsTrigger>
-              <TabsTrigger value="backup" className="flex items-center gap-2">
+              <TabsTrigger value="backup" className="flex items-center gap-2 royal-tab">
                 <FileText className="h-4 w-4" />
                 גיבוי
               </TabsTrigger>
-              <TabsTrigger value="history" className="flex items-center gap-2">
+              <TabsTrigger value="history" className="flex items-center gap-2 royal-tab">
                 <History className="h-4 w-4" />
                 היסטוריה
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="students" className="fade-slide-in">
-              <BrandSection backgroundUrl={ASSETS.backgrounds.red}>
-                <div className="p-4"><StudentsManagement /></div>
-              </BrandSection>
+            <TabsContent value="students">
+              <StudentsManagement />
             </TabsContent>
 
-            <TabsContent value="journal" className="fade-slide-in">
-              <BrandSection backgroundUrl={ASSETS.backgrounds.gold}>
-                <div className="p-4"><LessonJournal /></div>
-              </BrandSection>
+            <TabsContent value="journal">
+              <LessonJournal />
             </TabsContent>
 
-            <TabsContent value="fixed-schedule" className="fade-slide-in">
-              <BrandSection backgroundUrl={ASSETS.backgrounds.ard}>
-                <div className="p-4"><FixedScheduleTab /></div>
-              </BrandSection>
+            <TabsContent value="fixed-schedule">
+              <FixedScheduleTab />
             </TabsContent>
 
-            <TabsContent value="payments" className="fade-slide-in">
-              <BrandSection backgroundUrl={ASSETS.backgrounds.lightGold}>
-                <div className="p-4"><PaymentManagement /></div>
-              </BrandSection>
+            <TabsContent value="payments">
+              <PaymentManagement />
             </TabsContent>
 
-            <TabsContent value="performances" className="fade-slide-in">
+            <TabsContent value="performances">
               <PerformancesManagement />
             </TabsContent>
 
-            <TabsContent value="practice" className="fade-slide-in">
+            <TabsContent value="practice">
               <AdminPracticeStats />
             </TabsContent>
 
-            <TabsContent value="messages" className="fade-slide-in">
+            <TabsContent value="messages">
               <MessagingTab />
             </TabsContent>
 
-            <TabsContent value="backup" className="fade-slide-in">
+            <TabsContent value="backup">
               <div className="space-y-6">
-                <div className="rounded-xl border p-6 bg-card">
-                  <h2 className="text-xl font-bold text-gold mb-4">ניקוי נתוני אימונים ומדליות</h2>
-                  <p className="text-sm text-muted-foreground mb-4">
+                <div className="royal-card royal-shadow p-6">
+                  <h2 className="text-xl font-bold text-royal-gold mb-4">ניקוי נתוני אימונים ומדליות</h2>
+                  <p className="text-sm text-royal-text mb-4">
                     לחצי על הכפתור למטה כדי למחוק את כל נתוני האימונים, ההישגים החודשיים והמדליות.
                     פעולה זו תאפשר להתחיל מחדש מנקודת שוויון.
                   </p>
@@ -280,7 +282,7 @@ const AdminDashboard = () => {
               </div>
             </TabsContent>
 
-            <TabsContent value="history" className="fade-slide-in">
+            <TabsContent value="history">
               <BackupHistory />
             </TabsContent>
           </Tabs>
