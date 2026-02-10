@@ -12,6 +12,8 @@ import { ThemeToggle } from "@/brand/ThemeToggle";
 import { ASSETS } from "@/brand/assets";
 import BsiataDishmaya from "@/components/ui/BsiataDishmaya";
 
+const TOPBAR_H = 120; // גובה הדשבורד העליון (לוגו). אם צריך עוד/פחות — לשנות כאן.
+
 const Homepage = () => {
   const [adminCode, setAdminCode] = useState("");
   const [studentCode, setStudentCode] = useState("");
@@ -26,11 +28,7 @@ const Homepage = () => {
       navigate("/admin");
       toast({ title: "ברוך הבא!", description: "התחברת כמנהל מערכת" });
     } else {
-      toast({
-        title: "שגיאה",
-        description: "קוד מנהל שגוי",
-        variant: "destructive",
-      });
+      toast({ title: "שגיאה", description: "קוד מנהל שגוי", variant: "destructive" });
     }
   };
 
@@ -40,26 +38,15 @@ const Homepage = () => {
       sessionStorage.setItem("musicSystem_devMode", "true");
       setCurrentUser({ type: "admin", adminCode });
       navigate("/dev-admin");
-      toast({
-        title: "🔧 מצב מפתחים",
-        description: "נכנסת למצב מפתחים מבודד (ללא Worker)",
-      });
+      toast({ title: "🔧 מצב מפתחים", description: "נכנסת למצב מפתחים מבודד (ללא Worker)" });
     } else {
-      toast({
-        title: "שגיאה",
-        description: "קוד מפתחים שגוי",
-        variant: "destructive",
-      });
+      toast({ title: "שגיאה", description: "קוד מפתחים שגוי", variant: "destructive" });
     }
   };
 
   const handleStudentLogin = () => {
     if (!studentCode.trim()) {
-      toast({
-        title: "שגיאה",
-        description: "אנא הקישי את הקוד האישי שלך",
-        variant: "destructive",
-      });
+      toast({ title: "שגיאה", description: "אנא הקישי את הקוד האישי שלך", variant: "destructive" });
       return;
     }
 
@@ -79,10 +66,7 @@ const Homepage = () => {
       setAccessMode("private");
       setCurrentUser({ type: "student", studentId: student.id });
       navigate(`/student/${student.id}`);
-      toast({
-        title: "ברוכה הבאה לאזור האישי!",
-        description: `שלום ${student.firstName} ${student.lastName}`,
-      });
+      toast({ title: "ברוכה הבאה לאזור האישי!", description: `שלום ${student.firstName} ${student.lastName}` });
     } else {
       toast({
         title: "שגיאה",
@@ -96,7 +80,6 @@ const Homepage = () => {
     <div
       className="min-h-screen relative overflow-x-hidden"
       style={{
-        // רקע פסנתר בלי פייד (ללא שכבת גרדיאנט/דימר שמבהיר/מחשיך)
         backgroundImage: `url(${ASSETS.backgrounds.pianoflute})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -105,29 +88,37 @@ const Homepage = () => {
     >
       <BsiataDishmaya />
 
-      {/* Header קבוע: לוגו “נעול” + ThemeToggle */}
-      <header className="fixed top-0 left-0 right-0 z-50">
-        <div className="backdrop-blur-sm bg-background/40 border-b border-border/50">
-          <div className="relative flex items-center justify-center px-4 py-3">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2">
+      {/* Header קבוע: שקוף באמת (בלי bg/blur שמייצר “רקע” ללוגו) */}
+      <header
+        className="fixed top-0 left-0 right-0 z-50"
+        style={{ height: TOPBAR_H }}
+      >
+        <div className="h-full">
+          <div className="relative h-full flex items-center justify-center px-4">
+            <div className="absolute left-4 top-3">
               <ThemeToggle />
             </div>
 
-            {/* Logo — גדול פי ~2 (לעומת 50% + max-w-lg) */}
+            {/* לוגו גבוה יותר (פחות שוליים למעלה) */}
             <img
               src={ASSETS.logos.noBackground}
               alt="Toby Music Logo"
               className="w-[90%] max-w-3xl object-contain drop-shadow-2xl"
+              style={{ marginTop: -6 }}
             />
           </div>
         </div>
       </header>
 
+      {/* Spacer: מבטיח שהתוכן/גלילה מתחילים מתחת לדשבורד (לא “מתחת ללוגו”) */}
+      <div style={{ height: TOPBAR_H }} />
+
       {/* Main Content */}
-      <div className="relative z-10 min-h-screen flex flex-col items-center px-4 pb-10 pt-52">
+      <div className="relative z-10 min-h-[calc(100vh-120px)] flex flex-col items-center px-4 pb-10 pt-6">
         {/* Welcome */}
         <div className="w-full max-w-2xl mb-8">
-          <Card className="border border-border/60 bg-card/50 backdrop-blur-sm">
+          {/* 30% שקיפות => bg/70 (כלומר אטימות 70%) */}
+          <Card className="border border-border/60 bg-card/70 backdrop-blur-sm">
             <CardContent className="p-6 text-center">
               <h1 className="text-2xl md:text-3xl font-bold mb-4 text-foreground">
                 ברוכות הבאות למערכת המוסיקלית של טובי וינברג
@@ -143,14 +134,10 @@ const Homepage = () => {
         {/* Login Cards */}
         <div className="w-full max-w-4xl grid md:grid-cols-2 gap-6 mb-8">
           {/* Admin Login */}
-          <Card className="glow-gold border border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden">
+          <Card className="glow-gold border border-border/60 bg-card/70 backdrop-blur-sm overflow-hidden">
             <CardHeader className="text-center pb-2">
-              {/* טקסט זהב בכניסות */}
-              <CardTitle className="text-lg md:text-xl font-bold text-gold">
-                כניסת מנהל
-              </CardTitle>
+              <CardTitle className="text-lg md:text-xl font-bold text-gold">כניסת מנהל</CardTitle>
             </CardHeader>
-
             <CardContent className="space-y-4 pt-2">
               <div>
                 <Label htmlFor="admin-code" className="text-sm font-medium text-gold">
@@ -162,11 +149,10 @@ const Homepage = () => {
                   value={adminCode}
                   onChange={(e) => setAdminCode(e.target.value)}
                   placeholder="הקש קוד מנהל"
-                  className="mt-1 bg-background/20 border-gold text-gold placeholder:text-gold/50"
+                  className="mt-1 bg-background/25 border-gold text-gold placeholder:text-gold/50"
                   onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
                 />
               </div>
-
               <Button
                 onClick={handleAdminLogin}
                 className="w-full border border-gold bg-transparent hover:bg-gold/20 text-gold font-semibold py-3"
@@ -178,13 +164,10 @@ const Homepage = () => {
           </Card>
 
           {/* Student Login */}
-          <Card className="glow-gold border border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden">
+          <Card className="glow-gold border border-border/60 bg-card/70 backdrop-blur-sm overflow-hidden">
             <CardHeader className="text-center pb-2">
-              <CardTitle className="text-lg md:text-xl font-bold text-gold">
-                אזור אישי
-              </CardTitle>
+              <CardTitle className="text-lg md:text-xl font-bold text-gold">אזור אישי</CardTitle>
             </CardHeader>
-
             <CardContent className="space-y-4 pt-2">
               <div>
                 <Label htmlFor="student-code" className="text-sm font-medium text-gold">
@@ -196,11 +179,10 @@ const Homepage = () => {
                   value={studentCode}
                   onChange={(e) => setStudentCode(e.target.value)}
                   placeholder="הקישי קוד אישי"
-                  className="mt-1 bg-background/20 border-gold text-gold placeholder:text-gold/50"
+                  className="mt-1 bg-background/25 border-gold text-gold placeholder:text-gold/50"
                   onKeyDown={(e) => e.key === "Enter" && handleStudentLogin()}
                 />
               </div>
-
               <Button
                 onClick={handleStudentLogin}
                 className="w-full border border-gold bg-transparent hover:bg-gold/20 text-gold font-semibold py-3"
@@ -213,11 +195,10 @@ const Homepage = () => {
         </div>
 
         {/* Contact Details */}
-        <Card className="w-full max-w-3xl border border-border/60 bg-card/50 backdrop-blur-sm mb-8">
+        <Card className="w-full max-w-3xl border border-border/60 bg-card/70 backdrop-blur-sm mb-8">
           <CardContent className="p-6 space-y-3">
             <p className="font-semibold text-lg text-center text-foreground">פרטי קשר:</p>
 
-            {/* כאן הטקסט לפי Theme: שחור בבהיר / לבן בכהה */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
               <Mail className="h-4 w-4" />
               <span>תוכלי ליצור קשר גם במייל:</span>
@@ -254,7 +235,7 @@ const Homepage = () => {
         </Card>
 
         {/* Signature */}
-        <Card className="w-full max-w-2xl border border-border/60 bg-card/50 backdrop-blur-sm mb-8">
+        <Card className="w-full max-w-2xl border border-border/60 bg-card/70 backdrop-blur-sm mb-8">
           <CardContent className="p-6 text-center space-y-2">
             <p className="text-2xl font-semibold title-glow text-foreground">להשתמע!</p>
             <p className="text-xl font-bold text-foreground">טובי וינברג</p>
@@ -263,7 +244,7 @@ const Homepage = () => {
         </Card>
 
         {/* Developer Login */}
-        <Card className="w-full max-w-md border border-border/60 bg-card/50 backdrop-blur-sm">
+        <Card className="w-full max-w-md border border-border/60 bg-card/70 backdrop-blur-sm">
           <CardContent className="pt-6 space-y-3">
             <p className="text-xs text-muted-foreground text-center mb-2">כניסת מפתחים</p>
             <Input
@@ -271,7 +252,7 @@ const Homepage = () => {
               value={adminCode}
               onChange={(e) => setAdminCode(e.target.value)}
               placeholder="קוד מפתחים"
-              className="bg-background/20 border-border text-foreground text-sm"
+              className="bg-background/25 border-border text-foreground text-sm"
               onKeyDown={(e) => e.key === "Enter" && handleDevAdminLogin()}
             />
             <Button onClick={handleDevAdminLogin} variant="outline" className="w-full text-sm">
