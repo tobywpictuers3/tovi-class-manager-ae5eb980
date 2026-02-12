@@ -4,14 +4,8 @@
 
 /*
  * TOBY MUSIC – index.css (minimal + root rules)
- * This file should do:
- * 1) Tailwind directives
- * 2) RTL + base reset
- * 3) ROOT FONT enforcement (so fonts never vary across screens)
- * 4) small utilities/animations only
- *
- * Design tokens (colors, radius, shadows, light/dark) should live in:
- *   src/styles/site.css
+ * Tailwind + RTL + font enforcement + small utilities only
+ * Design tokens live in: src/styles/site.css
  */
 
 /* tokens loaded externally via BrandProvider (toby.css) */
@@ -20,10 +14,6 @@
 @layer base {
   :root {
     --font-family: "Assistant", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
-
-    /* NEW: RGB brand fallbacks (override in site.css if you want exact tones) */
-    --brand-gold: 230 182 92;      /* fallback ≈ #e6b65c */
-    --brand-burgundy: 140 29 24;   /* fallback ≈ #8c1d18 */
   }
 
   body {
@@ -76,47 +66,12 @@
 }
 
 @layer utilities {
-  /* NEW: פנימיות — זהוב↔בורדו, אטימות 80% (בלי להחליש את הילדים) */
-  .bg-brand-inner {
-    background-image: linear-gradient(
-      135deg,
-      rgb(var(--brand-gold) / 0.80),
-      rgb(var(--brand-burgundy) / 0.80)
-    );
-  }
-
-  /* NEW: קומפוננטה גדולה — אטום למעלה ואז פייד לשקוף כלפי מטה */
-  .panel-brand-fade {
-    position: relative;
-    overflow: hidden;
-  }
-  .panel-brand-fade::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background-image: linear-gradient(
-      180deg,
-      rgb(var(--brand-gold) / 0.92) 0%,
-      rgb(var(--brand-burgundy) / 0.92) 18%,
-      rgb(var(--brand-burgundy) / 0.00) 100%
-    );
-  }
-  .panel-brand-fade > * {
-    position: relative; /* מעל שכבת הפייד */
-  }
-
   .card-gradient {
-    background: linear-gradient(
-      135deg,
-      hsl(var(--card)) 0%,
-      hsl(var(--card) / 0.95) 100%
-    );
+    background: linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--card) / 0.95) 100%);
   }
 
   .card-shadow {
-    box-shadow: var(--shadow-soft, 0 10px 30px rgba(20, 18, 16, 0.1));
+    box-shadow: var(--shadow-soft, 0 10px 30px rgba(20, 18, 16, 0.10));
   }
 
   .musical-gradient {
@@ -188,5 +143,22 @@
 
   .fade-slide-in {
     animation: fade-slide-in 0.35s ease-out;
+  }
+
+  /* ===== NEW: Wine->Gold horizontal gradient with 70% opacity (30% transparent) =====
+     Uses your canonical tokens: --wine-main / --gold-main (defined in site.css / toby.css).
+     No invented colors.
+  */
+  .card-wine-gold-70 {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--wine-main) 70%, transparent) 0%,
+      color-mix(in srgb, var(--wine-main) 70%, transparent) 50%,
+      color-mix(in srgb, var(--gold-main) 70%, transparent) 100%
+    );
+  }
+
+  .border-gold-soft {
+    border-color: color-mix(in srgb, var(--gold-main) 65%, transparent);
   }
 }
