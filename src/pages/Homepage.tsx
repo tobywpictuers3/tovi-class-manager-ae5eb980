@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,20 @@ import { ThemeToggle } from "@/brand/ThemeToggle";
 import { ASSETS } from "@/brand/assets";
 import BsiataDishmaya from "@/components/ui/BsiataDishmaya";
 
+const TOPBAR_H = 132; // גובה הדשבורד העליון (לוגו)
+const LOGO_GROW = 1.4; // +40%
+
 const Homepage = () => {
   const [adminCode, setAdminCode] = useState("");
   const [studentCode, setStudentCode] = useState("");
   const navigate = useNavigate();
   const { setAccessMode } = useAccessMode();
+
+  // מסמן ל-CSS לבטל פייד/overlay גלובלי רק בדף הבית (אם קיים)
+  useEffect(() => {
+    document.body.classList.add("home-no-fade");
+    return () => document.body.classList.remove("home-no-fade");
+  }, []);
 
   const handleAdminLogin = async () => {
     if (adminCode === "toby2026") {
@@ -74,15 +83,27 @@ const Homepage = () => {
     }
   };
 
-  // כרטיסים: פחות שקוף + רוויית יין
-  // (אם תרצי עוד יותר רווי: bg-wine/95, אם תרצי טיפה יותר שקוף: bg-wine/85)
-  const surface = "border border-border/60 bg-wine/90 backdrop-blur-[2px]";
+  // כרטיס “משטח” שמיישם גרדיאנט בורדו->זהב לפי tokens שלך (70% אטימות)
+  const SurfaceCard = ({
+    className = "",
+    children,
+  }: {
+    className?: string;
+    children: React.ReactNode;
+  }) => (
+    <Card
+      className={`relative overflow-hidden border border-gold-soft backdrop-blur-sm ${className}`}
+    >
+      <div className="absolute inset-0 card-wine-gold-70" />
+      <div className="relative z-10">{children}</div>
+    </Card>
+  );
 
   return (
     <div
       className="min-h-screen relative overflow-x-hidden"
       style={{
-        // רקע נקי בלבד — בלי גרדיאנט/פייד מקומי
+        // רקע נקי: רק תמונה, בלי שכבות פייד מקומיות
         backgroundImage: `url(${ASSETS.backgrounds.pianoflute})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -91,32 +112,37 @@ const Homepage = () => {
     >
       <BsiataDishmaya />
 
-      {/* דשבורד עליון: STICKY (לא נחתך, והגלילה מתחילה מתחתיו טבעי) */}
-      <header className="sticky top-0 z-50">
-        {/* שקוף לגמרי: לא מוסיפים שום bg/blur כדי לא “להלבין” את הרקע */}
-        <div className="relative flex items-start justify-center px-4 pt-2 pb-1">
-          <div className="absolute left-4 top-3">
-            <ThemeToggle />
-          </div>
+      {/* Theme Toggle */}
+      <div className="fixed top-4 left-4 z-[60]">
+        <ThemeToggle />
+      </div>
 
-          {/* הלוגו לא נחתך: נותנים maxHeight + object-contain */}
+      {/* Header נעול: לוגו fixed */}
+      <header className="fixed top-0 left-0 right-0 z-50" style={{ height: TOPBAR_H }}>
+        <div className="h-full flex items-start justify-center px-4 pt-2">
           <img
             src={ASSETS.logos.noBackground}
             alt="Toby Music Logo"
-            className="w-[92%] max-w-3xl object-contain drop-shadow-2xl"
+            className="object-contain drop-shadow-2xl"
             style={{
-              maxHeight: 96,   // להגדיל/להקטין פה בלי חיתוך
-              marginTop: -6,   // מעלה אותו יותר, בלי שוליים מיותרים
+              // הגדלה ב-40% בלי חיתוך
+              width: `${Math.round(720 * LOGO_GROW)}px`,
+              maxWidth: "92vw",
+              maxHeight: TOPBAR_H - 10,
+              marginTop: 2, // שוליים עליונים קטנים
             }}
           />
         </div>
       </header>
 
+      {/* Spacer כדי שהתוכן יתחיל מתחת ללוגו */}
+      <div style={{ height: TOPBAR_H }} />
+
       {/* Main Content */}
       <div className="relative z-10 min-h-screen flex flex-col items-center px-4 pb-10 pt-6">
         {/* Welcome */}
         <div className="w-full max-w-2xl mb-8">
-          <Card className={surface}>
+          <SurfaceCard>
             <CardContent className="p-6 text-center">
               <h1 className="text-2xl md:text-3xl font-bold mb-4 text-foreground">
                 ברוכות הבאות למערכת המוסיקלית של טובי וינברג
@@ -126,12 +152,13 @@ const Homepage = () => {
                 <p>מערכת השיעורים, החלפות, נתוני תשלומים ועוד.</p>
               </div>
             </CardContent>
-          </Card>
+          </SurfaceCard>
         </div>
 
         {/* Login Cards */}
         <div className="w-full max-w-4xl grid md:grid-cols-2 gap-6 mb-8">
-          <Card className={`glow-gold ${surface}`}>
+          {/* Admin Login */}
+          <SurfaceCard className="glow-gold">
             <CardHeader className="text-center pb-2">
               <CardTitle className="text-lg md:text-xl font-bold text-gold">כניסת מנהל</CardTitle>
             </CardHeader>
@@ -146,7 +173,7 @@ const Homepage = () => {
                   value={adminCode}
                   onChange={(e) => setAdminCode(e.target.value)}
                   placeholder="הקש קוד מנהל"
-                  className="mt-1 bg-black/10 border-gold text-gold placeholder:text-gold/50"
+                  className="mt-1 bg-black/15 border-gold text-gold placeholder:text-gold/50"
                   onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
                 />
               </div>
@@ -158,9 +185,10 @@ const Homepage = () => {
                 <ArrowRight className="h-4 w-4 mr-2" />
               </Button>
             </CardContent>
-          </Card>
+          </SurfaceCard>
 
-          <Card className={`glow-gold ${surface}`}>
+          {/* Student Login */}
+          <SurfaceCard className="glow-gold">
             <CardHeader className="text-center pb-2">
               <CardTitle className="text-lg md:text-xl font-bold text-gold">אזור אישי</CardTitle>
             </CardHeader>
@@ -175,7 +203,7 @@ const Homepage = () => {
                   value={studentCode}
                   onChange={(e) => setStudentCode(e.target.value)}
                   placeholder="הקישי קוד אישי"
-                  className="mt-1 bg-black/10 border-gold text-gold placeholder:text-gold/50"
+                  className="mt-1 bg-black/15 border-gold text-gold placeholder:text-gold/50"
                   onKeyDown={(e) => e.key === "Enter" && handleStudentLogin()}
                 />
               </div>
@@ -187,21 +215,18 @@ const Homepage = () => {
                 <ArrowRight className="h-4 w-4 mr-2" />
               </Button>
             </CardContent>
-          </Card>
+          </SurfaceCard>
         </div>
 
-        {/* Contact */}
-        <Card className={`w-full max-w-3xl mb-8 ${surface}`}>
+        {/* Contact Details */}
+        <SurfaceCard className="w-full max-w-3xl mb-8">
           <CardContent className="p-6 space-y-3">
             <p className="font-semibold text-lg text-center text-foreground">פרטי קשר:</p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
               <Mail className="h-4 w-4" />
               <span>תוכלי ליצור קשר גם במייל:</span>
-              <a
-                href="mailto:toby.musicartist@gmail.com"
-                className="hover:opacity-80 transition-opacity font-medium underline underline-offset-4"
-              >
+              <a href="mailto:toby.musicartist@gmail.com" className="hover:opacity-80 transition-opacity font-medium">
                 toby.musicartist@gmail.com
               </a>
             </div>
@@ -209,10 +234,7 @@ const Homepage = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
               <Phone className="h-4 w-4" />
               <span>או בנייד:</span>
-              <a
-                href="tel:0504124161"
-                className="hover:opacity-80 transition-opacity font-medium underline underline-offset-4"
-              >
+              <a href="tel:0504124161" className="hover:opacity-80 transition-opacity font-medium">
                 0504124161
               </a>
             </div>
@@ -220,27 +242,24 @@ const Homepage = () => {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-foreground">
               <MessageCircle className="h-4 w-4" />
               <span>כמו כן נשלחות הודעות עידכון גם לווטסאפ הטלפוני:</span>
-              <a
-                href="tel:0733837098"
-                className="hover:opacity-80 transition-opacity font-medium underline underline-offset-4"
-              >
+              <a href="tel:0733837098" className="hover:opacity-80 transition-opacity font-medium">
                 0733837098
               </a>
             </div>
           </CardContent>
-        </Card>
+        </SurfaceCard>
 
         {/* Signature */}
-        <Card className={`w-full max-w-2xl mb-8 ${surface}`}>
+        <SurfaceCard className="w-full max-w-2xl mb-8">
           <CardContent className="p-6 text-center space-y-2">
             <p className="text-2xl font-semibold title-glow text-foreground">להשתמע!</p>
             <p className="text-xl font-bold text-foreground">טובי וינברג</p>
             <p className="italic text-foreground/80 text-lg">איתך, כל הדרך אל המוסיקה</p>
           </CardContent>
-        </Card>
+        </SurfaceCard>
 
-        {/* Dev */}
-        <Card className={`w-full max-w-md ${surface}`}>
+        {/* Developer Login */}
+        <SurfaceCard className="w-full max-w-md">
           <CardContent className="pt-6 space-y-3">
             <p className="text-xs text-foreground/70 text-center mb-2">כניסת מפתחים</p>
             <Input
@@ -248,14 +267,14 @@ const Homepage = () => {
               value={adminCode}
               onChange={(e) => setAdminCode(e.target.value)}
               placeholder="קוד מפתחים"
-              className="bg-black/10 border-border text-foreground text-sm"
+              className="bg-black/15 border-border text-foreground text-sm"
               onKeyDown={(e) => e.key === "Enter" && handleDevAdminLogin()}
             />
             <Button onClick={handleDevAdminLogin} variant="outline" className="w-full text-sm">
               כניסה למצב מפתחים
             </Button>
           </CardContent>
-        </Card>
+        </SurfaceCard>
       </div>
     </div>
   );
