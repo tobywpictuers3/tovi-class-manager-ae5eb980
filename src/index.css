@@ -1,3 +1,4 @@
+/* Toby Music Design System */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,7 +6,6 @@
 /*
  * TOBY MUSIC – index.css (minimal + root rules)
  * Tailwind + RTL + font enforcement + small utilities only
- * Design tokens live in: src/styles/site.css
  */
 
 /* tokens loaded externally via BrandProvider (toby.css) */
@@ -23,7 +23,6 @@
     font-family: var(--font-family) !important;
   }
 
-  /* Prevent mixed fonts caused by Tailwind utilities */
   .font-sans,
   .font-serif,
   .font-display,
@@ -50,8 +49,7 @@
 
 /* Sparkle animation for overlay text */
 @keyframes sparkle-text {
-  0%,
-  100% {
+  0%, 100% {
     opacity: 0.7;
     text-shadow: 0 0 4px currentColor;
   }
@@ -63,6 +61,21 @@
 
 .sparkle-text {
   animation: sparkle-text 2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { background-position: 100% 0; }
+  50% { background-position: 0% 0; }
+}
+
+@keyframes fade-slide-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes page-fade-in {
+  from { opacity: 0; transform: scale(0.98) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 @layer utilities {
@@ -120,59 +133,34 @@
     text-shadow: 0 0 10px rgba(230, 182, 92, 0.6), 0 0 25px rgba(230, 182, 92, 0.3);
   }
 
-  @keyframes shimmer {
-    0%,
-    100% {
-      background-position: 100% 0;
-    }
-    50% {
-      background-position: 0% 0;
-    }
-  }
-
-  @keyframes fade-slide-in {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
   .fade-slide-in {
     animation: fade-slide-in 0.4s ease-out;
   }
 
-  /* ===== NEW: Wine->Gold horizontal gradient with 70% opacity (30% transparent) =====
-     Uses your canonical tokens: --wine-main / --gold-main (defined in site.css / toby.css).
-     No invented colors.
-  */
   .card-wine-gold-70 {
     background: linear-gradient(
       90deg,
-      color-mix(in srgb, var(--wine-main) 70%, transparent) 0%,
-      color-mix(in srgb, var(--wine-main) 70%, transparent) 50%,
-      color-mix(in srgb, var(--gold-main) 70%, transparent) 100%
+      rgba(140, 29, 24, 0.70) 0%,
+      rgba(140, 29, 24, 0.70) 50%,
+      rgba(230, 182, 92, 0.70) 100%
     );
   }
 
   .border-gold-soft {
-    border-color: color-mix(in srgb, var(--gold-main) 65%, transparent);
+    border-color: rgba(230, 182, 92, 0.65);
   }
 
-  /* ===== Card brand: burgundy-gold 80% opacity ===== */
+  /* Card brand: burgundy-gold 80% opacity */
   .card-brand {
     background: linear-gradient(
       135deg,
-      color-mix(in srgb, var(--wine-main) 80%, transparent) 0%,
-      color-mix(in srgb, var(--gold-main) 80%, transparent) 100%
+      rgba(140, 29, 24, 0.80) 0%,
+      rgba(230, 182, 92, 0.80) 100%
     );
-    border: 1px solid color-mix(in srgb, var(--gold-main) 50%, transparent);
+    border: 1px solid rgba(230, 182, 92, 0.50);
   }
 
-  /* ===== Section fade: solid top -> transparent bottom ===== */
+  /* Section fade: solid top -> transparent bottom */
   .section-fade {
     background: linear-gradient(
       to bottom,
@@ -182,10 +170,10 @@
     );
   }
 
-  /* ===== Brand buttons ===== */
+  /* Brand buttons */
   .btn-gold {
-    background: var(--gold-main, #e6b65c);
-    color: var(--wine-main, #8c1d18);
+    background: #e6b65c;
+    color: #8c1d18;
     border: none;
   }
   .btn-gold:hover {
@@ -193,7 +181,7 @@
   }
 
   .btn-confirm {
-    background: var(--brand-red, #b71c1c);
+    background: #b71c1c;
     color: white;
     border: none;
   }
@@ -202,7 +190,7 @@
   }
 
   .btn-delete {
-    background: var(--wine-main, #8c1d18);
+    background: #8c1d18;
     color: white;
     border: none;
   }
@@ -219,13 +207,13 @@
     filter: brightness(1.2);
   }
 
-  /* ===== Table brand backgrounds ===== */
+  /* Table brand backgrounds */
   .table-brand,
   .table-brand table {
-    background: color-mix(in srgb, var(--gold-main, #e6b65c) 15%, transparent);
+    background: rgba(230, 182, 92, 0.15);
   }
 
-  /* ===== Hover sparkle ===== */
+  /* Hover sparkle */
   .hover-sparkle {
     transition: box-shadow 0.3s ease, transform 0.2s ease;
   }
@@ -235,7 +223,7 @@
     transform: translateY(-2px);
   }
 
-  /* ===== Scroll reveal ===== */
+  /* Scroll reveal */
   .scroll-reveal {
     opacity: 0;
     transform: translateY(24px);
@@ -246,22 +234,18 @@
     transform: translateY(0);
   }
 
-  /* ===== Page transition ===== */
+  /* Page transition */
   .page-enter {
     animation: page-fade-in 0.4s ease-out;
   }
-  @keyframes page-fade-in {
-    from { opacity: 0; transform: scale(0.98) translateY(8px); }
-    to   { opacity: 1; transform: scale(1) translateY(0); }
-  }
 }
 
-/* Dark mode overrides outside @layer */
+/* Dark mode overrides */
 .dark .btn-edit-theme {
-  background: var(--gold-main, #e6b65c);
-  color: var(--wine-main, #8c1d18);
+  background: #e6b65c;
+  color: #8c1d18;
 }
 .dark .table-brand,
 .dark .table-brand table {
-  background: color-mix(in srgb, var(--brand-red, #b71c1c) 20%, transparent);
+  background: rgba(183, 28, 28, 0.20);
 }
