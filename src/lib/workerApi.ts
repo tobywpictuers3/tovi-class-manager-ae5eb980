@@ -19,11 +19,31 @@ const getJsonHeaders = () => ({
   "X-Sonata-Manager-Code": getManagerCode(),
 });
 
+const buildWorkerUrl = (
+  action: string,
+  query?: Record<string, string | number | boolean | undefined>
+) => {
+  const params = new URLSearchParams({
+    action,
+    managerCode: getManagerCode(),
+  });
+
+  if (query) {
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params.set(key, String(value));
+      }
+    });
+  }
+
+  return `${WORKER_BASE_URL}?${params.toString()}`;
+};
+
 // NOTICE:
-/// 1. UploadAttachment MUST NOT use Accept or Content-Type
-/// 2. Only X-Sonata-Manager-Code is allowed
-/// 3. Body MUST be FormData with NO headers set by us
-/// 4. Setting Content-Type manually breaks multipart upload
+// 1. UploadAttachment MUST NOT use Accept or Content-Type
+// 2. Only X-Sonata-Manager-Code is allowed
+// 3. Body MUST be FormData with NO headers set by us
+// 4. Setting Content-Type manually breaks multipart upload
 
 /* ===========================================================
    NORMALIZERS (important for StudentFiles)
@@ -32,17 +52,13 @@ const getJsonHeaders = () => ({
 export type UploadAttachmentResultNormalized = {
   path: string;
   webViewLink: string;
-  url: string;  // Alias for webViewLink for Attachment compatibility
+  url: string;
   name: string;
   size?: number;
   type?: string;
 };
 
 function normalizeUploadAttachmentResult(raw: any): UploadAttachmentResultNormalized {
-  // Worker may return either:
-  // 1) { ok: true, path, webViewLink, name, size, type }
-  // 2) { path, webViewLink, name, size, type }
-  // 3) { ok: true, data: { ... } } (rare)
   const data = raw?.data && typeof raw.data === "object" ? raw.data : raw;
 
   const path = data?.path;
@@ -50,7 +66,6 @@ function normalizeUploadAttachmentResult(raw: any): UploadAttachmentResultNormal
   const name = data?.name;
 
   if (!path || !webViewLink || !name) {
-    // Keep raw for debugging
     throw new Error(
       `upload_attachment: missing fields (path/webViewLink/name). Got: ${JSON.stringify(raw)}`
     );
@@ -59,7 +74,7 @@ function normalizeUploadAttachmentResult(raw: any): UploadAttachmentResultNormal
   return {
     path,
     webViewLink,
-    url: webViewLink,  // Add url as alias for Attachment compatibility
+    url: webViewLink,
     name,
     size: data?.size,
     type: data?.type,
@@ -81,7 +96,6 @@ async function callWorkerGmail<T>(
   const method = opts.method || "GET";
   const managerCode = getManagerCode();
 
-  // Include managerCode in query string for Worker authentication
   const queryString = new URLSearchParams({
     action,
     managerCode,
@@ -129,8 +143,12 @@ export const workerApi = {
     }
 
     try {
-      const r = await fetch(`${WORKER_BASE_URL}?action=download_latest`, {
+      const r = await fetch(buildWorkerUrl("download_latest"), {
         method: "GET",
+        headers: {
+          "Cache-Control": "no-store",
+          "X-Sonata-Manager-Code": getManagerCode(),
+        },
         cache: "no-store",
       });
 
@@ -158,7 +176,7 @@ export const workerApi = {
     }
 
     try {
-      const r = await fetch(`${WORKER_BASE_URL}?action=upload_versioned`, {
+      const r = await fetch(buildWorkerUrl("upload_versioned"), {
         method: "POST",
         headers: getJsonHeaders(),
         body: JSON.stringify(db),
@@ -198,9 +216,8 @@ export const workerApi = {
         type: file.type,
       });
 
-      const response = await fetch(`${WORKER_BASE_URL}?action=upload_attachment`, {
+      const response = await fetch(buildWorkerUrl("upload_attachment"), {
         method: "POST",
-        // VERY IMPORTANT: DO NOT SET Content-Type or Accept
         headers: {
           "X-Sonata-Manager-Code": getManagerCode(),
         },
@@ -218,7 +235,6 @@ export const workerApi = {
       const result = await response.json();
       logger.info("Attachment uploaded (raw):", result);
 
-      // Normalize to fixed shape for app usage
       const normalized = normalizeUploadAttachmentResult(result);
       logger.info("Attachment uploaded (normalized):", normalized);
 
@@ -239,7 +255,7 @@ export const workerApi = {
     }
 
     try {
-      const r = await fetch(`${WORKER_BASE_URL}?action=delete_attachment`, {
+      const r = await fetch(buildWorkerUrl("delete_attachment"), {
         method: "POST",
         headers: getJsonHeaders(),
         body: JSON.stringify({ path }),
@@ -248,7 +264,6 @@ export const workerApi = {
 
       if (!r.ok) {
         const txt = await r.text();
-        // Handle file already deleted in Dropbox as success
         if (txt.includes("path_lookup/not_found")) {
           logger.warn("deleteAttachment: file already missing in Dropbox, treating as success");
           return { success: true, data: { ignored: true, reason: "path_lookup/not_found" } };
@@ -276,8 +291,12 @@ export const workerApi = {
     }
 
     try {
-      const r = await fetch(`${WORKER_BASE_URL}?action=list_versions`, {
+      const r = await fetch(buildWorkerUrl("list_versions"), {
         method: "GET",
+        headers: {
+          "Cache-Control": "no-store",
+          "X-Sonata-Manager-Code": getManagerCode(),
+        },
         cache: "no-store",
       });
 
@@ -288,6 +307,7 @@ export const workerApi = {
       }
 
       const data = await r.json();
+      logger.info("listVersions success:", data);
       return { success: true, data };
     } catch (err) {
       logger.error("listVersions error:", err);
@@ -305,7 +325,7 @@ export const workerApi = {
     }
 
     try {
-      const r = await fetch(`${WORKER_BASE_URL}?action=download_by_path`, {
+      const r = await fetch(buildWorkerUrl("download_by_path"), {
         method: "POST",
         headers: getJsonHeaders(),
         body: JSON.stringify({ path }),
