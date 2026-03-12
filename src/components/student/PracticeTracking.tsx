@@ -41,7 +41,7 @@ const PracticeTracking = ({ studentId }: PracticeTrackingProps) => {
   }, [studentId, refreshKey]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | undefined;
+    let interval: ReturnType<typeof setInterval> | undefined;
     if (isTracking && startTime) {
       interval = setInterval(() => {
         const now = new Date();

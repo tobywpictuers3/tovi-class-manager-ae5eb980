@@ -55,7 +55,7 @@ class HybridSyncManager {
     pendingChanges: 0,
   };
 
-  private retryInterval: NodeJS.Timeout | null = null;
+  private retryInterval: ReturnType<typeof setInterval> | null = null;
   private pendingQueue: Array<() => Promise<void>> = [];
 
   private isSyncingInternal = false;
