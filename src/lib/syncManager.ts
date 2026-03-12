@@ -19,7 +19,7 @@ interface SyncManager {
 }
 
 class SyncManagerImpl implements SyncManager {
-  private backupInterval: NodeJS.Timeout | null = null;
+  private backupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     logger.info('🔄 SyncManager initialized');

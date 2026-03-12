@@ -1890,6 +1890,7 @@ export const setStudentUsedCopper = (studentId: string, value: number): void => 
   } else {
     if (!inMemoryStorage['usedCopper']) inMemoryStorage['usedCopper'] = {};
     inMemoryStorage['usedCopper'][studentId] = Math.max(0, value);
+    hybridSync.onDataChange();
   }
 };
 
