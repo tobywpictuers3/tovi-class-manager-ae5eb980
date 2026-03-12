@@ -16,6 +16,7 @@ import {
   Loader2,
   Dumbbell,
   CheckCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   getStudents,
@@ -27,7 +28,6 @@ import {
   getMonthlyAchievements,
   getMedalRecords,
   getStudentStatistics,
-  getOneTimePayments,
 } from '@/lib/storage';
 import { getMessages } from '@/lib/messages';
 import {
@@ -56,6 +56,24 @@ interface VersionInfo {
   content_hash?: string;
 }
 
+const PRACTICE_KEY_HINTS = [
+  'practice',
+  'practices',
+  'session',
+  'sessions',
+  'training',
+  'trainings',
+  'workout',
+  'exercise',
+  'אימון',
+  'אימונים',
+];
+
+const isPracticeStorageKey = (key: string) => {
+  const lowerKey = key.toLowerCase();
+  return PRACTICE_KEY_HINTS.some((hint) => lowerKey.includes(hint.toLowerCase()));
+};
+
 const extractVersions = (data: unknown): VersionInfo[] => {
   if (Array.isArray(data)) return data as VersionInfo[];
 
@@ -72,14 +90,45 @@ const extractVersions = (data: unknown): VersionInfo[] => {
   return [];
 };
 
+const asStorageRecord = (data: unknown): Record<string, unknown> | null => {
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    return data as Record<string, unknown>;
+  }
+  return null;
+};
+
+const toStorageString = (value: unknown) =>
+  typeof value === 'string' ? value : JSON.stringify(value);
+
+const getAllLocalStorageKeys = () => {
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key) keys.push(key);
+  }
+  return keys;
+};
+
+interface StorageSnapshotItem {
+  key: string;
+  value: string | null;
+}
+
 const BackupHistory = () => {
   const [versions, setVersions] = useState<VersionInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
   const [selectedVersion, setSelectedVersion] = useState<VersionInfo | null>(null);
+
   const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+
   const [isPracticeRestoreDialogOpen, setIsPracticeRestoreDialogOpen] = useState(false);
   const [isRestoringPractice, setIsRestoringPractice] = useState(false);
+
+  const [isRestoreWithoutPracticeDialogOpen, setIsRestoreWithoutPracticeDialogOpen] =
+    useState(false);
+  const [isRestoringWithoutPractice, setIsRestoringWithoutPractice] = useState(false);
 
   const devMode = isDevMode();
 
@@ -87,7 +136,6 @@ const BackupHistory = () => {
     const studentIds = getStudents().map((s) => s.id);
     const lessons = getLessons();
     const payments = getPayments();
-    getOneTimePayments();
     const sessions = getPracticeSessions();
     const swaps = getSwapRequests();
     const files = getFiles();
@@ -228,6 +276,15 @@ const BackupHistory = () => {
     setIsPracticeRestoreDialogOpen(true);
   };
 
+  const handleRestoreWithoutPracticeClick = (
+    version: VersionInfo,
+    e: MouseEvent<HTMLButtonElement>
+  ) => {
+    e.stopPropagation();
+    setSelectedVersion(version);
+    setIsRestoreWithoutPracticeDialogOpen(true);
+  };
+
   const handlePracticeRestore = async () => {
     if (!selectedVersion) return;
 
@@ -272,12 +329,19 @@ const BackupHistory = () => {
       const result = await workerApi.downloadByPath(selectedVersion.path);
 
       if (result.success && result.data) {
-        Object.keys(result.data).forEach((key) => {
-          const value = result.data[key];
-          localStorage.setItem(
-            key,
-            typeof value === 'string' ? value : JSON.stringify(value)
-          );
+        const restoredData = asStorageRecord(result.data);
+
+        if (!restoredData) {
+          toast({
+            title: '❌ שגיאה בשחזור',
+            description: 'מבנה הנתונים שהתקבל אינו תקין',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        Object.entries(restoredData).forEach(([key, value]) => {
+          localStorage.setItem(key, toStorageString(value));
         });
 
         toast({
@@ -305,6 +369,104 @@ const BackupHistory = () => {
     } finally {
       setIsRestoring(false);
       setIsRestoreDialogOpen(false);
+    }
+  };
+
+  const handleRestoreWithoutPractice = async () => {
+    if (!selectedVersion) return;
+
+    setIsRestoringWithoutPractice(true);
+
+    try {
+      const currentPracticeSessions = getPracticeSessions();
+      const currentPracticeSerialized = JSON.stringify(currentPracticeSessions);
+
+      const result = await workerApi.downloadByPath(selectedVersion.path);
+
+      if (result.success && result.data) {
+        const restoredData = asStorageRecord(result.data);
+
+        if (!restoredData) {
+          toast({
+            title: '❌ שגיאה בשחזור',
+            description: 'מבנה הנתונים שהתקבל אינו תקין',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        const practiceKeys = new Set<string>();
+
+        getAllLocalStorageKeys().forEach((key) => {
+          if (isPracticeStorageKey(key)) {
+            practiceKeys.add(key);
+            return;
+          }
+
+          const currentValue = localStorage.getItem(key);
+          if (currentValue === currentPracticeSerialized) {
+            practiceKeys.add(key);
+          }
+        });
+
+        Object.entries(restoredData).forEach(([key, value]) => {
+          if (isPracticeStorageKey(key)) {
+            practiceKeys.add(key);
+            return;
+          }
+
+          try {
+            if (toStorageString(value) === currentPracticeSerialized) {
+              practiceKeys.add(key);
+            }
+          } catch {
+            // ignore
+          }
+        });
+
+        const practiceSnapshot: StorageSnapshotItem[] = Array.from(practiceKeys).map((key) => ({
+          key,
+          value: localStorage.getItem(key),
+        }));
+
+        Object.entries(restoredData).forEach(([key, value]) => {
+          if (practiceKeys.has(key) || isPracticeStorageKey(key)) return;
+          localStorage.setItem(key, toStorageString(value));
+        });
+
+        practiceSnapshot.forEach(({ key, value }) => {
+          if (value === null) {
+            localStorage.removeItem(key);
+          } else {
+            localStorage.setItem(key, value);
+          }
+        });
+
+        toast({
+          title: '✅ השחזור הושלם',
+          description: 'כל הנתונים שוחזרו, והאימונים נשמרו כפי שהם. הדף יתרענן...',
+        });
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        toast({
+          title: '❌ שגיאה בשחזור',
+          description: result.error || 'לא ניתן לשחזר את הגרסה',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      logger.error('Error restoring version without practice sessions:', error);
+      toast({
+        title: '❌ שגיאה',
+        description: 'אירעה תקלה. נסי שוב.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRestoringWithoutPractice(false);
+      setIsRestoreWithoutPracticeDialogOpen(false);
     }
   };
 
@@ -357,11 +519,13 @@ const BackupHistory = () => {
                 <Badge variant="secondary">{versions.length} גרסאות</Badge>
               )}
             </CardTitle>
+
             <div className="flex gap-2">
               <Button onClick={runIntegrityCheck} variant="outline" size="sm">
                 <CheckCircle className="h-4 w-4 ml-2" />
                 בדוק תקינות נתונים
               </Button>
+
               <Button onClick={loadVersions} disabled={isLoading} variant="outline" size="sm">
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin ml-2" />
@@ -373,6 +537,7 @@ const BackupHistory = () => {
             </div>
           </div>
         </CardHeader>
+
         <CardContent>
           <div className="space-y-4">
             <div className="p-4 bg-muted/50 rounded-lg">
@@ -404,11 +569,12 @@ const BackupHistory = () => {
                       <TableHead className="text-right">תאריך ושעה</TableHead>
                       <TableHead className="text-right">גודל</TableHead>
                       <TableHead className="text-right">נתיב</TableHead>
-                      <TableHead className="text-right" colSpan={2}>
+                      <TableHead className="text-right" colSpan={3}>
                         פעולות
                       </TableHead>
                     </TableRow>
                   </TableHeader>
+
                   <TableBody>
                     {versions.map((version, index) => (
                       <TableRow
@@ -427,10 +593,13 @@ const BackupHistory = () => {
                             )}
                           </div>
                         </TableCell>
+
                         <TableCell>{formatSize(version.size)}</TableCell>
+
                         <TableCell className="text-xs text-muted-foreground font-mono">
                           {version.path.split('/').pop()}
                         </TableCell>
+
                         <TableCell>
                           <Button
                             variant="ghost"
@@ -444,6 +613,18 @@ const BackupHistory = () => {
                             שחזר הכל
                           </Button>
                         </TableCell>
+
+                        <TableCell>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={(e) => handleRestoreWithoutPracticeClick(version, e)}
+                          >
+                            <ShieldCheck className="h-4 w-4 ml-2" />
+                            שחזר הכל חוץ מאימונים
+                          </Button>
+                        </TableCell>
+
                         <TableCell>
                           <Button
                             variant="outline"
@@ -464,6 +645,7 @@ const BackupHistory = () => {
         </CardContent>
       </Card>
 
+      {/* שחזור מלא */}
       <AlertDialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -471,6 +653,7 @@ const BackupHistory = () => {
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>האם את בטוחה שברצונך לשחזר את הגרסה הזו?</p>
+
                 {selectedVersion && (
                   <div className="p-4 bg-muted rounded-lg space-y-2">
                     <div className="flex justify-between text-sm">
@@ -483,12 +666,14 @@ const BackupHistory = () => {
                     </div>
                   </div>
                 )}
+
                 <p className="text-destructive font-medium">
                   ⚠️ פעולה זו תחליף את כל הנתונים הנוכחיים!
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isRestoring}>ביטול</AlertDialogCancel>
             <AlertDialogAction
@@ -512,16 +697,18 @@ const BackupHistory = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* שחזור מלא בלי אימונים */}
       <AlertDialog
-        open={isPracticeRestoreDialogOpen}
-        onOpenChange={setIsPracticeRestoreDialogOpen}
+        open={isRestoreWithoutPracticeDialogOpen}
+        onOpenChange={setIsRestoreWithoutPracticeDialogOpen}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>שחזור אימונים בלבד</AlertDialogTitle>
+            <AlertDialogTitle>שחזור הכל חוץ מאימונים</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
-                <p>פעולה זו תשחזר רק את נתוני האימונים מהגרסה הזו.</p>
+                <p>פעולה זו תשחזר את כל הנתונים מהגרסה שנבחרה, אבל תשאיר את האימונים הנוכחיים כפי שהם.</p>
+
                 {selectedVersion && (
                   <div className="p-4 bg-muted rounded-lg space-y-2">
                     <div className="flex justify-between text-sm">
@@ -534,17 +721,83 @@ const BackupHistory = () => {
                     </div>
                   </div>
                 )}
+
+                <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                  <p className="text-sm font-medium">
+                    ✅ האימונים יישמרו בדיוק כמו שהם עכשיו
+                  </p>
+                </div>
+
+                <p className="text-destructive font-medium text-sm">
+                  ⚠️ כל שאר הנתונים יוחלפו לפי הגרסה שנבחרה
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRestoringWithoutPractice}>
+              ביטול
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRestoreWithoutPractice}
+              disabled={isRestoringWithoutPractice}
+              className="bg-primary"
+            >
+              {isRestoringWithoutPractice ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                  משחזר...
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="h-4 w-4 ml-2" />
+                  שחזר הכל חוץ מאימונים
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* שחזור אימונים בלבד */}
+      <AlertDialog
+        open={isPracticeRestoreDialogOpen}
+        onOpenChange={setIsPracticeRestoreDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>שחזור אימונים בלבד</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>פעולה זו תשחזר רק את נתוני האימונים מהגרסה הזו.</p>
+
+                {selectedVersion && (
+                  <div className="p-4 bg-muted rounded-lg space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">תאריך:</span>
+                      <span>{formatDate(selectedVersion.server_modified)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="font-medium">גודל:</span>
+                      <span>{formatSize(selectedVersion.size)}</span>
+                    </div>
+                  </div>
+                )}
+
                 <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
                   <p className="text-sm font-medium">
                     ✅ בטוח: כל שאר הנתונים (תלמידות, שיעורים, תשלומים) יישארו ללא שינוי
                   </p>
                 </div>
+
                 <p className="text-destructive font-medium text-sm">
                   ⚠️ נתוני האימונים הנוכחיים יוחלפו באימונים מהגרסה הזו
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
+
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isRestoringPractice}>ביטול</AlertDialogCancel>
             <AlertDialogAction
