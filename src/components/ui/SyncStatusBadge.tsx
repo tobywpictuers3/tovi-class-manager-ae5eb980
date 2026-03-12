@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { hybridSync, SyncUiState } from "@/lib/hybridSync";
-import { Cloud, CloudOff, AlertTriangle, Loader2 } from "lucide-react";
+import { Cloud, CloudOff, AlertTriangle, Loader2, Check } from "lucide-react";
 
 function formatRelative(iso: string): string {
   const t = new Date(iso).getTime();
@@ -17,11 +17,23 @@ function formatRelative(iso: string): string {
   return `לפני ${diffDay} ימים`;
 }
 
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+}
+
 export default function SyncStatusBadge() {
   const [state, setState] = useState<SyncUiState>(() => hybridSync.getSyncState());
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     return hybridSync.subscribeSyncState(setState);
+  }, []);
+
+  // Re-render every 30s to update relative times
+  useEffect(() => {
+    const iv = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(iv);
   }, []);
 
   const view = useMemo(() => {
@@ -30,8 +42,8 @@ export default function SyncStatusBadge() {
       return {
         icon: <CloudOff className="w-4 h-4" />,
         text: state.lastLocalSaveAt
-          ? `נשמר מקומית (${formatRelative(state.lastLocalSaveAt)}), ממתין לענן`
-          : "אין חיבור — ממתין לענן",
+          ? `אופליין — נשמר מקומית ${formatRelative(state.lastLocalSaveAt)}`
+          : "אין חיבור לאינטרנט",
         className: "text-yellow-300",
       };
     }
@@ -47,7 +59,9 @@ export default function SyncStatusBadge() {
     if (state.lastError) {
       return {
         icon: <AlertTriangle className="w-4 h-4" />,
-        text: "נשמר מקומית — סנכרון לענן נכשל",
+        text: state.lastLocalSaveAt
+          ? `סנכרון נכשל — נשמר מקומית ${formatRelative(state.lastLocalSaveAt)}`
+          : "סנכרון לענן נכשל",
         className: "text-red-300",
         title: state.lastError,
       };
@@ -55,8 +69,8 @@ export default function SyncStatusBadge() {
 
     if (state.lastCloudSyncAt) {
       return {
-        icon: <Cloud className="w-4 h-4" />,
-        text: `הסתנכרן לענן ${formatRelative(state.lastCloudSyncAt)}`,
+        icon: <Check className="w-4 h-4" />,
+        text: `סונכרן ${formatRelative(state.lastCloudSyncAt)} (${formatTime(state.lastCloudSyncAt)})`,
         className: "text-green-300",
       };
     }
@@ -71,7 +85,7 @@ export default function SyncStatusBadge() {
 
     return {
       icon: <Cloud className="w-4 h-4" />,
-      text: "סטטוס סנכרון לא ידוע",
+      text: "טרם בוצע סנכרון",
       className: "text-muted-foreground",
     };
   }, [state]);
