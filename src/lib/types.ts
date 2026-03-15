@@ -75,6 +75,27 @@ export interface PerLessonPayment {
   notes?: string;
 }
 
+export interface PerLessonLedgerRow {
+  id: string;
+  rowType: 'lesson' | 'credit';
+  lessonId?: string;
+  lessonDate?: string;
+  amountDue: number;
+  amountPaid: number;
+  paymentDates: string[];
+  balance: number; // positive = credit, negative = debt
+  runningBalance: number; // cumulative balance after this row
+}
+
+export interface PerLessonLedger {
+  lessonPrice: number;
+  completedLessonsCount: number;
+  totalDue: number;
+  totalPaid: number;
+  totalBalance: number; // positive = credit, negative = debt
+  rows: PerLessonLedgerRow[];
+}
+
 export interface Performance {
   id: string;
   name: string;
