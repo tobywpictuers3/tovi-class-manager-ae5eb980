@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/safe-ui/dialog';
 import { Label } from '@/components/safe-ui/label';
 import { CreditCard, ChevronRight, ChevronLeft, Download, Coins, Plus, Pencil, Trash2, Calendar } from 'lucide-react';
-import { getStudents, getPayments, savePayments, updateStudent, getPerformances, getOneTimePayments, saveOneTimePayments, updateOneTimePayment, deleteOneTimePayment, getTithePaid, saveTithePaid, getCompletedLessonsCount, recordPerLessonPayment, getPerLessonPayments, getStudentPerLessonPayments, updatePerLessonPayment, deletePerLessonPayment } from '@/lib/storage';
+import { getStudents, getPayments, savePayments, updateStudent, getPerformances, getOneTimePayments, saveOneTimePayments, updateOneTimePayment, deleteOneTimePayment, getTithePaid, saveTithePaid, getCompletedLessonsCount, recordPerLessonPayment, getPerLessonPayments, getStudentPerLessonPayments, getStudentPerLessonLedger, updatePerLessonPayment, deletePerLessonPayment } from '@/lib/storage';
 import { Payment, Student, OneTimePayment, Performance, PerLessonPayment } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/safe-ui/badge';
@@ -644,7 +644,29 @@ const handleAddOneTimePayment = () => {
     return payments.reduce((sum, p) => sum + p.amount, 0);
   };
 
+  const formatDisplayDate = (date?: string) => {
+    if (!date) return '-';
+    return date.split('-').reverse().join('/');
+  };
 
+  const formatCurrencyAmount = (amount: number) => {
+    return Number.isInteger(amount) ? amount.toString() : amount.toFixed(2);
+  };
+
+  const getPerLessonStudentSummary = (student: Student) => {
+    const ledger = getStudentPerLessonLedger(student.id);
+
+    return {
+      ledger,
+      completedLessons: ledger.completedLessonsCount,
+      totalDue: ledger.totalDue,
+      totalPaid: ledger.totalPaid,
+      totalBalance: ledger.totalBalance,
+      amountToPay: ledger.totalBalance < 0 ? Math.abs(ledger.totalBalance) : 0,
+      creditAmount: ledger.totalBalance > 0 ? ledger.totalBalance : 0,
+      debtAmount: ledger.totalBalance < 0 ? Math.abs(ledger.totalBalance) : 0,
+    };
+  };
 
 const openOneTimePaymentDialog = () => {
   // ברירת מחדל נוחה: אם נמצאים בתצוגה חודשית – בוחרים את החודש שנבחר,
@@ -1256,32 +1278,43 @@ const openOneTimePaymentDialog = () => {
                     <TableHead className="text-right">תלמידה</TableHead>
                     <TableHead className="text-right">מחיר/שיעור</TableHead>
                     <TableHead className="text-right">שיעורים שניתנו</TableHead>
+                    <TableHead className="text-right">חיוב כולל</TableHead>
                     <TableHead className="text-right">שולם</TableHead>
-                    <TableHead className="text-right">יתרה</TableHead>
+                    <TableHead className="text-right">מאזן</TableHead>
                     <TableHead className="text-right">סכום לתשלום</TableHead>
                     <TableHead className="text-right">פעולה</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {perLessonStudents.map(student => {
-                    const completedLessons = getCompletedLessonsCount(student.id);
-                    const paidLessons = student.paidLessonsCount || 0;
-                    const balanceLessons = completedLessons - paidLessons;
-                    const balanceAmount = balanceLessons * (student.lessonPrice || 0);
-                    
+                    const summary = getPerLessonStudentSummary(student);
+
                     return (
                       <TableRow key={student.id}>
                         <TableCell className="font-medium">
                           {student.firstName} {student.lastName}
                         </TableCell>
-                        <TableCell>₪{student.lessonPrice || 0}</TableCell>
-                        <TableCell>{completedLessons}</TableCell>
-                        <TableCell className="text-green-600 font-medium">{paidLessons}</TableCell>
-                        <TableCell className={balanceLessons > 0 ? 'text-destructive font-bold' : 'text-green-600'}>
-                          {balanceLessons > 0 ? balanceLessons : '✓'}
+                        <TableCell>₪{formatCurrencyAmount(student.lessonPrice || 0)}</TableCell>
+                        <TableCell>{summary.completedLessons}</TableCell>
+                        <TableCell>₪{formatCurrencyAmount(summary.totalDue)}</TableCell>
+                        <TableCell className="text-green-600 font-medium">₪{formatCurrencyAmount(summary.totalPaid)}</TableCell>
+                        <TableCell
+                          className={
+                            summary.totalBalance < 0
+                              ? 'text-destructive font-bold'
+                              : summary.totalBalance > 0
+                                ? 'text-green-600 font-bold'
+                                : 'text-muted-foreground'
+                          }
+                        >
+                          {summary.totalBalance < 0
+                            ? `חוב ₪${formatCurrencyAmount(Math.abs(summary.totalBalance))}`
+                            : summary.totalBalance > 0
+                              ? `זכות ₪${formatCurrencyAmount(summary.totalBalance)}`
+                              : 'מאוזן'}
                         </TableCell>
-                        <TableCell className={balanceAmount > 0 ? 'text-destructive font-bold' : ''}>
-                          {balanceAmount > 0 ? `₪${balanceAmount}` : '-'}
+                        <TableCell className={summary.amountToPay > 0 ? 'text-destructive font-bold' : ''}>
+                          {summary.amountToPay > 0 ? `₪${formatCurrencyAmount(summary.amountToPay)}` : '-'}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
@@ -1290,9 +1323,7 @@ const openOneTimePaymentDialog = () => {
                               variant="outline"
                               onClick={() => {
                                 setSelectedPerLessonStudent(student);
-                                // Pre-fill amount based on balance
-                                const suggestedAmount = balanceLessons * (student.lessonPrice || 0);
-                                setPerLessonPaymentAmount(suggestedAmount > 0 ? suggestedAmount.toString() : '');
+                                setPerLessonPaymentAmount(summary.amountToPay > 0 ? summary.amountToPay.toString() : '');
                                 setPerLessonPaymentDate(new Date().toISOString().split('T')[0]);
                                 setPerLessonPaymentNotes('');
                                 setShowPerLessonPaymentDialog(true);
@@ -1415,28 +1446,39 @@ const openOneTimePaymentDialog = () => {
             const totalAvailable = amount + currentBalance;
             const lessonsCovered = lessonPrice > 0 ? Math.floor(totalAvailable / lessonPrice) : 0;
             const newBalance = lessonPrice > 0 ? totalAvailable - (lessonsCovered * lessonPrice) : 0;
+            const summary = getPerLessonStudentSummary(selectedPerLessonStudent);
             
             return (
               <div className="space-y-4">
                 <div className="p-4 bg-secondary/30 rounded-lg">
                   <p className="font-bold text-lg">{selectedPerLessonStudent.firstName} {selectedPerLessonStudent.lastName}</p>
-                  <p className="text-sm text-muted-foreground">מחיר לשיעור: ₪{lessonPrice}</p>
+                  <p className="text-sm text-muted-foreground">מחיר לשיעור: ₪{formatCurrencyAmount(lessonPrice)}</p>
                   {currentBalance > 0 && (
-                    <p className="text-sm text-green-600">יתרה קיימת: ₪{currentBalance}</p>
+                    <p className="text-sm text-green-600">יתרה קיימת לזכות: ₪{formatCurrencyAmount(currentBalance)}</p>
                   )}
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                  <div className="mt-2 grid grid-cols-4 gap-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">שיעורים שניתנו:</span>
-                      <span className="font-bold mr-1">{getCompletedLessonsCount(selectedPerLessonStudent.id)}</span>
+                      <span className="font-bold mr-1">{summary.completedLessons}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">חיוב כולל:</span>
+                      <span className="font-bold mr-1">₪{formatCurrencyAmount(summary.totalDue)}</span>
                     </div>
                     <div>
                       <span className="text-muted-foreground">שולם:</span>
-                      <span className="font-bold mr-1">{selectedPerLessonStudent.paidLessonsCount || 0}</span>
+                      <span className="font-bold text-green-600 mr-1">₪{formatCurrencyAmount(summary.totalPaid)}</span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">חוב:</span>
-                      <span className="font-bold text-destructive mr-1">
-                        {Math.max(0, getCompletedLessonsCount(selectedPerLessonStudent.id) - (selectedPerLessonStudent.paidLessonsCount || 0))}
+                      <span className="text-muted-foreground">מאזן:</span>
+                      <span
+                        className={`font-bold mr-1 ${summary.totalBalance < 0 ? 'text-destructive' : summary.totalBalance > 0 ? 'text-green-600' : ''}`}
+                      >
+                        {summary.totalBalance < 0
+                          ? `חוב ₪${formatCurrencyAmount(Math.abs(summary.totalBalance))}`
+                          : summary.totalBalance > 0
+                            ? `זכות ₪${formatCurrencyAmount(summary.totalBalance)}`
+                            : 'מאוזן'}
                       </span>
                     </div>
                   </div>
@@ -1608,41 +1650,107 @@ const openOneTimePaymentDialog = () => {
 
       {/* Per-Lesson Payment History Dialog */}
       <Dialog open={showPerLessonHistoryDialog} onOpenChange={setShowPerLessonHistoryDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
-            <DialogTitle>היסטוריית תשלומים - {selectedStudentForHistory?.firstName} {selectedStudentForHistory?.lastName}</DialogTitle>
+            <DialogTitle>פירוט שיעורים ותשלומים - {selectedStudentForHistory?.firstName} {selectedStudentForHistory?.lastName}</DialogTitle>
           </DialogHeader>
           {selectedStudentForHistory && (() => {
-            const studentPayments = getStudentPerLessonPayments(selectedStudentForHistory.id);
-            const totalPaid = studentPayments.reduce((sum, p) => sum + p.amount, 0);
-            
+            const ledger = getStudentPerLessonLedger(selectedStudentForHistory.id);
+            const studentPayments = getStudentPerLessonPayments(selectedStudentForHistory.id)
+              .slice()
+              .sort((a, b) => (b.paymentDate || '').localeCompare(a.paymentDate || ''));
+
             return (
               <div className="space-y-4">
-                <div className="p-4 bg-secondary/30 rounded-lg">
-                  <div className="flex justify-between">
-                    <span>מחיר לשיעור:</span>
-                    <span className="font-bold">₪{selectedStudentForHistory.lessonPrice || 0}</span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-3 bg-secondary/30 rounded-lg">
+                    <div className="text-xs text-muted-foreground">מחיר לשיעור</div>
+                    <div className="font-bold">₪{formatCurrencyAmount(ledger.lessonPrice)}</div>
                   </div>
-                  <div className="flex justify-between">
-                    <span>סה"כ שולם:</span>
-                    <span className="font-bold text-green-600">₪{totalPaid}</span>
+                  <div className="p-3 bg-secondary/30 rounded-lg">
+                    <div className="text-xs text-muted-foreground">סה"כ חיוב</div>
+                    <div className="font-bold">₪{formatCurrencyAmount(ledger.totalDue)}</div>
+                  </div>
+                  <div className="p-3 bg-secondary/30 rounded-lg">
+                    <div className="text-xs text-muted-foreground">סה"כ שולם</div>
+                    <div className="font-bold text-green-600">₪{formatCurrencyAmount(ledger.totalPaid)}</div>
+                  </div>
+                  <div className="p-3 bg-secondary/30 rounded-lg">
+                    <div className="text-xs text-muted-foreground">מאזן סופי</div>
+                    <div className={`font-bold ${ledger.totalBalance < 0 ? 'text-destructive' : ledger.totalBalance > 0 ? 'text-green-600' : ''}`}>
+                      {ledger.totalBalance < 0
+                        ? `חוב ₪${formatCurrencyAmount(Math.abs(ledger.totalBalance))}`
+                        : ledger.totalBalance > 0
+                          ? `זכות ₪${formatCurrencyAmount(ledger.totalBalance)}`
+                          : 'מאוזן'}
+                    </div>
                   </div>
                 </div>
-                
-                {studentPayments.length === 0 ? (
-                  <p className="text-center text-muted-foreground">אין תשלומים רשומים</p>
+
+                {ledger.rows.length === 0 ? (
+                  <p className="text-center text-muted-foreground">אין עדיין שיעורים שהושלמו או תשלומים רשומים</p>
                 ) : (
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {studentPayments
-                      .sort((a, b) => (b.paymentDate || '').localeCompare(a.paymentDate || ''))
-                      .map(plp => (
+                  <div className="border rounded-lg max-h-[360px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-right">תאריך שיעור</TableHead>
+                          <TableHead className="text-right">סכום לתשלום</TableHead>
+                          <TableHead className="text-right">שולם</TableHead>
+                          <TableHead className="text-right">תאריך/י תשלום</TableHead>
+                          <TableHead className="text-right">חוב / עודף</TableHead>
+                          <TableHead className="text-right">יתרה מצטברת</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ledger.rows.map(row => (
+                          row.rowType === 'credit' ? (
+                            <TableRow key={row.id}>
+                              <TableCell className="font-medium text-green-700">עודף לתשלום עתידי</TableCell>
+                              <TableCell>-</TableCell>
+                              <TableCell className="text-green-600 font-medium">₪{formatCurrencyAmount(row.amountPaid)}</TableCell>
+                              <TableCell>{row.paymentDates.map(date => formatDisplayDate(date)).join(', ') || '-'}</TableCell>
+                              <TableCell className="text-green-600 font-bold">זכות ₪{formatCurrencyAmount(row.balance)}</TableCell>
+                              <TableCell className="text-green-600 font-bold">זכות ₪{formatCurrencyAmount(row.runningBalance)}</TableCell>
+                            </TableRow>
+                          ) : (
+                            <TableRow key={row.id}>
+                              <TableCell>{formatDisplayDate(row.lessonDate)}</TableCell>
+                              <TableCell>₪{formatCurrencyAmount(row.amountDue)}</TableCell>
+                              <TableCell className={row.amountPaid > 0 ? 'text-green-600 font-medium' : ''}>₪{formatCurrencyAmount(row.amountPaid)}</TableCell>
+                              <TableCell>{row.paymentDates.map(date => formatDisplayDate(date)).join(', ') || '-'}</TableCell>
+                              <TableCell className={row.balance < 0 ? 'text-destructive font-bold' : 'text-green-600'}>
+                                {row.balance < 0 ? `חוב ₪${formatCurrencyAmount(Math.abs(row.balance))}` : 'שולם'}
+                              </TableCell>
+                              <TableCell className={row.runningBalance < 0 ? 'text-destructive font-bold' : row.runningBalance > 0 ? 'text-green-600 font-bold' : ''}>
+                                {row.runningBalance < 0
+                                  ? `חוב ₪${formatCurrencyAmount(Math.abs(row.runningBalance))}`
+                                  : row.runningBalance > 0
+                                    ? `זכות ₪${formatCurrencyAmount(row.runningBalance)}`
+                                    : 'מאוזן'}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="font-medium">רשומות תשלום לעריכה</div>
+                  {studentPayments.length === 0 ? (
+                    <p className="text-center text-muted-foreground">אין תשלומים רשומים</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto">
+                      {studentPayments.map(plp => (
                         <div key={plp.id} className="flex justify-between items-center p-2 border rounded group">
                           <div>
-                            <span className="font-medium">{plp.paymentDate?.split('-').reverse().join('/')}</span>
+                            <span className="font-medium">{formatDisplayDate(plp.paymentDate)}</span>
                             {plp.notes && <span className="text-xs text-muted-foreground mr-2">({plp.notes})</span>}
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="font-bold">₪{plp.amount}</span>
+                            <span className="font-bold">₪{formatCurrencyAmount(plp.amount)}</span>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -1658,9 +1766,10 @@ const openOneTimePaymentDialog = () => {
                           </div>
                         </div>
                       ))}
-                  </div>
-                )}
-                
+                    </div>
+                  )}
+                </div>
+
                 <Button 
                   variant="outline" 
                   className="w-full"
