@@ -855,93 +855,97 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
       });
   };
 
-  const renderFixedAnnualView = () => (
-    <div className="relative rounded-lg border overflow-auto max-h-[68vh] bg-background" dir="rtl">
-      <Table className="w-full min-w-[1280px] table-fixed">
-        <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
-          <TableRow>
-            <TableHead className="sticky top-0 right-0 z-40 bg-primary/15 text-primary border-b border-primary/20 min-w-[180px] w-[180px] text-right">תלמידה</TableHead>
-            <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 min-w-[110px] w-[110px] text-right">אמצעי תשלום</TableHead>
-            {academicMonths.map(month => {
-              const isHighlighted = regularMonthFilter === month.key;
-              return (
-                <TableHead
-                  key={month.key}
-                  className={`sticky top-0 bg-primary/10 text-primary border-b border-primary/20 min-w-[78px] w-[78px] text-center ${isHighlighted ? 'bg-primary/25 font-extrabold' : ''}`}
-                >
-                  {month.name}
-                </TableHead>
-              );
-            })}
-            <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 min-w-[100px] w-[100px] text-center">סה"כ שולם</TableHead>
-            <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 min-w-[100px] w-[100px] text-center">יעד שנתי</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filteredStudents.map(student => {
-            const totalPaid = calculateTotalPaid(student.id);
-            const annualTarget = student.calculatedAmount || student.annualAmount || (student.monthlyAmount * student.paymentMonths);
-            const method = getStudentPaymentMethod(student.id);
-
-            return (
-              <TableRow key={student.id} className="hover:bg-muted/40">
-                <TableCell className="sticky right-0 z-20 bg-accent/60 text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">
-                  {getStudentFullName(student)}
-                </TableCell>
-                <TableCell className="text-right">{getPaymentMethodLabel(method)}</TableCell>
+  const renderFixedAnnualView = () => {
+    return (
+      <div className="rounded-lg border bg-background overflow-hidden">
+        <div className="max-h-[68vh] overflow-auto" dir="rtl">
+          <table className="w-full min-w-[1280px] table-fixed border-separate border-spacing-0">
+            <thead className="sticky top-0 z-30 bg-background shadow-sm">
+              <tr>
+                <th className="sticky top-0 right-0 z-40 bg-primary/25 dark:bg-primary/45 text-foreground border-b border-border min-w-[180px] w-[180px] text-right px-3 py-3 font-bold">תלמידה</th>
+                <th className="sticky top-0 z-30 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border min-w-[110px] w-[110px] text-right px-3 py-3 font-bold">אמצעי תשלום</th>
                 {academicMonths.map(month => {
-                  const year = parseInt(month.key, 10) >= 9 ? selectedYear : selectedYear + 1;
-                  const monthKey = getMonthKey(month.key, year);
-                  const display = getCellDisplay(student, month.key, method);
-                  const isEditing = editingCell?.studentId === student.id && editingCell?.month === monthKey;
-
+                  const isHighlighted = regularMonthFilter === month.key;
                   return (
-                    <TableCell key={month.key} className="p-1 align-top text-center">
-                      {isEditing ? (
-                        <div className="space-y-1">
-                          <Input
-                            value={editAmount}
-                            onChange={(e) => setEditAmount(e.target.value)}
-                            className="h-8 text-center"
-                            autoFocus
-                          />
-                          <div className="flex gap-1 justify-center">
-                            <Button size="sm" className="h-7 px-2" onClick={handleSaveEdit}>שמור</Button>
-                            <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setEditingCell(null)}>ביטול</Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={!display.clickable}
-                          onClick={() => display.clickable && handleCellClick(student.id, month.key, getPaymentForMonth(student.id, month.key)?.status || 'not_paid', method)}
-                          className={`w-full rounded-md px-2 py-1 text-center text-xs ${display.className} ${!display.clickable ? 'cursor-default' : ''}`}
-                        >
-                          {display.text}
-                        </button>
-                      )}
-                    </TableCell>
+                    <th
+                      key={month.key}
+                      className={`sticky top-0 z-30 min-w-[78px] w-[78px] text-center px-1 py-3 font-bold border-b border-border text-foreground ${isHighlighted ? 'bg-primary/20 dark:bg-primary/35' : 'bg-muted/95 dark:bg-muted/80'}`}
+                    >
+                      {month.name}
+                    </th>
                   );
                 })}
-                <TableCell className="text-center font-semibold">₪{formatCurrencyAmount(totalPaid)}</TableCell>
-                <TableCell className="text-center font-semibold">₪{formatCurrencyAmount(annualTarget)}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
-  );
+                <th className="sticky top-0 z-30 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border min-w-[100px] w-[100px] text-center px-2 py-3 font-bold">סה"כ שולם</th>
+                <th className="sticky top-0 z-30 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border min-w-[100px] w-[100px] text-center px-2 py-3 font-bold">יעד שנתי</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStudents.map(student => {
+                const totalPaid = calculateTotalPaid(student.id);
+                const annualTarget = student.calculatedAmount || student.annualAmount || (student.monthlyAmount * student.paymentMonths);
+                const method = getStudentPaymentMethod(student.id);
+
+                return (
+                  <tr key={student.id} className="hover:bg-muted/30">
+                    <td className="sticky right-0 z-20 bg-accent/55 dark:bg-accent/35 text-foreground text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold px-3 py-2">
+                      {getStudentFullName(student)}
+                    </td>
+                    <td className="text-right px-3 py-2">{getPaymentMethodLabel(method)}</td>
+                    {academicMonths.map(month => {
+                      const year = parseInt(month.key, 10) >= 9 ? selectedYear : selectedYear + 1;
+                      const monthKey = getMonthKey(month.key, year);
+                      const display = getCellDisplay(student, month.key, method);
+                      const isEditing = editingCell?.studentId === student.id && editingCell?.month === monthKey;
+
+                      return (
+                        <td key={month.key} className="p-1 align-top text-center">
+                          {isEditing ? (
+                            <div className="space-y-1">
+                              <Input
+                                value={editAmount}
+                                onChange={(e) => setEditAmount(e.target.value)}
+                                className="h-8 text-center"
+                                autoFocus
+                              />
+                              <div className="flex gap-1 justify-center">
+                                <Button size="sm" className="h-7 px-2" onClick={handleSaveEdit}>שמור</Button>
+                                <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setEditingCell(null)}>ביטול</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={!display.clickable}
+                              onClick={() => display.clickable && handleCellClick(student.id, month.key, getPaymentForMonth(student.id, month.key)?.status || 'not_paid', method)}
+                              className={`w-full rounded-md px-2 py-1 text-center text-xs ${display.className} ${!display.clickable ? 'cursor-default' : ''}`}
+                            >
+                              {display.text}
+                            </button>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="text-center font-semibold px-2 py-2">₪{formatCurrencyAmount(totalPaid)}</td>
+                    <td className="text-center font-semibold px-2 py-2">₪{formatCurrencyAmount(annualTarget)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   const renderFixedMonthlyView = () => (
     <div className="relative rounded-lg border overflow-auto max-h-[68vh] bg-background" dir="rtl">
       <Table className="w-full min-w-[760px] table-fixed">
         <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
           <TableRow>
-            <TableHead className="sticky top-0 right-0 z-40 bg-primary/15 text-primary border-b border-primary/20 text-right min-w-[220px] w-[220px]">שם תלמידה</TableHead>
-            <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[120px] w-[120px]">אמצעי תשלום</TableHead>
-            <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[120px] w-[120px]">סכום חודשי</TableHead>
-            <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[180px] w-[180px]">סטטוס תשלום</TableHead>
+            <TableHead className="sticky top-0 right-0 z-40 bg-primary/20 dark:bg-primary/40 text-foreground border-b border-border text-right min-w-[220px] w-[220px]">שם תלמידה</TableHead>
+            <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[120px] w-[120px]">אמצעי תשלום</TableHead>
+            <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[120px] w-[120px]">סכום חודשי</TableHead>
+            <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[180px] w-[180px]">סטטוס תשלום</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -950,7 +954,7 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
             const display = getCellDisplay(student, selectedMonth, method);
             return (
               <TableRow key={student.id} className="hover:bg-muted/40">
-                <TableCell className="sticky right-0 z-20 bg-accent/60 text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">
+                <TableCell className="sticky right-0 z-20 bg-accent/55 dark:bg-accent/35 text-foreground text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">
                   {getStudentFullName(student)}
                 </TableCell>
                 <TableCell className="text-right">{getPaymentMethodLabel(method)}</TableCell>
@@ -976,14 +980,14 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
         <Table className="w-full min-w-[1100px] table-fixed">
           <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
             <TableRow>
-              <TableHead className="sticky top-0 right-0 z-40 bg-primary/15 text-primary border-b border-primary/20 text-right min-w-[220px] w-[220px]">תלמידה</TableHead>
-              <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[110px] w-[110px]">מחיר/שיעור</TableHead>
-              <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[110px] w-[110px]">שיעורים שניתנו</TableHead>
-              <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[110px] w-[110px]">חיוב כולל</TableHead>
-              <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[110px] w-[110px]">שולם</TableHead>
-              <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[130px] w-[130px]">מאזן</TableHead>
-              <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[130px] w-[130px]">סכום לתשלום</TableHead>
-              <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[170px] w-[170px]">פעולה</TableHead>
+              <TableHead className="sticky top-0 right-0 z-40 bg-primary/20 dark:bg-primary/40 text-foreground border-b border-border text-right min-w-[220px] w-[220px]">תלמידה</TableHead>
+              <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[110px] w-[110px]">מחיר/שיעור</TableHead>
+              <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[110px] w-[110px]">שיעורים שניתנו</TableHead>
+              <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[110px] w-[110px]">חיוב כולל</TableHead>
+              <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[110px] w-[110px]">שולם</TableHead>
+              <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[130px] w-[130px]">מאזן</TableHead>
+              <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[130px] w-[130px]">סכום לתשלום</TableHead>
+              <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[170px] w-[170px]">פעולה</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -992,7 +996,7 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
 
               return (
                 <TableRow key={student.id} className="hover:bg-muted/40">
-                  <TableCell className="sticky right-0 z-20 bg-accent/60 text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">
+                  <TableCell className="sticky right-0 z-20 bg-accent/55 dark:bg-accent/35 text-foreground text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">
                     {getStudentFullName(student)}
                   </TableCell>
                   <TableCell className="text-right">₪{formatCurrencyAmount(student.lessonPrice || 0)}</TableCell>
@@ -1050,70 +1054,72 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
     const yearlyTotal = academicMonths.reduce((sum, month) => sum + getAllPaymentsBreakdownForMonth(month.key).total, 0);
     const yearlyTithe = yearlyTotal * 0.1;
     const rows = [
-      { key: 'checks', label: "תשלומים קבועים צ'קים", value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).regularChecks, rowClass: 'bg-primary/5 hover:bg-primary/10', firstCellClass: 'bg-primary/10 text-primary', valueClass: 'text-primary/90' },
-      { key: 'bank', label: 'תשלומים קבועים בנק', value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).regularBank, rowClass: 'bg-primary/10 hover:bg-primary/20', firstCellClass: 'bg-primary/20 text-primary', valueClass: 'text-primary/90' },
-      { key: 'perLesson', label: 'תשלומים תלמידות ח"פ', value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).perLesson, rowClass: 'bg-primary/20 hover:bg-primary/25', firstCellClass: 'bg-primary/25 text-primary', valueClass: 'text-primary/90' },
-      { key: 'performances', label: 'תשלומים הופעות', value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).performances, rowClass: 'bg-primary/25 hover:bg-primary/30', firstCellClass: 'bg-primary/30 text-primary', valueClass: 'text-primary/90' },
-      { key: 'other', label: 'תשלומים אחר', value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).other, rowClass: 'bg-accent/40 hover:bg-accent/50', firstCellClass: 'bg-accent text-accent-foreground', valueClass: 'text-foreground' },
+      { key: 'checks', label: "תשלומים קבועים צ'קים", value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).regularChecks, rowClass: 'bg-primary/5 dark:bg-muted/95 dark:bg-muted/80 hover:bg-muted/95 dark:bg-muted/80 dark:hover:bg-primary/15', firstCellClass: 'bg-primary/30 dark:bg-primary/50 text-foreground', valueClass: 'text-foreground' },
+      { key: 'bank', label: 'תשלומים קבועים בנק', value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).regularBank, rowClass: 'bg-accent/20 dark:bg-accent/15 hover:bg-accent/30 dark:hover:bg-accent/20', firstCellClass: 'bg-accent/60 dark:bg-accent/35 text-foreground', valueClass: 'text-foreground' },
+      { key: 'perLesson', label: 'תשלומים תלמידות ח"פ', value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).perLesson, rowClass: 'bg-secondary/20 dark:bg-secondary/25 hover:bg-secondary/30 dark:hover:bg-secondary/35', firstCellClass: 'bg-secondary/50 dark:bg-secondary/40 text-secondary-foreground', valueClass: 'text-foreground' },
+      { key: 'performances', label: 'תשלומים הופעות', value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).performances, rowClass: 'bg-muted/40 dark:bg-muted/30 hover:bg-muted/60 dark:hover:bg-muted/40', firstCellClass: 'bg-muted dark:bg-muted/60 text-foreground', valueClass: 'text-foreground' },
+      { key: 'other', label: 'תשלומים אחר', value: (monthKey: string) => getAllPaymentsBreakdownForMonth(monthKey).other, rowClass: 'bg-primary/15 dark:bg-primary/20 hover:bg-primary/20 dark:hover:bg-primary/25', firstCellClass: 'bg-primary/40 dark:bg-primary/55 text-foreground', valueClass: 'text-foreground' },
     ];
 
     return (
       <div className="space-y-3">
         <p className="text-xs text-muted-foreground">בשורת "תשלומים אחר" נכללים תשלומים חד-פעמיים כלליים, וכן תשלומים קבועים שסומנו כמזומן.</p>
-        <div className="relative rounded-lg border overflow-auto max-h-[68vh] bg-background" dir="rtl">
-          <Table className="w-full min-w-[1280px] table-fixed">
-            <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
-              <TableRow>
-                <TableHead className="sticky top-0 right-0 z-40 bg-primary/15 text-primary border-b border-primary/20 text-right min-w-[200px] w-[200px]">סוג תשלום</TableHead>
-                {academicMonths.map(month => (
-                  <TableHead key={month.key} className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[100px] w-[100px]">{month.name}</TableHead>
-                ))}
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[120px] w-[120px]">סה"כ שנה</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map(row => {
-                const rowTotal = academicMonths.reduce((sum, month) => sum + row.value(month.key), 0);
-                return (
-                  <TableRow key={row.key} className={row.rowClass}>
-                    <TableCell className={`sticky right-0 z-20 text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold ${row.firstCellClass}`}>{row.label}</TableCell>
-                    {academicMonths.map(month => {
-                      const value = row.value(month.key);
-                      return <TableCell key={month.key} className={`text-center ${row.valueClass}`}>{value > 0 ? `₪${formatCurrencyAmount(value)}` : '-'}</TableCell>;
-                    })}
-                    <TableCell className={`text-center font-semibold ${row.valueClass}`}>₪{formatCurrencyAmount(rowTotal)}</TableCell>
-                  </TableRow>
-                );
-              })}
-              <TableRow className="bg-primary/10 font-bold hover:bg-primary/10">
-                <TableCell className="sticky right-0 z-20 bg-primary/20 text-primary text-right shadow-[-1px_0_0_0_hsl(var(--border))]">סה"כ חודשי</TableCell>
-                {academicMonths.map(month => {
-                  const breakdown = getAllPaymentsBreakdownForMonth(month.key);
-                  return <TableCell key={month.key} className="text-center text-primary">₪{formatCurrencyAmount(breakdown.total)}</TableCell>;
-                })}
-                <TableCell className="text-center text-primary">₪{formatCurrencyAmount(yearlyTotal)}</TableCell>
-              </TableRow>
-              <TableRow className="bg-accent/30 hover:bg-accent/30">
-                <TableCell className="sticky right-0 z-20 bg-accent text-accent-foreground font-semibold text-right shadow-[-1px_0_0_0_hsl(var(--border))]">מעשר</TableCell>
-                {academicMonths.map(month => {
-                  const breakdown = getAllPaymentsBreakdownForMonth(month.key);
-                  const isPaid = tithePaid[breakdown.monthKey] || false;
+        <div className="rounded-lg border bg-background overflow-hidden">
+          <div className="max-h-[68vh] overflow-auto" dir="rtl">
+            <table className="w-full min-w-[1280px] table-fixed border-separate border-spacing-0">
+              <thead className="sticky top-0 z-30 bg-background shadow-sm">
+                <tr>
+                  <th className="sticky top-0 right-0 z-40 bg-primary/25 dark:bg-primary/45 text-foreground border-b border-border text-right min-w-[200px] w-[200px] px-3 py-3 font-bold">סוג תשלום</th>
+                  {academicMonths.map(month => (
+                    <th key={month.key} className="sticky top-0 z-30 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[100px] w-[100px] px-2 py-3 font-bold">{month.name}</th>
+                  ))}
+                  <th className="sticky top-0 z-30 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[120px] w-[120px] px-2 py-3 font-bold">סה"כ שנה</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(row => {
+                  const rowTotal = academicMonths.reduce((sum, month) => sum + row.value(month.key), 0);
                   return (
-                    <TableCell key={month.key} className="align-top">
-                      <div className="space-y-2 text-center">
-                        <div className="font-semibold text-primary">₪{formatCurrencyAmount(breakdown.tithe)}</div>
-                        <div className="flex flex-col gap-1">
-                          <Button size="sm" variant="outline" onClick={() => handleTitheToggle(breakdown.monthKey, true)} className={`h-7 text-xs ${isPaid ? 'bg-primary/15 border-primary/30 text-primary' : 'bg-white'}`}>הופרש</Button>
-                          <Button size="sm" variant="outline" onClick={() => handleTitheToggle(breakdown.monthKey, false)} className={`h-7 text-xs ${!isPaid ? 'bg-accent border-primary/20 text-primary' : 'bg-white'}`}>לא הופרש</Button>
-                        </div>
-                      </div>
-                    </TableCell>
+                    <tr key={row.key} className={row.rowClass}>
+                      <td className={`sticky right-0 z-20 text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold px-3 py-3 ${row.firstCellClass}`}>{row.label}</td>
+                      {academicMonths.map(month => {
+                        const value = row.value(month.key);
+                        return <td key={month.key} className={`text-center px-2 py-3 ${row.valueClass}`}>{value > 0 ? `₪${formatCurrencyAmount(value)}` : '-'}</td>;
+                      })}
+                      <td className={`text-center font-semibold px-2 py-3 ${row.valueClass}`}>₪{formatCurrencyAmount(rowTotal)}</td>
+                    </tr>
                   );
                 })}
-                <TableCell className="text-center font-semibold text-primary">₪{formatCurrencyAmount(yearlyTithe)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+                <tr className="bg-primary/12 dark:bg-primary/20 font-bold">
+                  <td className="sticky right-0 z-20 bg-primary/30 dark:bg-primary/45 text-foreground text-right shadow-[-1px_0_0_0_hsl(var(--border))] px-3 py-3">סה"כ חודשי</td>
+                  {academicMonths.map(month => {
+                    const breakdown = getAllPaymentsBreakdownForMonth(month.key);
+                    return <td key={month.key} className="text-center text-foreground px-2 py-3">₪{formatCurrencyAmount(breakdown.total)}</td>;
+                  })}
+                  <td className="text-center text-foreground px-2 py-3">₪{formatCurrencyAmount(yearlyTotal)}</td>
+                </tr>
+                <tr className="bg-accent/20 dark:bg-accent/15">
+                  <td className="sticky right-0 z-20 bg-accent/70 dark:bg-accent/35 text-foreground font-semibold text-right shadow-[-1px_0_0_0_hsl(var(--border))] px-3 py-3">מעשר</td>
+                  {academicMonths.map(month => {
+                    const breakdown = getAllPaymentsBreakdownForMonth(month.key);
+                    const isPaid = tithePaid[breakdown.monthKey] || false;
+                    return (
+                      <td key={month.key} className="align-top px-2 py-3">
+                        <div className="space-y-2 text-center">
+                          <div className="font-semibold text-foreground">₪{formatCurrencyAmount(breakdown.tithe)}</div>
+                          <div className="flex flex-col gap-1">
+                            <Button size="sm" variant="outline" onClick={() => handleTitheToggle(breakdown.monthKey, true)} className={`h-7 text-xs ${isPaid ? 'bg-primary/15 dark:bg-primary/30 border-primary/30 text-foreground' : 'bg-background'}`}>הופרש</Button>
+                            <Button size="sm" variant="outline" onClick={() => handleTitheToggle(breakdown.monthKey, false)} className={`h-7 text-xs ${!isPaid ? 'bg-accent/60 dark:bg-accent/35 border-primary/20 text-foreground' : 'bg-background'}`}>לא הופרש</Button>
+                          </div>
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td className="text-center font-semibold text-foreground px-2 py-3">₪{formatCurrencyAmount(yearlyTithe)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
@@ -1134,27 +1140,27 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
           <Table className="w-full min-w-[980px] table-fixed">
             <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
               <TableRow>
-                <TableHead className="sticky top-0 right-0 z-40 bg-primary/15 text-primary border-b border-primary/20 text-right min-w-[130px] w-[130px]">תאריך</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[110px] w-[110px]">קבועים צ'קים</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[110px] w-[110px]">קבועים בנק</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[110px] w-[110px]">תלמידות ח"פ</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[110px] w-[110px]">הופעות</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[110px] w-[110px]">אחר</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[110px] w-[110px]">סה"כ</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[110px] w-[110px]">מעשר</TableHead>
+                <TableHead className="sticky top-0 right-0 z-40 bg-primary/20 dark:bg-primary/40 text-foreground border-b border-border text-right min-w-[130px] w-[130px]">תאריך</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[110px] w-[110px]">קבועים צ'קים</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[110px] w-[110px]">קבועים בנק</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[110px] w-[110px]">תלמידות ח"פ</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[110px] w-[110px]">הופעות</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[110px] w-[110px]">אחר</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[110px] w-[110px]">סה"כ</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[110px] w-[110px]">מעשר</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {dailyRows.map(row => (
                 <TableRow key={row.date} className="hover:bg-muted/40">
-                  <TableCell className="sticky right-0 z-20 bg-accent/60 text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">{formatDisplayDate(row.date)}</TableCell>
+                  <TableCell className="sticky right-0 z-20 bg-accent/55 dark:bg-accent/35 text-foreground text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">{formatDisplayDate(row.date)}</TableCell>
                   <TableCell className="text-center">{row.regularChecks > 0 ? `₪${formatCurrencyAmount(row.regularChecks)}` : '-'}</TableCell>
                   <TableCell className="text-center">{row.regularBank > 0 ? `₪${formatCurrencyAmount(row.regularBank)}` : '-'}</TableCell>
                   <TableCell className="text-center">{row.perLesson > 0 ? `₪${formatCurrencyAmount(row.perLesson)}` : '-'}</TableCell>
                   <TableCell className="text-center">{row.performances > 0 ? `₪${formatCurrencyAmount(row.performances)}` : '-'}</TableCell>
                   <TableCell className="text-center">{row.other > 0 ? `₪${formatCurrencyAmount(row.other)}` : '-'}</TableCell>
-                  <TableCell className="text-center font-bold text-green-700">₪{formatCurrencyAmount(row.total)}</TableCell>
-                  <TableCell className="text-center text-amber-700">₪{formatCurrencyAmount(row.tithe)}</TableCell>
+                  <TableCell className="text-center font-bold text-emerald-700 dark:text-emerald-300">₪{formatCurrencyAmount(row.total)}</TableCell>
+                  <TableCell className="text-center text-amber-700 dark:text-amber-300">₪{formatCurrencyAmount(row.tithe)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1180,17 +1186,17 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
           <div className="rounded-lg border p-3 bg-background"><div className="text-xs text-muted-foreground">תלמידות ח"פ</div><div className="font-bold">₪{formatCurrencyAmount(breakdown.perLesson)}</div></div>
           <div className="rounded-lg border p-3 bg-background"><div className="text-xs text-muted-foreground">הופעות</div><div className="font-bold">₪{formatCurrencyAmount(breakdown.performances)}</div></div>
           <div className="rounded-lg border p-3 bg-background"><div className="text-xs text-muted-foreground">אחר</div><div className="font-bold">₪{formatCurrencyAmount(breakdown.other)}</div></div>
-          <div className="rounded-lg border p-3 bg-green-50 border-green-200"><div className="text-xs text-muted-foreground">סה"כ {monthLabel}</div><div className="font-bold text-green-700">₪{formatCurrencyAmount(breakdown.total)}</div></div>
+          <div className="rounded-lg border p-3 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60"><div className="text-xs text-muted-foreground">סה"כ {monthLabel}</div><div className="font-bold text-emerald-700 dark:text-emerald-300">₪{formatCurrencyAmount(breakdown.total)}</div></div>
         </div>
 
         <div className="rounded-lg border overflow-auto max-h-[44vh]" dir="rtl">
           <Table className="w-full min-w-[760px] table-fixed">
             <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
               <TableRow>
-                <TableHead className="sticky top-0 right-0 z-40 bg-primary/15 text-primary border-b border-primary/20 text-right min-w-[220px] w-[220px]">שם תלמידה</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[120px] w-[120px]">אמצעי תשלום</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[120px] w-[120px]">סכום חודשי</TableHead>
-                <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[180px] w-[180px]">סטטוס תשלום</TableHead>
+                <TableHead className="sticky top-0 right-0 z-40 bg-primary/20 dark:bg-primary/40 text-foreground border-b border-border text-right min-w-[220px] w-[220px]">שם תלמידה</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[120px] w-[120px]">אמצעי תשלום</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[120px] w-[120px]">סכום חודשי</TableHead>
+                <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[180px] w-[180px]">סטטוס תשלום</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1199,7 +1205,7 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
                 const display = getCellDisplay(student, selectedMonth, method);
                 return (
                   <TableRow key={student.id} className="hover:bg-muted/40">
-                    <TableCell className="sticky right-0 z-20 bg-accent/60 text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">{getStudentFullName(student)}</TableCell>
+                    <TableCell className="sticky right-0 z-20 bg-accent/55 dark:bg-accent/35 text-foreground text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">{getStudentFullName(student)}</TableCell>
                     <TableCell className="text-right">{getPaymentMethodLabel(method)}</TableCell>
                     <TableCell className="text-right">₪{formatCurrencyAmount(student.monthlyAmount || 0)}</TableCell>
                     <TableCell className="text-right"><div className={`inline-flex rounded-md px-3 py-1 text-sm ${display.className}`}>{display.text}</div></TableCell>
@@ -1220,17 +1226,17 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
                 <Table className="w-full min-w-[760px] table-fixed">
                   <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
                     <TableRow>
-                      <TableHead className="sticky top-0 right-0 z-40 bg-primary/15 text-primary border-b border-primary/20 text-right min-w-[260px] w-[260px]">תיאור</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[130px] w-[130px]">תאריך תשלום</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[130px] w-[130px]">חודש דיווח</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[120px] w-[120px]">סכום</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[90px] w-[90px]">עריכה</TableHead>
+                      <TableHead className="sticky top-0 right-0 z-40 bg-primary/20 dark:bg-primary/40 text-foreground border-b border-border text-right min-w-[260px] w-[260px]">תיאור</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[130px] w-[130px]">תאריך תשלום</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[130px] w-[130px]">חודש דיווח</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[120px] w-[120px]">סכום</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[90px] w-[90px]">עריכה</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {monthOtherPayments.map(payment => (
                       <TableRow key={payment.id} className="hover:bg-muted/40">
-                        <TableCell className="sticky right-0 z-20 bg-accent/60 text-right shadow-[-1px_0_0_0_hsl(var(--border))]">{payment.description}</TableCell>
+                        <TableCell className="sticky right-0 z-20 bg-accent/55 dark:bg-accent/35 text-foreground text-right shadow-[-1px_0_0_0_hsl(var(--border))]">{payment.description}</TableCell>
                         <TableCell className="text-right">{formatDisplayDate(payment.paidDate)}</TableCell>
                         <TableCell className="text-right">{payment.month}</TableCell>
                         <TableCell className="text-right font-semibold">₪{formatCurrencyAmount(payment.amount)}</TableCell>
@@ -1262,20 +1268,20 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
                 <Table className="w-full min-w-[980px] table-fixed">
                   <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
                     <TableRow>
-                      <TableHead className="sticky top-0 right-0 z-40 bg-primary/15 text-primary border-b border-primary/20 text-right min-w-[220px] w-[220px]">הופעה</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[160px] w-[160px]">לקוחה</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[120px] w-[120px]">תאריך הופעה</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[120px] w-[120px]">תאריך תשלום</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[100px] w-[100px]">סכום</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[100px] w-[100px]">נסיעות</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-right min-w-[110px] w-[110px]">סה"כ</TableHead>
-                      <TableHead className="sticky top-0 bg-primary/10 text-primary border-b border-primary/20 text-center min-w-[90px] w-[90px]">עריכה</TableHead>
+                      <TableHead className="sticky top-0 right-0 z-40 bg-primary/20 dark:bg-primary/40 text-foreground border-b border-border text-right min-w-[220px] w-[220px]">הופעה</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[160px] w-[160px]">לקוחה</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[120px] w-[120px]">תאריך הופעה</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[120px] w-[120px]">תאריך תשלום</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[100px] w-[100px]">סכום</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[100px] w-[100px]">נסיעות</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-right min-w-[110px] w-[110px]">סה"כ</TableHead>
+                      <TableHead className="sticky top-0 bg-muted/95 dark:bg-muted/80 text-foreground border-b border-border text-center min-w-[90px] w-[90px]">עריכה</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {monthPerformances.map(performance => (
                       <TableRow key={performance.id} className="hover:bg-muted/40">
-                        <TableCell className="sticky right-0 z-20 bg-accent/60 text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">{performance.name}</TableCell>
+                        <TableCell className="sticky right-0 z-20 bg-accent/55 dark:bg-accent/35 text-foreground text-right shadow-[-1px_0_0_0_hsl(var(--border))] font-semibold">{performance.name}</TableCell>
                         <TableCell className="text-right">{performance.client || '-'}</TableCell>
                         <TableCell className="text-right">{formatDisplayDate(performance.date)}</TableCell>
                         <TableCell className="text-right">{formatDisplayDate(performance.paidDate)}</TableCell>
@@ -1299,9 +1305,9 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
         <Card className="bg-amber-50 border-amber-200">
           <CardContent className="pt-6">
             <div className="space-y-3">
-              <div className="flex justify-between items-center"><h4 className="font-bold text-foreground">מעשר (10%)</h4><div className="text-xl font-bold text-amber-700">₪{formatCurrencyAmount(breakdown.tithe)}</div></div>
+              <div className="flex justify-between items-center"><h4 className="font-bold text-foreground">מעשר (10%)</h4><div className="text-xl font-bold text-amber-700 dark:text-amber-300">₪{formatCurrencyAmount(breakdown.tithe)}</div></div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => handleTitheToggle(monthKey, true)} className={`flex-1 ${isPaid ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`}>הופרש</Button>
+                <Button variant="outline" onClick={() => handleTitheToggle(monthKey, true)} className={`flex-1 ${isPaid ? 'bg-green-100 border-green-300 text-emerald-700 dark:text-emerald-300 hover:bg-green-200' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`}>הופרש</Button>
                 <Button variant="outline" onClick={() => handleTitheToggle(monthKey, false)} className={`flex-1 ${!isPaid ? 'bg-red-100 border-red-300 text-red-700 hover:bg-red-200' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`}>לא הופרש</Button>
               </div>
             </div>
@@ -1845,7 +1851,7 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
                 ) : (
                   <div className="border rounded-lg max-h-[360px] overflow-auto">
                     <Table>
-                      <TableHeader className="bg-primary/10">
+                      <TableHeader className="bg-muted/95 dark:bg-muted/80">
                         <TableRow>
                           <TableHead className="text-right">תאריך שיעור</TableHead>
                           <TableHead className="text-right">סכום לתשלום</TableHead>
@@ -1859,7 +1865,7 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
                         {ledger.rows.map(row => (
                           row.rowType === 'credit' ? (
                             <TableRow key={row.id}>
-                              <TableCell className="font-medium text-green-700">עודף לתשלום עתידי</TableCell>
+                              <TableCell className="font-medium text-emerald-700 dark:text-emerald-300">עודף לתשלום עתידי</TableCell>
                               <TableCell>-</TableCell>
                               <TableCell className="text-green-600 font-medium">₪{formatCurrencyAmount(row.amountPaid)}</TableCell>
                               <TableCell>{row.paymentDates.map(date => formatDisplayDate(date)).join(', ') || '-'}</TableCell>
