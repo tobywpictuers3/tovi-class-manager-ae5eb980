@@ -81,26 +81,25 @@ const Homepage = () => {
     <div className="min-h-screen relative overflow-x-hidden page-enter">
       <BsiataDishmaya />
 
-      {/* דשבורד עליון: STICKY (לא נחתך, והגלילה מתחילה מתחתיו טבעי) */}
       <header className="sticky top-0 z-50">
-        {/* שקוף לגמרי: לא מוסיפים שום bg/blur כדי לא “להלבין” את הרקע */}
-        <div className="relative flex items-start justify-center px-4 pt-2 pb-1">
-          <div className="absolute left-4 top-3">
-            <ThemeToggle />
-          </div>
+  <div className="relative flex items-start justify-center px-4 pt-3 pb-2 md:pt-4 md:pb-3">
+    <div className="absolute left-4 top-3">
+      <ThemeToggle />
+    </div>
 
-          {/* הלוגו לא נחתך: נותנים maxHeight + object-contain */}
-          <img
-            src={ASSETS.logos.noBackground}
-            alt="Toby Music Logo"
-            className="w-[92%] max-w-3xl object-contain drop-shadow-2xl"
-            style={{
-              maxHeight: 160,
-              marginTop: 4,
-            }}
-          />
-        </div>
-      </header>
+    <img
+      src={ASSETS.logos.noBackground}
+      alt="Toby Music Logo"
+      className="
+        block
+        w-[78%] sm:w-[82%] md:w-[90%] lg:w-full
+        max-w-[240px] sm:max-w-md md:max-w-4xl lg:max-w-5xl
+        max-h-[90px] sm:max-h-[120px] md:max-h-[180px] lg:max-h-[260px]
+        h-auto object-contain drop-shadow-2xl
+      "
+    />
+  </div>
+</header>
 
       {/* Main Content */}
       <div className="relative z-10 min-h-screen flex flex-col items-center px-4 pb-10 pt-6">
