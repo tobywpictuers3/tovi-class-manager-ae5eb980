@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/safe-ui/dialog';
 import { Label } from '@/components/safe-ui/label';
 import { CreditCard, ChevronRight, ChevronLeft, Download, Coins, Plus, Pencil, Trash2, Calendar } from 'lucide-react';
-import { getStudents, getPayments, savePayments, updateStudent, getPerformances, getOneTimePayments, saveOneTimePayments, updateOneTimePayment, deleteOneTimePayment, getTithePaid, saveTithePaid, getCompletedLessonsCount, recordPerLessonPayment, getPerLessonPayments, getStudentPerLessonPayments, getStudentPerLessonLedger, updatePerLessonPayment, deletePerLessonPayment } from '@/lib/storage';
+import { getStudents, getPayments, savePayments, updateStudent, getPerformances, getOneTimePayments, saveOneTimePayments, updateOneTimePayment, deleteOneTimePayment, getTithePaid, saveTithePaid, getCompletedLessonsCount, recordPerLessonPayment, getPerLessonPayments, getStudentPerLessonPayments, getStudentPerLessonLedger, updatePerLessonPayment, deletePerLessonPayment, updatePerformance, deletePerformance } from '@/lib/storage';
 import { Payment, Student, OneTimePayment, Performance, PerLessonPayment } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/safe-ui/badge';
@@ -17,7 +17,7 @@ import { format } from 'date-fns';
 const PaymentManagement = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [activePaymentsTab, setActivePaymentsTab] = useState<'fixed' | 'perLesson' | 'all'>('fixed');
+  const [activePaymentsTab, setActivePaymentsTab] = useState<'fixed' | 'perLesson' | 'all'>('all');
   const [fixedPaymentsView, setFixedPaymentsView] = useState<'annual' | 'monthly'>('annual');
   const [allPaymentsView, setAllPaymentsView] = useState<'annual' | 'monthly' | 'daily'>('annual');
   const [regularMonthFilter, setRegularMonthFilter] = useState<string>('all');
@@ -564,6 +564,10 @@ const handleAddOneTimePayment = () => {
   const [editingOneTimePayment, setEditingOneTimePayment] = useState<OneTimePayment | null>(null);
   const [showEditOneTimeDialog, setShowEditOneTimeDialog] = useState(false);
 
+  // Performance payment edit state
+  const [editingPerformance, setEditingPerformance] = useState<Performance | null>(null);
+  const [showEditPerformanceDialog, setShowEditPerformanceDialog] = useState(false);
+
   // Per-lesson payment edit/view state
   const [editingPerLessonPayment, setEditingPerLessonPayment] = useState<PerLessonPayment | null>(null);
   const [showEditPerLessonDialog, setShowEditPerLessonDialog] = useState(false);
@@ -631,6 +635,31 @@ const handleAddOneTimePayment = () => {
     await deleteOneTimePayment(id);
     loadData();
     toast({ description: 'התשלום נמחק' });
+  };
+
+  const handleEditPerformance = () => {
+    if (!editingPerformance) return;
+
+    updatePerformance(editingPerformance.id, {
+      name: editingPerformance.name,
+      client: editingPerformance.client,
+      amount: editingPerformance.amount,
+      travel: editingPerformance.travel,
+      paidDate: editingPerformance.paidDate,
+      notes: editingPerformance.notes,
+      paymentStatus: editingPerformance.paymentStatus,
+    });
+
+    loadData();
+    setShowEditPerformanceDialog(false);
+    setEditingPerformance(null);
+    toast({ description: 'תשלום ההופעה עודכן בהצלחה' });
+  };
+
+  const handleDeletePerformancePayment = async (id: string) => {
+    await deletePerformance(id);
+    loadData();
+    toast({ description: 'תשלום ההופעה נמחק' });
   };
 
   const handleEditPerLessonPayment = () => {
@@ -737,6 +766,24 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
       total,
       tithe: total * 0.1,
     };
+  };
+
+  const getOneTimePaymentsForMonthDetailed = (monthNum: string) => {
+    const monthKey = getAcademicMonthKey(monthNum);
+
+    return oneTimePayments
+      .filter(payment => payment.month === monthKey)
+      .slice()
+      .sort((a, b) => (b.paidDate || '').localeCompare(a.paidDate || ''));
+  };
+
+  const getPerformancesForMonthDetailed = (monthNum: string) => {
+    const monthKey = getAcademicMonthKey(monthNum);
+
+    return getPerformances()
+      .filter(performance => performance.paidDate && performance.paidDate.startsWith(monthKey))
+      .slice()
+      .sort((a, b) => (b.paidDate || '').localeCompare(a.paidDate || ''));
   };
 
   const getDailyAllPaymentsRows = () => {
@@ -1122,6 +1169,8 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
     const monthLabel = academicMonths.find(month => month.key === selectedMonth)?.fullName || 'בחר חודש';
     const monthKey = getAcademicMonthKey(selectedMonth);
     const isPaid = tithePaid[monthKey] || false;
+    const monthOtherPayments = getOneTimePaymentsForMonthDetailed(selectedMonth);
+    const monthPerformances = getPerformancesForMonthDetailed(selectedMonth);
 
     return (
       <div className="space-y-4">
@@ -1161,19 +1210,91 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
           </Table>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          {calculateOneTimePaymentsForMonth(selectedMonth) > 0 && (
-            <Card className="bg-[hsl(0,65%,35%)] border-[hsl(0,65%,35%)]"><CardContent className="pt-6"><h4 className="font-bold mb-2 text-[hsl(45,95%,55%)]">תשלומים נוספים (אחר)</h4><div className="space-y-2">{oneTimePayments.filter(otp => otp.month === monthKey).map(otp => (<div key={otp.id} className="flex justify-between items-center text-sm group"><div className="flex items-center gap-2"><span className="text-[hsl(45,95%,55%)]">{otp.description}</span><Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditingOneTimePayment(otp); setShowEditOneTimeDialog(true); }}><Pencil className="h-3 w-3 text-[hsl(45,95%,55%)]" /></Button></div><span className="font-semibold text-[hsl(45,95%,55%)]">₪{formatCurrencyAmount(otp.amount)}</span></div>))}</div></CardContent></Card>
-          )}
+        {monthOtherPayments.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">פירוט תשלומים אחרים</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border overflow-auto max-h-[260px]" dir="rtl">
+                <Table className="w-full min-w-[760px] table-fixed">
+                  <TableHeader className="sticky top-0 z-30 bg-muted/95">
+                    <TableRow>
+                      <TableHead className="sticky top-0 right-0 z-40 bg-muted text-right min-w-[260px] w-[260px]">תיאור</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-right min-w-[130px] w-[130px]">תאריך תשלום</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-right min-w-[130px] w-[130px]">חודש דיווח</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-right min-w-[120px] w-[120px]">סכום</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-center min-w-[90px] w-[90px]">עריכה</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {monthOtherPayments.map(payment => (
+                      <TableRow key={payment.id} className="hover:bg-muted/40">
+                        <TableCell className="sticky right-0 z-20 bg-background text-right shadow-[-1px_0_0_0_hsl(var(--border))]">{payment.description}</TableCell>
+                        <TableCell className="text-right">{formatDisplayDate(payment.paidDate)}</TableCell>
+                        <TableCell className="text-right">{payment.month}</TableCell>
+                        <TableCell className="text-right font-semibold">₪{formatCurrencyAmount(payment.amount)}</TableCell>
+                        <TableCell className="text-center">
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingOneTimePayment(payment); setShowEditOneTimeDialog(true); }}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-          {calculatePerLessonTotalForMonth(selectedMonth) > 0 && (
-            <Card className="bg-[hsl(0,65%,35%)] border-[hsl(0,65%,35%)]"><CardContent className="pt-6"><h4 className="font-bold mb-2 text-[hsl(45,95%,55%)] flex items-center gap-2"><Coins className="h-4 w-4" />הכנסות משיעורים חד-פעמיים</h4><div className="space-y-2">{calculatePerLessonPaymentsForMonth(selectedMonth).map(plp => { const student = students.find(s => s.id === plp.studentId); return (<div key={plp.id} className="flex justify-between items-center text-sm group"><div className="flex items-center gap-2"><span className="text-[hsl(45,95%,55%)]">{student ? getStudentFullName(student) : 'תלמידה'}</span><span className="text-[hsl(45,95%,55%)]/70 text-xs">({formatDisplayDate(plp.paymentDate)})</span><Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditingPerLessonPayment(plp); setShowEditPerLessonDialog(true); }}><Pencil className="h-3 w-3 text-[hsl(45,95%,55%)]" /></Button></div><span className="font-semibold text-[hsl(45,95%,55%)]">₪{formatCurrencyAmount(plp.amount)}</span></div>); })}</div></CardContent></Card>
-          )}
+        {calculatePerLessonTotalForMonth(selectedMonth) > 0 && (
+          <Card className="bg-[hsl(0,65%,35%)] border-[hsl(0,65%,35%)]"><CardContent className="pt-6"><h4 className="font-bold mb-2 text-[hsl(45,95%,55%)] flex items-center gap-2"><Coins className="h-4 w-4" />הכנסות משיעורים חד-פעמיים</h4><div className="space-y-2">{calculatePerLessonPaymentsForMonth(selectedMonth).map(plp => { const student = students.find(s => s.id === plp.studentId); return (<div key={plp.id} className="flex justify-between items-center text-sm group"><div className="flex items-center gap-2"><span className="text-[hsl(45,95%,55%)]">{student ? getStudentFullName(student) : 'תלמידה'}</span><span className="text-[hsl(45,95%,55%)]/70 text-xs">({formatDisplayDate(plp.paymentDate)})</span><Button size="sm" variant="ghost" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => { setEditingPerLessonPayment(plp); setShowEditPerLessonDialog(true); }}><Pencil className="h-3 w-3 text-[hsl(45,95%,55%)]" /></Button></div><span className="font-semibold text-[hsl(45,95%,55%)]">₪{formatCurrencyAmount(plp.amount)}</span></div>); })}</div></CardContent></Card>
+        )}
 
-          {calculatePerformancesForMonth(selectedMonth) > 0 && (
-            <Card className="bg-[hsl(0,65%,35%)] border-[hsl(0,65%,35%)]"><CardContent className="pt-6"><h4 className="font-bold mb-2 text-[hsl(45,95%,55%)]">הופעות</h4><div className="space-y-2">{getPerformances().filter(perf => perf.paidDate && perf.paidDate.startsWith(monthKey)).map(perf => (<div key={perf.id} className="space-y-1"><div className="flex justify-between items-center text-sm"><span className="text-[hsl(45,95%,55%)]">{perf.name}</span><span className="font-semibold text-[hsl(45,95%,55%)]">₪{formatCurrencyAmount((perf.amount || 0) + (perf.travel || 0))}</span></div></div>))}</div></CardContent></Card>
-          )}
-        </div>
+        {monthPerformances.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">פירוט תשלומי הופעות</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border overflow-auto max-h-[260px]" dir="rtl">
+                <Table className="w-full min-w-[980px] table-fixed">
+                  <TableHeader className="sticky top-0 z-30 bg-muted/95">
+                    <TableRow>
+                      <TableHead className="sticky top-0 right-0 z-40 bg-muted text-right min-w-[220px] w-[220px]">הופעה</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-right min-w-[160px] w-[160px]">לקוחה</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-right min-w-[120px] w-[120px]">תאריך הופעה</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-right min-w-[120px] w-[120px]">תאריך תשלום</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-right min-w-[100px] w-[100px]">סכום</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-right min-w-[100px] w-[100px]">נסיעות</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-right min-w-[110px] w-[110px]">סה"כ</TableHead>
+                      <TableHead className="sticky top-0 bg-muted text-center min-w-[90px] w-[90px]">עריכה</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {monthPerformances.map(performance => (
+                      <TableRow key={performance.id} className="hover:bg-muted/40">
+                        <TableCell className="sticky right-0 z-20 bg-background text-right font-semibold shadow-[-1px_0_0_0_hsl(var(--border))]">{performance.name}</TableCell>
+                        <TableCell className="text-right">{performance.client || '-'}</TableCell>
+                        <TableCell className="text-right">{formatDisplayDate(performance.date)}</TableCell>
+                        <TableCell className="text-right">{formatDisplayDate(performance.paidDate)}</TableCell>
+                        <TableCell className="text-right">₪{formatCurrencyAmount(performance.amount || 0)}</TableCell>
+                        <TableCell className="text-right">₪{formatCurrencyAmount(performance.travel || 0)}</TableCell>
+                        <TableCell className="text-right font-semibold">₪{formatCurrencyAmount((performance.amount || 0) + (performance.travel || 0))}</TableCell>
+                        <TableCell className="text-center">
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingPerformance(performance); setShowEditPerformanceDialog(true); }}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="bg-amber-50 border-amber-200">
           <CardContent className="pt-6">
@@ -1535,6 +1656,86 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
                   <Trash2 className="h-4 w-4" />
                 </Button>
                 <Button variant="outline" onClick={() => setShowEditOneTimeDialog(false)}>ביטול</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Performance Payment Dialog */}
+      <Dialog open={showEditPerformanceDialog} onOpenChange={setShowEditPerformanceDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>עריכת תשלום הופעה</DialogTitle>
+          </DialogHeader>
+          {editingPerformance && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-performance-name">שם הופעה</Label>
+                <Input
+                  id="edit-performance-name"
+                  value={editingPerformance.name || ''}
+                  onChange={(e) => setEditingPerformance({ ...editingPerformance, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-performance-client">לקוחה</Label>
+                <Input
+                  id="edit-performance-client"
+                  value={editingPerformance.client || ''}
+                  onChange={(e) => setEditingPerformance({ ...editingPerformance, client: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-performance-amount">סכום</Label>
+                  <Input
+                    id="edit-performance-amount"
+                    type="number"
+                    value={editingPerformance.amount ?? ''}
+                    onChange={(e) => setEditingPerformance({ ...editingPerformance, amount: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-performance-travel">נסיעות</Label>
+                  <Input
+                    id="edit-performance-travel"
+                    type="number"
+                    value={editingPerformance.travel ?? ''}
+                    onChange={(e) => setEditingPerformance({ ...editingPerformance, travel: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-performance-paid-date">תאריך תשלום</Label>
+                <Input
+                  id="edit-performance-paid-date"
+                  type="date"
+                  value={editingPerformance.paidDate?.split('T')[0] || ''}
+                  onChange={(e) => setEditingPerformance({ ...editingPerformance, paidDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-performance-notes">הערות</Label>
+                <Textarea
+                  id="edit-performance-notes"
+                  value={editingPerformance.notes || ''}
+                  onChange={(e) => setEditingPerformance({ ...editingPerformance, notes: e.target.value })}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleEditPerformance} className="flex-1">שמור</Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={async () => {
+                    await handleDeletePerformancePayment(editingPerformance.id);
+                    setShowEditPerformanceDialog(false);
+                    setEditingPerformance(null);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" onClick={() => setShowEditPerformanceDialog(false)}>ביטול</Button>
               </div>
             </div>
           )}
