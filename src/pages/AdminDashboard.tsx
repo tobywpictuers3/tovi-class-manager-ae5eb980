@@ -86,14 +86,22 @@ const AdminDashboard = () => {
       sessionStorage.setItem('musicSystem_devMode', 'true');
       setDevMode(true);
       window.history.replaceState({}, '', '/admin/default');
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }, [isStorybook]);
 
   const getTabName = (tab: string) => {
     const tabNames: Record<string, string> = {
-      journal: 'יומן שיעורים', students: 'תלמידות', 
-      payments: 'תשלומים', performances: 'הופעות', practice: 'נתוני אימונים',
-      messages: 'תקשורת', backup: 'גיבוי', 'fixed-schedule': 'מערכת קבועה', history: 'היסטוריה'
+      journal: 'יומן שיעורים',
+      students: 'תלמידות',
+      payments: 'תשלומים',
+      performances: 'הופעות',
+      practice: 'נתוני אימונים',
+      messages: 'תקשורת',
+      backup: 'גיבוי',
+      'fixed-schedule': 'מערכת קבועה',
+      history: 'היסטוריה'
     };
     return tabNames[tab] || 'תצוגה';
   };
@@ -122,13 +130,21 @@ const AdminDashboard = () => {
       '⚠️ האם את בטוחה שברצונך למחוק את כל נתוני האימונים והמדליות?\n\n' +
       'הפעולה תמחק:\n✗ כל שיעורי האימון הרשומים\n✗ כל ההישגים החודשיים\n✗ כל המדליות שנצברו\n\nפעולה זו לא ניתנת לביטול!'
     );
+
     if (confirmClear) {
       try {
         clearPracticeAndMedalData();
-        toast({ title: '✅ הנתונים נמחקו בהצלחה', description: 'כל נתוני האימונים והמדליות נמחקו. הדף יתרענן.' });
+        toast({
+          title: '✅ הנתונים נמחקו בהצלחה',
+          description: 'כל נתוני האימונים והמדליות נמחקו. הדף יתרענן.'
+        });
         setTimeout(() => window.location.reload(), 1500);
       } catch (error) {
-        toast({ title: '❌ שגיאה במחיקת הנתונים', description: 'אירעה תקלה. נסי שוב.', variant: 'destructive' });
+        toast({
+          title: '❌ שגיאה במחיקת הנתונים',
+          description: 'אירעה תקלה. נסי שוב.',
+          variant: 'destructive'
+        });
       }
     }
   };
@@ -143,10 +159,12 @@ const AdminDashboard = () => {
               <h1 className="text-2xl md:text-3xl font-bold text-gold title-glow">
                 דשבורד ניהול - מערכת שיעורי נגינה
               </h1>
+
               <div className="flex gap-2 items-center">
                 <ThemeToggle />
                 <UnreadMessagesBadge userId="admin" />
                 <SyncStatusBadge />
+
                 <div className="relative">
                   <SaveButton />
                   <div className="absolute -top-1 -right-1 flex h-3 w-3">
@@ -154,7 +172,9 @@ const AdminDashboard = () => {
                     <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
                   </div>
                 </div>
+
                 <PrintPDFButton contentId="main-content" tabName={getTabName(activeTab)} />
+
                 <Button
                   onClick={handleLogout}
                   variant="outline"
@@ -172,52 +192,55 @@ const AdminDashboard = () => {
       <div className="max-h-screen overflow-y-auto">
         <div id="main-content" className="container mx-auto p-4 space-y-6 pt-2">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-9 card-gradient card-shadow">
-  <TabsTrigger value="journal" className="flex items-center gap-2">
-    <Calendar className="h-4 w-4" />
-    יומן שיעורים
-  </TabsTrigger>
+            <TabsList
+              dir="ltr"
+              className="w-full h-auto card-gradient card-shadow rounded-xl justify-start overflow-x-auto p-1 gap-1"
+            >
+              <TabsTrigger value="journal" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+                <Calendar className="h-4 w-4" />
+                יומן שיעורים
+              </TabsTrigger>
 
-  <TabsTrigger value="students" className="flex items-center gap-2">
-    <Users className="h-4 w-4" />
-    תלמידות
-  </TabsTrigger>
+              <TabsTrigger value="students" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+                <Users className="h-4 w-4" />
+                תלמידות
+              </TabsTrigger>
 
-  <TabsTrigger value="payments" className="flex items-center gap-2">
-    <CreditCard className="h-4 w-4" />
-    תשלומים
-  </TabsTrigger>
+              <TabsTrigger value="payments" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+                <CreditCard className="h-4 w-4" />
+                תשלומים
+              </TabsTrigger>
 
-  <TabsTrigger value="performances" className="flex items-center gap-2">
-    <Music className="h-4 w-4" />
-    הופעות
-  </TabsTrigger>
+              <TabsTrigger value="performances" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+                <Music className="h-4 w-4" />
+                הופעות
+              </TabsTrigger>
 
-  <TabsTrigger value="practice" className="flex items-center gap-2">
-    <Trophy className="h-4 w-4" />
-    נתוני אימונים
-  </TabsTrigger>
+              <TabsTrigger value="practice" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+                <Trophy className="h-4 w-4" />
+                נתוני אימונים
+              </TabsTrigger>
 
-  <TabsTrigger value="messages" className="flex items-center gap-2">
-    <MessageSquare className="h-4 w-4" />
-    תקשורת
-  </TabsTrigger>
+              <TabsTrigger value="messages" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+                <MessageSquare className="h-4 w-4" />
+                תקשורת
+              </TabsTrigger>
 
-  <TabsTrigger value="backup" className="flex items-center gap-2">
-    <FileText className="h-4 w-4" />
-    גיבוי
-  </TabsTrigger>
+              <TabsTrigger value="backup" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+                <FileText className="h-4 w-4" />
+                גיבוי
+              </TabsTrigger>
 
-  <TabsTrigger value="fixed-schedule" className="flex items-center gap-2">
-    <Settings className="h-4 w-4" />
-    מערכת קבועה
-  </TabsTrigger>
+              <TabsTrigger value="fixed-schedule" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+                <Settings className="h-4 w-4" />
+                מערכת קבועה
+              </TabsTrigger>
 
-  <TabsTrigger value="history" className="flex items-center gap-2">
-    <History className="h-4 w-4" />
-    היסטוריה
-  </TabsTrigger>
-</TabsList>
+              <TabsTrigger value="history" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+                <History className="h-4 w-4" />
+                היסטוריה
+              </TabsTrigger>
+            </TabsList>
 
             <TabsContent value="students" className="fade-slide-in">
               <BrandSection index={0}>
@@ -275,6 +298,7 @@ const AdminDashboard = () => {
                     </Button>
                   </div>
                 </BrandSection>
+
                 <BackupImport />
               </div>
             </TabsContent>
