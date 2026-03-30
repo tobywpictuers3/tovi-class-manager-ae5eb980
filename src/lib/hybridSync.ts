@@ -59,6 +59,9 @@ class HybridSyncManager {
   private pendingQueue: Array<() => Promise<void>> = [];
 
   private isSyncingInternal = false;
+  private pendingResync = false;
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private debounceResolvers: Array<(result: { success: boolean; synced: boolean; message: string }) => void> = [];
 
   constructor() {
     this.setupNetworkListeners();
