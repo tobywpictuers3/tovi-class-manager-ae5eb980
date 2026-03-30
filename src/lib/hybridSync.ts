@@ -581,7 +581,10 @@ class HybridSyncManager {
     }
   }
 
-  private async processPendingQueue() {
+  private gatherAllData(): any {
+    return exportAllData();
+  }
+
     if (this.pendingQueue.length === 0) return;
 
     logger.info(`🔄 Processing ${this.pendingQueue.length} pending changes...`);
