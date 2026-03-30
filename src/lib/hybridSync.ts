@@ -393,7 +393,6 @@ class HybridSyncManager {
 
   async onDataChange(): Promise<{ success: boolean; synced: boolean; message: string }> {
     if (isDevMode()) {
-      // even in dev, show local save time
       this.setLastLocalSaveNow();
       return { success: true, synced: true, message: 'נשמר במצב מפתחים' };
     }
@@ -411,13 +410,29 @@ class HybridSyncManager {
       };
     }
 
-    const success = await this.syncToWorker();
+    // Debounce: wait 500ms for rapid-fire changes to settle
+    return new Promise((resolve) => {
+      this.debounceResolvers.push(resolve);
 
-    if (success) {
-      return { success: true, synced: true, message: 'נשמר בדרופבוקס בהצלחה' };
-    } else {
-      return { success: true, synced: false, message: 'נשמר מקומית, ננסה שוב בעוד 2 דקות' };
-    }
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+
+      this.debounceTimer = setTimeout(async () => {
+        this.debounceTimer = null;
+        logger.info(`🔄 Debounce settled, syncing (${this.debounceResolvers.length} queued calls)...`);
+
+        const success = await this.syncToWorker();
+        const result = success
+          ? { success: true, synced: true, message: 'נשמר בדרופבוקס בהצלחה' }
+          : { success: true, synced: false, message: 'נשמר מקומית, ננסה שוב בעוד 2 דקות' };
+
+        // Resolve all waiting callers
+        const resolvers = [...this.debounceResolvers];
+        this.debounceResolvers = [];
+        resolvers.forEach((r) => r(result));
+      }, 500);
+    });
   }
 
   async onDestructiveChange(): Promise<{ success: boolean; synced: boolean; message: string }> {
