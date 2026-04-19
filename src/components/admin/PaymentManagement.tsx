@@ -17,9 +17,11 @@ import { format } from 'date-fns';
 const PaymentManagement = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [activePaymentsTab, setActivePaymentsTab] = useState<'fixed' | 'perLesson' | 'all'>('all');
+  const [activePaymentsTab, setActivePaymentsTab] = useState<'all' | 'fixed' | 'perLesson' | 'performances' | 'other'>('all');
   const [fixedPaymentsView, setFixedPaymentsView] = useState<'annual' | 'monthly'>('annual');
   const [allPaymentsView, setAllPaymentsView] = useState<'annual' | 'monthly' | 'daily'>('annual');
+  const [performancesView, setPerformancesView] = useState<'annual' | 'monthly'>('annual');
+  const [otherView, setOtherView] = useState<'annual' | 'monthly'>('annual');
   const [regularMonthFilter, setRegularMonthFilter] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>(() => {
     const now = new Date();
@@ -468,7 +470,147 @@ const academicYearOptions = Array.from({ length: 11 }, (_, i) => selectedYear - 
       .reduce((sum, otp) => sum + otp.amount, 0);
   };
 
-  
+  // ===== Top-level Performance & Other payment tabs =====
+
+  const renderPerformancesTable = (
+    rows: Array<{ paymentId: string; performance: Performance; paymentDate: string; paidAmount: number; method?: string }>,
+    emptyText: string
+  ) => {
+    if (rows.length === 0) {
+      return <div className="text-sm text-muted-foreground p-4 text-center border border-dashed rounded">{emptyText}</div>;
+    }
+    return (
+      <div className="rounded-lg border overflow-auto max-h-[60vh]" dir="rtl">
+        <Table className="w-full min-w-[980px] table-fixed">
+          <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
+            <TableRow>
+              <TableHead className="text-right">הופעה</TableHead>
+              <TableHead className="text-right">לקוחה</TableHead>
+              <TableHead className="text-right">תאריך הופעה</TableHead>
+              <TableHead className="text-right">תאריך תשלום</TableHead>
+              <TableHead className="text-right">סכום ששולם (הכנסה)</TableHead>
+              <TableHead className="text-right">נסיעות בתשלום (לא הכנסה)</TableHead>
+              <TableHead className="text-right">סטטוס</TableHead>
+              <TableHead className="text-center">עריכה</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(row => {
+              const status = getPerformancePaymentStatus(row.performance);
+              const totalDue = row.performance.amount || 0;
+              const totalPaid = getPerformancePaidTotal(row.performance);
+              const pp = (row.performance.performancePayments || []).find(p => p.id === row.paymentId);
+              const ppTravel = pp?.travel || 0;
+              return (
+                <TableRow key={row.paymentId} className="hover:bg-muted/40">
+                  <TableCell className="text-right font-semibold">{row.performance.name}</TableCell>
+                  <TableCell className="text-right">{row.performance.client || '-'}</TableCell>
+                  <TableCell className="text-right">{formatDisplayDate(row.performance.date)}</TableCell>
+                  <TableCell className="text-right">{formatDisplayDate(row.paymentDate)}</TableCell>
+                  <TableCell className="text-right font-semibold">₪{formatCurrencyAmount(row.paidAmount)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{ppTravel > 0 ? `₪${formatCurrencyAmount(ppTravel)}` : '-'}</TableCell>
+                  <TableCell className="text-right">
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${status === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : status === 'partial' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200'}`}>
+                      {status === 'paid' ? 'שולם' : status === 'partial' ? `חלקי ₪${formatCurrencyAmount(totalPaid)}/₪${formatCurrencyAmount(totalDue)}` : 'לא שולם'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button size="sm" variant="ghost" onClick={() => { setEditingPerformance(row.performance); setShowEditPerformanceDialog(true); }}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const renderPerformancesAnnualTab = () => {
+    const rows = getPerformancePaymentsForYearDetailed();
+    const total = rows.reduce((s, r) => s + r.paidAmount, 0);
+    return (
+      <div className="space-y-3">
+        <div className="text-sm font-semibold">סה"כ תשלומי הופעות בשנה: ₪{formatCurrencyAmount(total)} <span className="text-xs text-muted-foreground font-normal">(ללא נסיעות)</span></div>
+        {renderPerformancesTable(rows, 'לא נרשמו תשלומי הופעות בשנה זו')}
+      </div>
+    );
+  };
+
+  const renderPerformancesMonthlyTab = () => {
+    const rows = getPerformancesForMonthDetailed(selectedMonth);
+    const monthLabel = academicMonths.find(m => m.key === selectedMonth)?.fullName || '';
+    const total = rows.reduce((s, r) => s + r.paidAmount, 0);
+    return (
+      <div className="space-y-3">
+        <div className="text-sm font-semibold">סה"כ תשלומי הופעות ב{monthLabel}: ₪{formatCurrencyAmount(total)} <span className="text-xs text-muted-foreground font-normal">(ללא נסיעות)</span></div>
+        {renderPerformancesTable(rows, 'לא נרשמו תשלומי הופעות בחודש זה')}
+      </div>
+    );
+  };
+
+  const renderOtherTable = (rows: OneTimePayment[], emptyText: string) => {
+    if (rows.length === 0) {
+      return <div className="text-sm text-muted-foreground p-4 text-center border border-dashed rounded">{emptyText}</div>;
+    }
+    return (
+      <div className="rounded-lg border overflow-auto max-h-[60vh]" dir="rtl">
+        <Table className="w-full min-w-[700px] table-fixed">
+          <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
+            <TableRow>
+              <TableHead className="text-right">תיאור</TableHead>
+              <TableHead className="text-right">תאריך תשלום</TableHead>
+              <TableHead className="text-right">חודש דיווח</TableHead>
+              <TableHead className="text-right">סכום</TableHead>
+              <TableHead className="text-center">עריכה</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(payment => (
+              <TableRow key={payment.id} className="hover:bg-muted/40">
+                <TableCell className="text-right">{payment.description}</TableCell>
+                <TableCell className="text-right">{formatDisplayDate(payment.paidDate)}</TableCell>
+                <TableCell className="text-right">{payment.month}</TableCell>
+                <TableCell className="text-right font-semibold">₪{formatCurrencyAmount(payment.amount)}</TableCell>
+                <TableCell className="text-center">
+                  <Button size="sm" variant="ghost" onClick={() => { setEditingOneTimePayment(payment); setShowEditOneTimeDialog(true); }}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const renderOtherAnnualTab = () => {
+    const rows = getOneTimePaymentsForYearDetailed();
+    const total = rows.reduce((s, p) => s + p.amount, 0);
+    return (
+      <div className="space-y-3">
+        <div className="text-sm font-semibold">סה"כ תשלומים אחרים בשנה: ₪{formatCurrencyAmount(total)}</div>
+        {renderOtherTable(rows, 'לא נרשמו תשלומים אחרים בשנה זו')}
+      </div>
+    );
+  };
+
+  const renderOtherMonthlyTab = () => {
+    const rows = getOneTimePaymentsForMonthDetailed(selectedMonth);
+    const monthLabel = academicMonths.find(m => m.key === selectedMonth)?.fullName || '';
+    const total = rows.reduce((s, p) => s + p.amount, 0);
+    return (
+      <div className="space-y-3">
+        <div className="text-sm font-semibold">סה"כ תשלומים אחרים ב{monthLabel}: ₪{formatCurrencyAmount(total)}</div>
+        {renderOtherTable(rows, 'לא נרשמו תשלומים אחרים בחודש זה')}
+      </div>
+    );
+  };
+
+
 const handleAddOneTimePayment = () => {
   if (
     !newOneTimePayment.description.trim() ||
@@ -660,6 +802,7 @@ const handleAddOneTimePayment = () => {
   // Partial-payment editor state (used inside Edit Performance dialog)
   const [newPpDate, setNewPpDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newPpAmount, setNewPpAmount] = useState('');
+  const [newPpTravel, setNewPpTravel] = useState('');
   const [newPpMethod, setNewPpMethod] = useState<'bank' | 'check' | 'cash'>('bank');
   const [newPpNotes, setNewPpNotes] = useState('');
 
@@ -670,9 +813,11 @@ const handleAddOneTimePayment = () => {
       toast({ title: 'שגיאה', description: 'יש להזין סכום תשלום חיובי', variant: 'destructive' });
       return;
     }
+    const travelAmt = parseFloat(newPpTravel) || 0;
     const updated = addPerformancePayment(editingPerformance.id, {
       date: newPpDate,
       amount: amt,
+      travel: travelAmt > 0 ? travelAmt : undefined,
       method: newPpMethod,
       notes: newPpNotes || undefined,
     });
@@ -680,6 +825,7 @@ const handleAddOneTimePayment = () => {
       setEditingPerformance(updated);
       loadData();
       setNewPpAmount('');
+      setNewPpTravel('');
       setNewPpNotes('');
       toast({ description: 'תשלום נוסף' });
     }
@@ -1181,7 +1327,7 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
           </div>
         </div>
 
-        {renderAnnualPaymentsDetailTabs()}
+        {/* Performances & other-payments details now live in dedicated top-level tabs */}
       </div>
     );
   };
@@ -1577,9 +1723,11 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Button variant={activePaymentsTab === 'all' ? 'default' : 'outline'} onClick={() => setActivePaymentsTab('all')}>כל התשלומים</Button>
             <Button variant={activePaymentsTab === 'fixed' ? 'default' : 'outline'} onClick={() => setActivePaymentsTab('fixed')}>תשלומים קבועים</Button>
             <Button variant={activePaymentsTab === 'perLesson' ? 'default' : 'outline'} onClick={() => setActivePaymentsTab('perLesson')}>תשלומים ח"פ</Button>
-            <Button variant={activePaymentsTab === 'all' ? 'default' : 'outline'} onClick={() => setActivePaymentsTab('all')}>כל התשלומים</Button>
+            <Button variant={activePaymentsTab === 'performances' ? 'default' : 'outline'} onClick={() => setActivePaymentsTab('performances')}>תשלומי הופעות</Button>
+            <Button variant={activePaymentsTab === 'other' ? 'default' : 'outline'} onClick={() => setActivePaymentsTab('other')}>תשלומים אחרים</Button>
           </div>
 
           {activePaymentsTab === 'fixed' && (
@@ -1646,12 +1794,56 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
               <div className="flex items-center rounded-md border px-3 text-sm text-muted-foreground">שנה"ל {selectedYear}-{String(selectedYear + 1).slice(-2)}</div>
             </div>
           )}
+
+          {activePaymentsTab === 'performances' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Select value={performancesView} onValueChange={(v: 'annual' | 'monthly') => setPerformancesView(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="annual">תצוגה שנתית</SelectItem>
+                  <SelectItem value="monthly">תצוגה חודשית</SelectItem>
+                </SelectContent>
+              </Select>
+              {performancesView === 'monthly' && (
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger><SelectValue placeholder="בחר חודש" /></SelectTrigger>
+                  <SelectContent>
+                    {academicMonths.map(month => <SelectItem key={month.key} value={month.key}>{month.fullName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              <div className="flex items-center rounded-md border px-3 text-sm text-muted-foreground">שנה"ל {selectedYear}-{String(selectedYear + 1).slice(-2)} · נסיעות לא נכללות בהכנסה</div>
+            </div>
+          )}
+
+          {activePaymentsTab === 'other' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Select value={otherView} onValueChange={(v: 'annual' | 'monthly') => setOtherView(v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="annual">תצוגה שנתית</SelectItem>
+                  <SelectItem value="monthly">תצוגה חודשית</SelectItem>
+                </SelectContent>
+              </Select>
+              {otherView === 'monthly' && (
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger><SelectValue placeholder="בחר חודש" /></SelectTrigger>
+                  <SelectContent>
+                    {academicMonths.map(month => <SelectItem key={month.key} value={month.key}>{month.fullName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+              <div className="flex items-center rounded-md border px-3 text-sm text-muted-foreground">שנה"ל {selectedYear}-{String(selectedYear + 1).slice(-2)}</div>
+            </div>
+          )}
         </CardHeader>
 
         <CardContent>
           {activePaymentsTab === 'fixed' && (fixedPaymentsView === 'annual' ? renderFixedAnnualView() : renderFixedMonthlyView())}
           {activePaymentsTab === 'perLesson' && renderPerLessonView()}
           {activePaymentsTab === 'all' && (allPaymentsView === 'annual' ? renderAllPaymentsAnnualView() : allPaymentsView === 'monthly' ? renderAllPaymentsMonthlyView() : renderAllPaymentsDailyView())}
+          {activePaymentsTab === 'performances' && (performancesView === 'annual' ? renderPerformancesAnnualTab() : renderPerformancesMonthlyTab())}
+          {activePaymentsTab === 'other' && (otherView === 'annual' ? renderOtherAnnualTab() : renderOtherMonthlyTab())}
         </CardContent>
       </Card>
 
@@ -1958,6 +2150,9 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
                         <div key={pp.id} className="flex items-center gap-2 text-sm bg-background rounded px-2 py-1.5 border">
                           <span className="font-mono">{formatDisplayDate(pp.date)}</span>
                           <span className="font-semibold">₪{formatCurrencyAmount(pp.amount)}</span>
+                          {!!pp.travel && pp.travel > 0 && (
+                            <span className="text-xs text-muted-foreground">+ נסיעות ₪{formatCurrencyAmount(pp.travel)}</span>
+                          )}
                           {pp.method && <span className="text-xs text-muted-foreground">({pp.method === 'bank' ? 'בנק' : pp.method === 'check' ? 'צ׳ק' : 'מזומן'})</span>}
                           {pp.notes && <span className="text-xs text-muted-foreground truncate flex-1">{pp.notes}</span>}
                           <Button size="sm" variant="ghost" className="h-7 px-2 mr-auto" onClick={() => handleDeletePerformancePaymentInline(pp.id)}>
@@ -1968,14 +2163,18 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 pt-2 border-t">
                     <div>
                       <Label className="text-xs">תאריך</Label>
                       <Input type="date" value={newPpDate} onChange={(e) => setNewPpDate(e.target.value)} className="h-9" />
                     </div>
                     <div>
-                      <Label className="text-xs">סכום</Label>
+                      <Label className="text-xs">סכום (הכנסה)</Label>
                       <Input type="number" value={newPpAmount} onChange={(e) => setNewPpAmount(e.target.value)} className="h-9" placeholder="₪" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">נסיעות (לא הכנסה)</Label>
+                      <Input type="number" value={newPpTravel} onChange={(e) => setNewPpTravel(e.target.value)} className="h-9" placeholder="₪" />
                     </div>
                     <div>
                       <Label className="text-xs">אמצעי</Label>
@@ -1993,7 +2192,7 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
                         <Plus className="h-4 w-4 ml-1" /> הוסף תשלום
                       </Button>
                     </div>
-                    <div className="col-span-2 md:col-span-4">
+                    <div className="col-span-2 md:col-span-5">
                       <Input value={newPpNotes} onChange={(e) => setNewPpNotes(e.target.value)} placeholder="הערות לתשלום (אופציונלי)" className="h-9" />
                     </div>
                   </div>
