@@ -780,7 +780,7 @@ const migratePerformanceShape = (perf: Performance): Performance => {
           id: `${perf.id}-legacy`,
           date: perf.paidDate.slice(0, 10),
           amount: perf.amount,
-          method: perf.paymentStatus === 'not_paid' ? undefined : perf.paymentStatus,
+          method: (perf.paymentStatus as any) === 'not_paid' ? undefined : (perf.paymentStatus as 'bank' | 'check' | 'cash'),
           notes: 'מיגרציה אוטומטית מתשלום ישן',
         },
       ],
