@@ -54,6 +54,7 @@ const PerformancesManagement = () => {
   // Inline new-payment editor (used inside Edit dialog)
   const [newPpDate, setNewPpDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newPpAmount, setNewPpAmount] = useState('');
+  const [newPpTravel, setNewPpTravel] = useState('');
   const [newPpMethod, setNewPpMethod] = useState<'bank' | 'check' | 'cash'>('bank');
   const [newPpNotes, setNewPpNotes] = useState('');
 
@@ -185,9 +186,11 @@ const PerformancesManagement = () => {
       toast({ title: 'שגיאה', description: 'יש להזין סכום תשלום חיובי', variant: 'destructive' });
       return;
     }
+    const travelAmt = parseFloat(newPpTravel) || 0;
     const updated = addPerformancePayment(editingPerformance.id, {
       date: newPpDate,
       amount: amt,
+      travel: travelAmt > 0 ? travelAmt : undefined,
       method: newPpMethod,
       notes: newPpNotes || undefined,
     });
@@ -195,6 +198,7 @@ const PerformancesManagement = () => {
       setEditingPerformance(updated);
       loadData();
       setNewPpAmount('');
+      setNewPpTravel('');
       setNewPpNotes('');
       toast({ description: 'תשלום נוסף' });
     }
@@ -601,6 +605,9 @@ const PerformancesManagement = () => {
                         <div key={pp.id} className="flex items-center gap-2 text-sm bg-background rounded px-2 py-1.5 border">
                           <span className="font-mono">{format(new Date(pp.date), 'dd/MM/yyyy')}</span>
                           <span className="font-semibold">₪{formatCurrencyAmount(pp.amount)}</span>
+                          {!!pp.travel && pp.travel > 0 && (
+                            <span className="text-xs text-muted-foreground">+ נסיעות ₪{formatCurrencyAmount(pp.travel)}</span>
+                          )}
                           {pp.method && <span className="text-xs text-muted-foreground">({pp.method === 'bank' ? 'בנק' : pp.method === 'check' ? 'צ׳ק' : 'מזומן'})</span>}
                           {pp.notes && <span className="text-xs text-muted-foreground truncate flex-1">{pp.notes}</span>}
                           <Button size="sm" variant="ghost" className="h-7 px-2 mr-auto" onClick={() => handleDeletePaymentInline(pp.id)}>
@@ -611,14 +618,18 @@ const PerformancesManagement = () => {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 pt-2 border-t">
                     <div>
                       <Label className="text-xs">תאריך</Label>
                       <Input type="date" value={newPpDate} onChange={(e) => setNewPpDate(e.target.value)} className="h-9" />
                     </div>
                     <div>
-                      <Label className="text-xs">סכום</Label>
+                      <Label className="text-xs">סכום (הכנסה)</Label>
                       <Input type="number" value={newPpAmount} onChange={(e) => setNewPpAmount(e.target.value)} className="h-9" placeholder="₪" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">נסיעות (לא הכנסה)</Label>
+                      <Input type="number" value={newPpTravel} onChange={(e) => setNewPpTravel(e.target.value)} className="h-9" placeholder="₪" />
                     </div>
                     <div>
                       <Label className="text-xs">אמצעי</Label>
@@ -636,7 +647,7 @@ const PerformancesManagement = () => {
                         <Plus className="h-4 w-4 ml-1" /> הוסף תשלום
                       </Button>
                     </div>
-                    <div className="col-span-2 md:col-span-4">
+                    <div className="col-span-2 md:col-span-5">
                       <Input value={newPpNotes} onChange={(e) => setNewPpNotes(e.target.value)} placeholder="הערות לתשלום (אופציונלי)" className="h-9" />
                     </div>
                   </div>
