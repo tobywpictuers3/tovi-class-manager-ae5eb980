@@ -420,12 +420,14 @@ const academicYearOptions = Array.from({ length: 11 }, (_, i) => selectedYear - 
         total += otp.amount;
       });
 
-    // הופעות ששולמו בחודש זה
+    // הכנסות מהופעות בחודש זה — לפי תאריכי תשלום בפועל בלבד, ללא נסיעות
     const performances = getPerformances();
     performances.forEach(perf => {
-      if (perf.paidDate && perf.paidDate.startsWith(monthKey) && perf.amount) {
-        total += perf.amount + (perf.travel || 0);
-      }
+      (perf.performancePayments || []).forEach(pp => {
+        if (pp.date && pp.date.startsWith(monthKey)) {
+          total += pp.amount || 0;
+        }
+      });
     });
     
     // תשלומים עבור שיעורים חד-פעמיים
@@ -444,19 +446,17 @@ const academicYearOptions = Array.from({ length: 11 }, (_, i) => selectedYear - 
     const monthKey = getMonthKey(monthNum, year);
     
     const performances = getPerformances();
-    return performances
-      .filter(perf => perf.paidDate && perf.paidDate.startsWith(monthKey))
-      .reduce((sum, perf) => sum + (perf.amount || 0) + (perf.travel || 0), 0);
+    let sum = 0;
+    performances.forEach(perf => {
+      (perf.performancePayments || []).forEach(pp => {
+        if (pp.date && pp.date.startsWith(monthKey)) sum += pp.amount || 0;
+      });
+    });
+    return sum;
   };
 
   const calculatePerformancesOnlyForMonth = (monthNum: string) => {
-    const year = parseInt(monthNum) >= 9 ? selectedYear : selectedYear + 1;
-    const monthKey = getMonthKey(monthNum, year);
-    
-    const performances = getPerformances();
-    return performances
-      .filter(perf => perf.paidDate && perf.paidDate.startsWith(monthKey))
-      .reduce((sum, perf) => sum + (perf.amount || 0), 0);
+    return calculatePerformancesForMonth(monthNum);
   };
 
   const calculateOneTimePaymentsForMonth = (monthNum: string) => {
