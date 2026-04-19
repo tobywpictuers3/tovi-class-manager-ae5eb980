@@ -1890,82 +1890,141 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
       </Dialog>
 
       {/* Edit Performance Payment Dialog */}
-      <Dialog open={showEditPerformanceDialog} onOpenChange={setShowEditPerformanceDialog}>
-        <DialogContent>
+      <Dialog open={showEditPerformanceDialog} onOpenChange={(o) => { setShowEditPerformanceDialog(o); if (!o) setEditingPerformance(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>עריכת תשלום הופעה</DialogTitle>
           </DialogHeader>
-          {editingPerformance && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-performance-name">שם הופעה</Label>
-                <Input
-                  id="edit-performance-name"
-                  value={editingPerformance.name || ''}
-                  onChange={(e) => setEditingPerformance({ ...editingPerformance, name: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-performance-client">לקוחה</Label>
-                <Input
-                  id="edit-performance-client"
-                  value={editingPerformance.client || ''}
-                  onChange={(e) => setEditingPerformance({ ...editingPerformance, client: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {editingPerformance && (() => {
+            const totalDue = editingPerformance.amount || 0;
+            const totalPaid = getPerformancePaidTotal(editingPerformance);
+            const status = getPerformancePaymentStatus(editingPerformance);
+            const balance = totalDue - totalPaid;
+            return (
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-performance-amount">סכום</Label>
+                  <Label htmlFor="edit-performance-name">שם הופעה</Label>
                   <Input
-                    id="edit-performance-amount"
-                    type="number"
-                    value={editingPerformance.amount ?? ''}
-                    onChange={(e) => setEditingPerformance({ ...editingPerformance, amount: parseFloat(e.target.value) || 0 })}
+                    id="edit-performance-name"
+                    value={editingPerformance.name || ''}
+                    onChange={(e) => setEditingPerformance({ ...editingPerformance, name: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-performance-travel">נסיעות</Label>
+                  <Label htmlFor="edit-performance-client">לקוחה</Label>
                   <Input
-                    id="edit-performance-travel"
-                    type="number"
-                    value={editingPerformance.travel ?? ''}
-                    onChange={(e) => setEditingPerformance({ ...editingPerformance, travel: parseFloat(e.target.value) || 0 })}
+                    id="edit-performance-client"
+                    value={editingPerformance.client || ''}
+                    onChange={(e) => setEditingPerformance({ ...editingPerformance, client: e.target.value })}
                   />
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-performance-amount">סכום ההזמנה</Label>
+                    <Input
+                      id="edit-performance-amount"
+                      type="number"
+                      value={editingPerformance.amount ?? ''}
+                      onChange={(e) => setEditingPerformance({ ...editingPerformance, amount: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-performance-travel">נסיעות (לא נכלל בהכנסה)</Label>
+                    <Input
+                      id="edit-performance-travel"
+                      type="number"
+                      value={editingPerformance.travel ?? ''}
+                      onChange={(e) => setEditingPerformance({ ...editingPerformance, travel: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold text-sm">תשלומים שהתקבלו</div>
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${status === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : status === 'partial' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200'}`}>
+                      {status === 'paid' ? 'שולם' : status === 'partial' ? 'שולם חלקית' : 'לא שולם'}
+                    </span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    שולם ₪{formatCurrencyAmount(totalPaid)} מתוך ₪{formatCurrencyAmount(totalDue)}
+                    {balance > 0 && <span className="text-amber-700 dark:text-amber-300 mr-2">• יתרה ₪{formatCurrencyAmount(balance)}</span>}
+                    {balance < 0 && <span className="text-emerald-700 dark:text-emerald-300 mr-2">• עודף ₪{formatCurrencyAmount(Math.abs(balance))}</span>}
+                  </div>
+
+                  {(editingPerformance.performancePayments || []).length > 0 && (
+                    <div className="space-y-1">
+                      {(editingPerformance.performancePayments || []).slice().sort((a,b) => b.date.localeCompare(a.date)).map(pp => (
+                        <div key={pp.id} className="flex items-center gap-2 text-sm bg-background rounded px-2 py-1.5 border">
+                          <span className="font-mono">{formatDisplayDate(pp.date)}</span>
+                          <span className="font-semibold">₪{formatCurrencyAmount(pp.amount)}</span>
+                          {pp.method && <span className="text-xs text-muted-foreground">({pp.method === 'bank' ? 'בנק' : pp.method === 'check' ? 'צ׳ק' : 'מזומן'})</span>}
+                          {pp.notes && <span className="text-xs text-muted-foreground truncate flex-1">{pp.notes}</span>}
+                          <Button size="sm" variant="ghost" className="h-7 px-2 mr-auto" onClick={() => handleDeletePerformancePaymentInline(pp.id)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 border-t">
+                    <div>
+                      <Label className="text-xs">תאריך</Label>
+                      <Input type="date" value={newPpDate} onChange={(e) => setNewPpDate(e.target.value)} className="h-9" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">סכום</Label>
+                      <Input type="number" value={newPpAmount} onChange={(e) => setNewPpAmount(e.target.value)} className="h-9" placeholder="₪" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">אמצעי</Label>
+                      <Select value={newPpMethod} onValueChange={(v: 'bank' | 'check' | 'cash') => setNewPpMethod(v)}>
+                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bank">בנק</SelectItem>
+                          <SelectItem value="check">צ׳ק</SelectItem>
+                          <SelectItem value="cash">מזומן</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <Button onClick={handleAddPerformancePaymentInline} className="w-full h-9">
+                        <Plus className="h-4 w-4 ml-1" /> הוסף תשלום
+                      </Button>
+                    </div>
+                    <div className="col-span-2 md:col-span-4">
+                      <Input value={newPpNotes} onChange={(e) => setNewPpNotes(e.target.value)} placeholder="הערות לתשלום (אופציונלי)" className="h-9" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-performance-notes">הערות כלליות להופעה</Label>
+                  <Textarea
+                    id="edit-performance-notes"
+                    value={editingPerformance.notes || ''}
+                    onChange={(e) => setEditingPerformance({ ...editingPerformance, notes: e.target.value })}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => { handleEditPerformance(); setShowEditPerformanceDialog(false); }} className="flex-1">שמור וסגור</Button>
+                  <Button
+                    variant="destructive"
+                    onClick={async () => {
+                      if (!window.confirm('האם למחוק לחלוטין את ההופעה ואת כל תשלומיה?')) return;
+                      await handleDeletePerformancePayment(editingPerformance.id);
+                      setShowEditPerformanceDialog(false);
+                      setEditingPerformance(null);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowEditPerformanceDialog(false)}>סגור</Button>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-performance-paid-date">תאריך תשלום</Label>
-                <Input
-                  id="edit-performance-paid-date"
-                  type="date"
-                  value={editingPerformance.paidDate?.split('T')[0] || ''}
-                  onChange={(e) => setEditingPerformance({ ...editingPerformance, paidDate: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-performance-notes">הערות</Label>
-                <Textarea
-                  id="edit-performance-notes"
-                  value={editingPerformance.notes || ''}
-                  onChange={(e) => setEditingPerformance({ ...editingPerformance, notes: e.target.value })}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={handleEditPerformance} className="flex-1">שמור</Button>
-                <Button 
-                  variant="destructive" 
-                  onClick={async () => {
-                    await handleDeletePerformancePayment(editingPerformance.id);
-                    setShowEditPerformanceDialog(false);
-                    setEditingPerformance(null);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" onClick={() => setShowEditPerformanceDialog(false)}>ביטול</Button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
