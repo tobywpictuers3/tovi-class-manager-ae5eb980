@@ -1187,7 +1187,7 @@ const getStudentFullName = (student: Student) => `${student.firstName} ${student
           </div>
         </div>
 
-        {renderAnnualPaymentsDetailTabs()}
+        {/* Performances & other-payments details now live in dedicated top-level tabs */}
       </div>
     );
   };
