@@ -470,7 +470,147 @@ const academicYearOptions = Array.from({ length: 11 }, (_, i) => selectedYear - 
       .reduce((sum, otp) => sum + otp.amount, 0);
   };
 
-  
+  // ===== Top-level Performance & Other payment tabs =====
+
+  const renderPerformancesTable = (
+    rows: Array<{ paymentId: string; performance: Performance; paymentDate: string; paidAmount: number; method?: string }>,
+    emptyText: string
+  ) => {
+    if (rows.length === 0) {
+      return <div className="text-sm text-muted-foreground p-4 text-center border border-dashed rounded">{emptyText}</div>;
+    }
+    return (
+      <div className="rounded-lg border overflow-auto max-h-[60vh]" dir="rtl">
+        <Table className="w-full min-w-[980px] table-fixed">
+          <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
+            <TableRow>
+              <TableHead className="text-right">הופעה</TableHead>
+              <TableHead className="text-right">לקוחה</TableHead>
+              <TableHead className="text-right">תאריך הופעה</TableHead>
+              <TableHead className="text-right">תאריך תשלום</TableHead>
+              <TableHead className="text-right">סכום ששולם (הכנסה)</TableHead>
+              <TableHead className="text-right">נסיעות בתשלום (לא הכנסה)</TableHead>
+              <TableHead className="text-right">סטטוס</TableHead>
+              <TableHead className="text-center">עריכה</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(row => {
+              const status = getPerformancePaymentStatus(row.performance);
+              const totalDue = row.performance.amount || 0;
+              const totalPaid = getPerformancePaidTotal(row.performance);
+              const pp = (row.performance.performancePayments || []).find(p => p.id === row.paymentId);
+              const ppTravel = pp?.travel || 0;
+              return (
+                <TableRow key={row.paymentId} className="hover:bg-muted/40">
+                  <TableCell className="text-right font-semibold">{row.performance.name}</TableCell>
+                  <TableCell className="text-right">{row.performance.client || '-'}</TableCell>
+                  <TableCell className="text-right">{formatDisplayDate(row.performance.date)}</TableCell>
+                  <TableCell className="text-right">{formatDisplayDate(row.paymentDate)}</TableCell>
+                  <TableCell className="text-right font-semibold">₪{formatCurrencyAmount(row.paidAmount)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{ppTravel > 0 ? `₪${formatCurrencyAmount(ppTravel)}` : '-'}</TableCell>
+                  <TableCell className="text-right">
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${status === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : status === 'partial' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200'}`}>
+                      {status === 'paid' ? 'שולם' : status === 'partial' ? `חלקי ₪${formatCurrencyAmount(totalPaid)}/₪${formatCurrencyAmount(totalDue)}` : 'לא שולם'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button size="sm" variant="ghost" onClick={() => { setEditingPerformance(row.performance); setShowEditPerformanceDialog(true); }}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const renderPerformancesAnnualTab = () => {
+    const rows = getPerformancePaymentsForYearDetailed();
+    const total = rows.reduce((s, r) => s + r.paidAmount, 0);
+    return (
+      <div className="space-y-3">
+        <div className="text-sm font-semibold">סה"כ תשלומי הופעות בשנה: ₪{formatCurrencyAmount(total)} <span className="text-xs text-muted-foreground font-normal">(ללא נסיעות)</span></div>
+        {renderPerformancesTable(rows, 'לא נרשמו תשלומי הופעות בשנה זו')}
+      </div>
+    );
+  };
+
+  const renderPerformancesMonthlyTab = () => {
+    const rows = getPerformancesForMonthDetailed(selectedMonth);
+    const monthLabel = academicMonths.find(m => m.key === selectedMonth)?.fullName || '';
+    const total = rows.reduce((s, r) => s + r.paidAmount, 0);
+    return (
+      <div className="space-y-3">
+        <div className="text-sm font-semibold">סה"כ תשלומי הופעות ב{monthLabel}: ₪{formatCurrencyAmount(total)} <span className="text-xs text-muted-foreground font-normal">(ללא נסיעות)</span></div>
+        {renderPerformancesTable(rows, 'לא נרשמו תשלומי הופעות בחודש זה')}
+      </div>
+    );
+  };
+
+  const renderOtherTable = (rows: OneTimePayment[], emptyText: string) => {
+    if (rows.length === 0) {
+      return <div className="text-sm text-muted-foreground p-4 text-center border border-dashed rounded">{emptyText}</div>;
+    }
+    return (
+      <div className="rounded-lg border overflow-auto max-h-[60vh]" dir="rtl">
+        <Table className="w-full min-w-[700px] table-fixed">
+          <TableHeader className="sticky top-0 z-30 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/90">
+            <TableRow>
+              <TableHead className="text-right">תיאור</TableHead>
+              <TableHead className="text-right">תאריך תשלום</TableHead>
+              <TableHead className="text-right">חודש דיווח</TableHead>
+              <TableHead className="text-right">סכום</TableHead>
+              <TableHead className="text-center">עריכה</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map(payment => (
+              <TableRow key={payment.id} className="hover:bg-muted/40">
+                <TableCell className="text-right">{payment.description}</TableCell>
+                <TableCell className="text-right">{formatDisplayDate(payment.paidDate)}</TableCell>
+                <TableCell className="text-right">{payment.month}</TableCell>
+                <TableCell className="text-right font-semibold">₪{formatCurrencyAmount(payment.amount)}</TableCell>
+                <TableCell className="text-center">
+                  <Button size="sm" variant="ghost" onClick={() => { setEditingOneTimePayment(payment); setShowEditOneTimeDialog(true); }}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  const renderOtherAnnualTab = () => {
+    const rows = getOneTimePaymentsForYearDetailed();
+    const total = rows.reduce((s, p) => s + p.amount, 0);
+    return (
+      <div className="space-y-3">
+        <div className="text-sm font-semibold">סה"כ תשלומים אחרים בשנה: ₪{formatCurrencyAmount(total)}</div>
+        {renderOtherTable(rows, 'לא נרשמו תשלומים אחרים בשנה זו')}
+      </div>
+    );
+  };
+
+  const renderOtherMonthlyTab = () => {
+    const rows = getOneTimePaymentsForMonthDetailed(selectedMonth);
+    const monthLabel = academicMonths.find(m => m.key === selectedMonth)?.fullName || '';
+    const total = rows.reduce((s, p) => s + p.amount, 0);
+    return (
+      <div className="space-y-3">
+        <div className="text-sm font-semibold">סה"כ תשלומים אחרים ב{monthLabel}: ₪{formatCurrencyAmount(total)}</div>
+        {renderOtherTable(rows, 'לא נרשמו תשלומים אחרים בחודש זה')}
+      </div>
+    );
+  };
+
+
 const handleAddOneTimePayment = () => {
   if (
     !newOneTimePayment.description.trim() ||
