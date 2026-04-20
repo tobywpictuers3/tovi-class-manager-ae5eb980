@@ -203,42 +203,42 @@ const AdminDashboard = () => {
                 יומן שיעורים
               </TabsTrigger>
 
-              <TabsTrigger value="students" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+              <TabsTrigger value="students" className="shrink-0 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-2 min-h-[40px]">
                 <Users className="h-4 w-4" />
                 תלמידות
               </TabsTrigger>
 
-              <TabsTrigger value="payments" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+              <TabsTrigger value="payments" className="shrink-0 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-2 min-h-[40px]">
                 <CreditCard className="h-4 w-4" />
                 תשלומים
               </TabsTrigger>
 
-              <TabsTrigger value="performances" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+              <TabsTrigger value="performances" className="shrink-0 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-2 min-h-[40px]">
                 <Music className="h-4 w-4" />
                 הופעות
               </TabsTrigger>
 
-              <TabsTrigger value="practice" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+              <TabsTrigger value="practice" className="shrink-0 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-2 min-h-[40px]">
                 <Trophy className="h-4 w-4" />
                 נתוני אימונים
               </TabsTrigger>
 
-              <TabsTrigger value="messages" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+              <TabsTrigger value="messages" className="shrink-0 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-2 min-h-[40px]">
                 <MessageSquare className="h-4 w-4" />
                 תקשורת
               </TabsTrigger>
 
-              <TabsTrigger value="backup" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+              <TabsTrigger value="backup" className="shrink-0 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-2 min-h-[40px]">
                 <FileText className="h-4 w-4" />
                 גיבוי
               </TabsTrigger>
 
-              <TabsTrigger value="fixed-schedule" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+              <TabsTrigger value="fixed-schedule" className="shrink-0 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-2 min-h-[40px]">
                 <Settings className="h-4 w-4" />
                 מערכת קבועה
               </TabsTrigger>
 
-              <TabsTrigger value="history" className="shrink-0 flex items-center gap-2 whitespace-nowrap">
+              <TabsTrigger value="history" className="shrink-0 flex items-center gap-1.5 sm:gap-2 whitespace-nowrap text-xs sm:text-sm px-2 sm:px-3 py-2 min-h-[40px]">
                 <History className="h-4 w-4" />
                 היסטוריה
               </TabsTrigger>
