@@ -353,22 +353,19 @@ export default function MessagingTab() {
       type: 'general' as const,
     };
 
-    // Try to send via Gmail if we have recipient emails
+    // Save locally first (always)
+    addMessage(messageData);
+
+    // If there are real email recipients, open Gmail compose in a new tab
+    // so the teacher can review and send from her own Gmail account.
     if (recipientEmails.length > 0) {
-      const result = await sendMessageViaGmail(messageData, recipientEmails);
-      if (result) {
-        toast.success('ההודעה נשלחה בהצלחה דרך Gmail');
-        resetCompose();
-        loadData();
-        return;
-      }
-      // If Gmail send failed, fall back to local
-      console.warn('Gmail send failed, falling back to local message');
+      const url = buildGmailComposeUrl(recipientEmails, composeSubject, plain);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      toast.success('ההודעה נשמרה ונפתחה ב-Gmail לשליחה');
+    } else {
+      toast.success('ההודעה נשמרה');
     }
 
-    // Fallback: save locally only
-    addMessage(messageData);
-    toast.success('ההודעה נשלחה בהצלחה');
     resetCompose();
     loadData();
   };
